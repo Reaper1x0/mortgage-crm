@@ -1,0 +1,23 @@
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply bg-background text-text;
+  }
+}
+
+.react-pdf__Page {
+  display: inline-block;
+  line-height: 0;   /* removes extra line spacing */
+}
+
+.react-pdf__Page__canvas {
+  display: block;
+}
+

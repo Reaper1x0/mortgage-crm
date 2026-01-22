@@ -1,0 +1,149 @@
+
+.theme-light {
+  /* Base (more contrast so cards pop) */
+  --color-background: #eef3fb;  /* slightly stronger cool tint */
+  --color-text: #0b1220;        /* deeper than slate-900 */
+
+  /* Primary */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-border: #1e40af;
+  --color-primary-shadow: #cfe1ff; /* slightly stronger */
+  --color-primary-text: #ffffff;
+
+  /* Secondary */
+  --color-secondary: #334155;
+  --color-secondary-hover: #1f2937;
+  --color-secondary-border: #0b1220;
+  --color-secondary-shadow: #dbe6f6;
+  --color-secondary-text: #ffffff;
+
+  /* Accent */
+  --color-accent: #7c3aed;
+  --color-accent-hover: #6d28d9;
+  --color-accent-border: #5b21b6;
+  --color-accent-shadow: #e4dcff; /* stronger */
+  --color-accent-text: #ffffff;
+
+  /* Success */
+  --color-success: #16a34a;
+  --color-success-hover: #15803d;
+  --color-success-border: #166534;
+  --color-success-shadow: #c9f7d7; /* stronger */
+  --color-success-text: #ffffff;
+
+  /* Warning */
+  --color-warning: #f59e0b;
+  --color-warning-hover: #d97706;
+  --color-warning-border: #b45309;
+  --color-warning-shadow: #ffe2b5; /* stronger */
+  --color-warning-text: #0b1220;
+
+  /* Danger */
+  --color-danger: #e11d48;
+  --color-danger-hover: #be123c;
+  --color-danger-border: #9f1239;
+  --color-danger-shadow: #ffd0d8; /* stronger */
+  --color-danger-text: #ffffff;
+
+  /* Info */
+  --color-info: #0891b2;
+  --color-info-hover: #0e7490;
+  --color-info-border: #155e75;
+  --color-info-shadow: #bff3ff; /* stronger */
+  --color-info-text: #ffffff;
+
+  /* Link */
+  --color-link: #1d4ed8;
+  --color-link-hover: #1e40af;
+  --color-link-border: #1e40af;
+  --color-link-shadow: #cfe1ff;
+  --color-link-text: #ffffff;
+
+  /* Card (more prominent) */
+  --color-card: #ffffff;        
+  --color-card-hover: #eaf1ff;   /* NOTICEABLE hover */
+  --color-card-border: #cbd8ee;  /* stronger border */
+  --color-card-shadow: #c9d7f0;  /* stronger shadow tint */
+  --color-card-text: #44546a;    /* clearer muted text */
+
+  /* FX tokens (visible in light theme) */
+  --fx-grid-line: rgba(11, 18, 32, 0.08); /* a bit stronger than before */
+  --fx-glow-1: rgba(37, 99, 235, 0.16);
+  --fx-glow-2: rgba(124, 58, 237, 0.12);
+}
+
+/* ---------------- DARK THEME (Premium) ---------------- */
+.theme-dark {
+  /* Base */
+  --color-background: #0b0f1a;   /* deep navy */
+  --color-text: #eef2ff;         /* soft white (less harsh) */
+
+  /* Primary (blue) */
+  --color-primary: #3b82f6;
+  --color-primary-hover: #60a5fa;
+  --color-primary-border: #2563eb;
+  --color-primary-shadow: #1e3a8a;
+  --color-primary-text: #ffffff;
+
+  /* Secondary (neutral slate) */
+  --color-secondary: #1f2937;       /* slate-800 */
+  --color-secondary-hover: #273449; /* lifted hover */
+  --color-secondary-border: #334155;/* slate-700 */
+  --color-secondary-shadow: #0b1220;
+  --color-secondary-text: #eef2ff;
+
+  /* Accent (violet) */
+  --color-accent: #8b5cf6;
+  --color-accent-hover: #a78bfa;
+  --color-accent-border: #7c3aed;
+  --color-accent-shadow: #2a165f;
+  --color-accent-text: #ffffff;
+
+  /* Success (green) */
+  --color-success: #22c55e;
+  --color-success-hover: #4ade80;
+  --color-success-border: #16a34a;
+  --color-success-shadow: #0f3d22;
+  --color-success-text: #ffffff;
+
+  /* Warning (amber) */
+  --color-warning: #fbbf24;
+  --color-warning-hover: #fcd34d;
+  --color-warning-border: #f59e0b;
+  --color-warning-shadow: #3a2a00;
+  --color-warning-text: #0b0f1a;
+
+  /* Danger (rose) */
+  --color-danger: #fb7185;
+  --color-danger-hover: #fda4af;
+  --color-danger-border: #f43f5e;
+  --color-danger-shadow: #3a0b16;
+  --color-danger-text: #0b0f1a;
+
+  /* Info (cyan) */
+  --color-info: #22d3ee;
+  --color-info-hover: #67e8f9;
+  --color-info-border: #06b6d4;
+  --color-info-shadow: #003341;
+  --color-info-text: #0b0f1a;
+
+  /* Link */
+  --color-link: #60a5fa;
+  --color-link-hover: #93c5fd;
+  --color-link-border: #3b82f6;
+  --color-link-shadow: #1e3a8a;
+  --color-link-text: #0b0f1a;
+
+  /* Card (prominent separation) */
+  --color-card: #121a2a;         /* lifted surface */
+  --color-card-hover: #17223a;   /* clearly visible hover */
+  --color-card-border: #24324d;  /* stronger border */
+  --color-card-shadow: #050814;  /* deeper shadow */
+  --color-card-text: #a8b3cf;    /* muted text */
+
+  /* FX tokens (visible but clean) */
+  --fx-grid-line: rgba(255, 255, 255, 0.08);
+  --fx-glow-1: rgba(59, 130, 246, 0.22); /* primary glow */
+  --fx-glow-2: rgba(139, 92, 246, 0.18); /* accent glow */
+}

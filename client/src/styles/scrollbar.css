@@ -1,0 +1,20 @@
+/* WebKit-based browsers (Chrome, Safari) */
+
+/* Vertical scrollbar */
+::-webkit-scrollbar {
+    width: 8px; /* Vertical scrollbar width */
+    height: 6px; /* Horizontal scrollbar height */
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-card); /* Background color for track */
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-card-border); /* Thumb color */
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-card-border); /* Thumb hover color */
+}
