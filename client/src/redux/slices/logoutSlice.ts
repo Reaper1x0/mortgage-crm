@@ -20,24 +20,11 @@ export const logout = createAsyncThunk(
   async (_, { dispatch, rejectWithValue }) => {
     try {
       const response = await AuthService.logout();
-      dispatch(
-        addToast({
-          message: response.data.message,
-          type: response.data.success ? "success" : "error",
-          duration: 3000,
-          position: "top-right",
-        })
-      );
+      // Logout errors are skipped (skipErrorToast: true), so we don't show error toasts here
+      // Success messages are handled by AuthService.logout itself
       return response.data;
     } catch (error: any) {
-      dispatch(
-        addToast({
-          message: error.response?.data?.reason || "Error logging in!",
-          type: "error",
-          duration: 3000,
-          position: "top-right",
-        })
-      );
+      // Error toast is skipped for logout (skipErrorToast: true in AuthService)
       return rejectWithValue(
         error.response?.data?.message || "Something went wrong"
       );

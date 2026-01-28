@@ -8,6 +8,7 @@ import { TemplateService } from "../../service/templateService";
 import { TemplateDoc } from "../../types/template.types";
 import { prettyDate } from "../../utils/date";
 import PageHeader from "../Reusable/PageHeader";
+import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
 
 export default function TemplatesPage() {
   const navigate = useNavigate();
@@ -143,17 +144,25 @@ function CreateTemplateModal({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return alert("Enter template name");
-    if (!file) return alert("Select a PDF file");
+    if (!name.trim()) {
+      showWarningToast("Enter template name");
+      return;
+    }
+    if (!file) {
+      showWarningToast("Select a PDF file");
+      return;
+    }
 
     setSaving(true);
     try {
       await TemplateService.createTemplate(name.trim(), file);
+      showSuccessToast("Template created successfully");
       await onCreated();
       setName("");
       setFile(null);
     } catch (err: any) {
-      alert(err?.message || "Failed to create template");
+      // Error toast is handled automatically by centralized error handler
+      console.error("Template creation error:", err);
     } finally {
       setSaving(false);
     }

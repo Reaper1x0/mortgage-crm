@@ -27,27 +27,23 @@ export const loginUser = createAsyncThunk(
   async (data: Record<string, any>, { dispatch, rejectWithValue }) => {
     try {
       const response = await AuthService.login(data);
+      // Show success toast only
+      if (response.data.success) {
         dispatch(
           addToast({
             message: response.data.message,
-            type: response.data.success ? "success" : "error",
+            type: "success",
             duration: 3000,
             position: "top-right",
           })
         );
+      }
       localStorage.setItem("accessToken", response.data.accessToken);
       localStorage.setItem("refreshToken", response.data.refreshToken);
       localStorage.setItem("user", JSON.stringify(response.data.user));
       return response.data;
     } catch (error: any) {
-      dispatch(
-        addToast({
-          message: error.response?.data?.reason || "Error logging in!",
-          type: "error",
-          duration: 3000,
-          position: "top-right",
-        })
-      );
+      // Error toast is handled automatically by centralized error handler
       return rejectWithValue(error);
     }
   }

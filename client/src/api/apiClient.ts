@@ -2,8 +2,18 @@ import axios from "axios";
 import { SERVER_URL } from "../constants/env.constants";
 import getDeviceId from "../utils/getDeviceId";
 import { AuthService } from "../service/authService";
+import { showErrorToast } from "../utils/errorHandler";
 
 const API_BASE_URL = SERVER_URL;
+
+// Extend AxiosRequestConfig to include skipErrorToast flag
+// Use this to skip automatic error toast for specific requests:
+// apiClient.get('/endpoint', { skipErrorToast: true })
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    skipErrorToast?: boolean;
+  }
+}
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -46,12 +56,13 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor to handle 401 errors
+// Response interceptor to handle 401 errors and show error toasts
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     
+    // Handle 401 errors with token refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
@@ -63,6 +74,15 @@ apiClient.interceptors.response.use(
         AuthService.logout();
         return Promise.reject(refreshError);
       }
+    }
+
+    // Show error toast unless explicitly skipped
+    // Skip toasts for 401 errors (handled above) and if skipErrorToast flag is set
+    if (
+      error.response?.status !== 401 &&
+      !originalRequest?.skipErrorToast
+    ) {
+      showErrorToast(error);
     }
 
     return Promise.reject(error);

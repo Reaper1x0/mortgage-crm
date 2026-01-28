@@ -88,7 +88,6 @@ function mergeDistinctConflicts(allCands, chosen) {
 async function recomputeSubmissionFields(submissionId, userId) {
   const submission = await Submission.findOne({
     _id: submissionId,
-    userId,
   }).populate("documents.document");
   if (!submission) return null;
 
@@ -272,7 +271,7 @@ async function recomputeSubmissionFields(submissionId, userId) {
 
   // ✅ Atomic write (no VersionError)
   const updated = await Submission.findOneAndUpdate(
-    { _id: submissionId, userId },
+    { _id: submissionId },
     { $set: update },
     { new: true, runValidators: true }
   ).populate("documents.document");

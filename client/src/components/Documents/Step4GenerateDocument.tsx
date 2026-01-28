@@ -117,8 +117,8 @@ export default function Step4GenerateDocument({
       setGeneratedUrl(full);
       window.open(full, "_blank");
     } catch (e: any) {
-      console.log(e.response.data.reason)
-      dispatch(addToast({message: (e.response.data.reason || "Failed to generate document"), type: "error"}));
+      console.error("Error generating document:", e);
+      // Error toast is handled automatically by centralized error handler
     } finally {
       setGenerating(false);
     }

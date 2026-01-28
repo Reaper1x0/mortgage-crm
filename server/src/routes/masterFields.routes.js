@@ -1,25 +1,24 @@
 const express = require('express');
 const MasterFieldController = require('../controllers/masterFields.controller');
-const isAuth = require('../middlewares/auth.middleware');
-const hasRole = require('../middlewares/hasRole.middleware');
+const { isAuth, hasRole } = require('../middlewares');
 const router = express.Router();
 
-// Create a new MasterField
+// Admin: Manage validation rules (create, update, delete)
 router.post('/fields', isAuth, hasRole(["Admin"]), MasterFieldController.createMasterField);
 
-// Get all MasterFields
-router.get('/fields', isAuth, hasRole(["Admin"]), MasterFieldController.getAllMasterFields);
+// Admin, Agent, Viewer: Read-only access to validation rules
+router.get('/fields', isAuth, hasRole(["Admin", "Agent", "Viewer"]), MasterFieldController.getAllMasterFields);
 
-// Get a MasterField by key
-router.get('/fields/:key', isAuth, hasRole(["Admin"]), MasterFieldController.getMasterFieldByKey);
+// Admin, Agent, Viewer: Read-only access to validation rules
+router.get('/fields/:key', isAuth, hasRole(["Admin", "Agent", "Viewer"]), MasterFieldController.getMasterFieldByKey);
 
-// Update a MasterField by key
+// Admin: Update validation rules
 router.put('/fields/:key', isAuth, hasRole(["Admin"]), MasterFieldController.updateMasterField);
 
-// Delete a MasterField by key
+// Admin: Delete validation rules
 router.delete('/fields/:key', isAuth, hasRole(["Admin"]), MasterFieldController.deleteMasterField);
 
-// Delete multiple MasterFields
+// Admin: Delete multiple validation rules
 router.delete('/fields', isAuth, hasRole(["Admin"]), MasterFieldController.deleteMultipleMasterFields);
 
 module.exports = router;

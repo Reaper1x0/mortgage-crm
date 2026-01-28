@@ -9,10 +9,13 @@ import { FiEdit2 } from "react-icons/fi";
 import { useNavigate } from "react-router";
 import { Submission } from "../../types/extraction.types";
 import PageHeader from "../Reusable/PageHeader";
+import useAuth from "../../hooks/useAuth";
+import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
 
 const getRowId = (row: Submission) => row._id || "";
 
 const SubmissionsPage: React.FC = () => {
+  const { role } = useAuth();
   const [rows, setRows] = useState<Submission[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -25,16 +28,19 @@ const SubmissionsPage: React.FC = () => {
   const [createOpen, setCreateOpen] = useState<boolean>(false);
   const [submissionName, setSubmissionName] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
 
   // edit modal (name only)
   const [editOpen, setEditOpen] = useState<boolean>(false);
   const [editRow, setEditRow] = useState<Submission | null>(null);
   const [editName, setEditName] = useState<string>("");
   const [editSaving, setEditSaving] = useState<boolean>(false);
-  const [editError, setEditError] = useState<string>("");
 
   const navigate = useNavigate();
+
+  // Check if user can create (Admin only)
+  const canCreate = role === "Admin";
+  // Check if user can edit (Admin and Agent)
+  const canEdit = role === "Admin" || role === "Agent";
 
   const fetchSubmissions = useCallback(
     async (p = page, ps = pageSize) => {
@@ -74,7 +80,6 @@ const SubmissionsPage: React.FC = () => {
   /* -------------------- Create -------------------- */
   const openCreate = () => {
     setSubmissionName("");
-    setError("");
     setCreateOpen(true);
   };
 
@@ -86,15 +91,15 @@ const SubmissionsPage: React.FC = () => {
   const handleCreate = async () => {
     const name = submissionName.trim();
     if (!name) {
-      setError("Submission name is required.");
+      showWarningToast("Submission name is required.");
       return;
     }
 
     setSaving(true);
-    setError("");
 
     try {
       await SubmissionService.createSubmission({ submission_name: name });
+      showSuccessToast("Submission created successfully");
 
       // ✅ refresh current page (or go back to page 1 if you prefer)
       await fetchSubmissions(page, pageSize);
@@ -102,12 +107,8 @@ const SubmissionsPage: React.FC = () => {
       setCreateOpen(false);
       setSubmissionName("");
     } catch (e: any) {
-      console.error(e);
-      setError(
-        e?.response?.data?.message ||
-          e?.message ||
-          "Failed to create submission.",
-      );
+      // Error toast is handled automatically by centralized error handler
+      console.error("Create submission error:", e);
     } finally {
       setSaving(false);
     }
@@ -117,7 +118,6 @@ const SubmissionsPage: React.FC = () => {
   const openEdit = useCallback((row: Submission) => {
     setEditRow(row);
     setEditName(row.submission_name || "");
-    setEditError("");
     setEditOpen(true);
   }, []);
 
@@ -126,7 +126,6 @@ const SubmissionsPage: React.FC = () => {
     setEditOpen(false);
     setEditRow(null);
     setEditName("");
-    setEditError("");
   };
 
   const handleEditSave = async () => {
@@ -134,28 +133,24 @@ const SubmissionsPage: React.FC = () => {
     const name = editName.trim();
 
     if (!id) {
-      setEditError("Invalid submission selected.");
+      showWarningToast("Invalid submission selected.");
       return;
     }
     if (!name) {
-      setEditError("Submission name is required.");
+      showWarningToast("Submission name is required.");
       return;
     }
 
     setEditSaving(true);
-    setEditError("");
 
     try {
       await SubmissionService.updateSubmission(id, { submission_name: name });
+      showSuccessToast("Submission updated successfully");
       await fetchSubmissions(page, pageSize);
       closeEdit();
     } catch (e: any) {
-      console.error(e);
-      setEditError(
-        e?.response?.data?.message ||
-          e?.message ||
-          "Failed to update submission.",
-      );
+      // Error toast is handled automatically by centralized error handler
+      console.error("Update submission error:", e);
     } finally {
       setEditSaving(false);
     }
@@ -194,12 +189,14 @@ const SubmissionsPage: React.FC = () => {
         key: "actions",
         render: (_: any, row: Submission) => (
           <div className="inline-flex items-center gap-2">
-            <Button variant="secondary" onClick={() => openEdit(row)}>
-              <span className="inline-flex items-center gap-2">
-                <FiEdit2 />
-                Edit
-              </span>
-            </Button>
+            {canEdit && (
+              <Button variant="secondary" onClick={() => openEdit(row)}>
+                <span className="inline-flex items-center gap-2">
+                  <FiEdit2 />
+                  Edit
+                </span>
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => navigate(`${row._id}`)}>
               Manage
             </Button>
@@ -207,18 +204,20 @@ const SubmissionsPage: React.FC = () => {
         ),
       },
     ],
-    [openEdit, navigate],
+    [openEdit, navigate, canEdit],
   );
 
   return (
     <div className="space-y-4 p-2 md:p-6">
       <PageHeader
         title="Submissions"
-        description="Manage submissions Burhan and view uploaded document sets."
+        description="Manage submissions and view uploaded document sets."
         right={
-          <Button variant="primary" onClick={openCreate}>
-            + Create Submission
-          </Button>
+          canCreate ? (
+            <Button variant="primary" onClick={openCreate}>
+              + Create Submission
+            </Button>
+          ) : null
         }
       />
 
@@ -255,8 +254,8 @@ const SubmissionsPage: React.FC = () => {
             placeholder="e.g. Vendor Batch - January"
             value={submissionName}
             onChange={(e) => setSubmissionName(e.target.value)}
-            error={error || undefined}
             disabled={saving}
+            required
           />
 
           <div className="flex items-center justify-end gap-2 pt-2">
@@ -286,8 +285,8 @@ const SubmissionsPage: React.FC = () => {
             placeholder="e.g. Vendor Batch - January"
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
-            error={editError || undefined}
             disabled={editSaving}
+            required
           />
 
           <div className="flex items-center justify-end gap-2 pt-2">

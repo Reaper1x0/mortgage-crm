@@ -120,7 +120,7 @@ const MasterFieldTable: React.FC = () => {
         console.error("Error fetching fields:", error);
         setFields([]);
         setTotal(0);
-        toast("Failed to fetch fields.", "error");
+        // Error toast is handled automatically by centralized error handler
       } finally {
         setLoading(false);
       }
@@ -166,7 +166,7 @@ const MasterFieldTable: React.FC = () => {
         await fetchFields(page, pageSize);
       } catch (error) {
         console.error("Error adding field:", error);
-        toast("Failed to create field.", "error");
+        // Error toast is handled automatically by centralized error handler
       } finally {
         setLoading(false);
       }
@@ -184,7 +184,7 @@ const MasterFieldTable: React.FC = () => {
         await fetchFields(page, pageSize);
       } catch (error) {
         console.error("Error editing field:", error);
-        toast("Failed to update field.", "error");
+        // Error toast is handled automatically by centralized error handler
       } finally {
         setLoading(false);
       }
@@ -202,7 +202,7 @@ const MasterFieldTable: React.FC = () => {
         await fetchFields(page, pageSize);
       } catch (error) {
         console.error("Error deleting field:", error);
-        toast("Failed to delete field.", "error");
+        // Error toast is handled automatically by centralized error handler
       } finally {
         setLoading(false);
       }
@@ -220,7 +220,7 @@ const MasterFieldTable: React.FC = () => {
       await fetchFields(page, pageSize);
     } catch (error) {
       console.error("Error deleting multiple fields:", error);
-      toast("Failed to delete selected fields.", "error");
+      // Error toast is handled automatically by centralized error handler
     } finally {
       setLoading(false);
     }

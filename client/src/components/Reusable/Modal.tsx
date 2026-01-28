@@ -23,7 +23,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, className }) =
   return ReactDOM.createPortal(
     <div
       className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center",
+        "fixed inset-0 z-40 flex items-center justify-center",
         "bg-black/60 backdrop-blur-md",
         "p-4"
       )}

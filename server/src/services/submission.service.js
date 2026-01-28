@@ -15,8 +15,8 @@ const SubmissionService = {
     return doc;
   },
 
-  // ✅ Get all Submissions for this user only
-  getAllSubmissions: async (userId, opts = {}) => {
+  // ✅ Get all Submissions (no user filtering - all users can see all submissions)
+  getAllSubmissions: async (opts = {}) => {
     const {
       page = 1,
       limit = 10,
@@ -25,7 +25,7 @@ const SubmissionService = {
 
     return mongoosePaginate({
       model: Submission,
-      filter: { userId },
+      filter: {}, // No user filter - show all submissions
       sort,
       page,
       limit,
@@ -39,17 +39,18 @@ const SubmissionService = {
    * this supports:
    *  - key as Mongo _id (ObjectId)
    *  - OR key as submission_name (string)
+   * No user filtering - all users can view any submission
    */
-  getSubmissionByKey: async (key, userId) => {
-    return Submission.findOne({ _id: key, userId }).populate("documents.document");
+  getSubmissionByKey: async (key) => {
+    return Submission.findOne({ _id: key }).populate("documents.document");
   },
 
-  // (Optional but usually needed)
-  updateSubmission: async (submissionId, data, userId) => {
+  // Update submission (Admin/Agent can update any submission)
+  updateSubmission: async (submissionId, data) => {
     const payload = { ...data };
 
     return Submission.findOneAndUpdate(
-      { _id: submissionId, userId },
+      { _id: submissionId },
       { $set: payload },
       { new: true }
     );

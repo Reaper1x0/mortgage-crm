@@ -6,8 +6,7 @@ const {
   handleCnicUpload,
   handleDocumentsUpload,
 } = require("../controllers/extraction.controller");
-const isAuth = require("../middlewares/auth.middleware");
-const hasRole = require("../middlewares/hasRole.middleware");
+const { isAuth, hasRole } = require("../middlewares");
 
 const router = express.Router();
 
@@ -15,20 +14,20 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// CNIC – single file
+// Admin, Agent: Upload bank document packages (CNIC extraction)
 router.post(
   "/cnic/extract-name/:id",
   isAuth,
-  hasRole(["Admin"]),
+  hasRole(["Admin", "Agent"]),
   upload.single("cnic"),
   handleCnicUpload
 );
 
-// Documents – multiple
+// Admin, Agent: Upload bank document packages (document extraction)
 router.post(
   "/documents/extract-fields/:id",
   isAuth,
-  hasRole(["Admin"]),
+  hasRole(["Admin", "Agent"]),
   upload.array("documents", 10),
   handleDocumentsUpload
 );

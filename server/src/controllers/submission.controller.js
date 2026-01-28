@@ -12,24 +12,19 @@ const SubmissionController = {
     return R2XX(res, "Submission created successfully", 201, { submission });
   }),
   updateSubmission: catchAsync(async (req, res) => {
-    const user = req.user;
     const data = req.body;
     const { key } = req.params;
-    const submission = await SubmissionService.updateSubmission(
-      key,
-      data,
-      user
-    );
-    return R2XX(res, "Submission created successfully", 201, { submission });
+    const submission = await SubmissionService.updateSubmission(key, data);
+    
+    if (!submission) {
+      return R4XX(res, 404, "Submission not found");
+    }
+    
+    return R2XX(res, "Submission updated successfully", 200, { submission });
   }),
 
-  // Get all Submissions
+  // Get all Submissions (all users can see all submissions)
   getAllSubmissions: catchAsync(async (req, res) => {
-    const userId = req.user; // IMPORTANT: use the id
-    if (!userId) {
-      throw new HTTPException(401, "Unauthorized");
-    }
-
     const { page, limit, sort } = parsePagination(req.query, {
       defaultPage: 1,
       defaultLimit: 10,
@@ -44,14 +39,11 @@ const SubmissionController = {
       ],
     });
 
-    const { items, pagination } = await SubmissionService.getAllSubmissions(
-      userId,
-      {
-        page,
-        limit,
-        sort,
-      }
-    );
+    const { items, pagination } = await SubmissionService.getAllSubmissions({
+      page,
+      limit,
+      sort,
+    });
 
     return R2XX(res, "Submissions fetched successfully", 200, {
       submissions: items,
@@ -59,11 +51,10 @@ const SubmissionController = {
     });
   }),
 
-  // Get a Submission by its key
+  // Get a Submission by its key (all users can view any submission)
   getSubmissionByKey: catchAsync(async (req, res) => {
-    const user = req.user;
     const { key } = req.params;
-    const submission = await SubmissionService.getSubmissionByKey(key, user);
+    const submission = await SubmissionService.getSubmissionByKey(key);
 
     if (!submission) {
       return R4XX(res, 404, "Submission not found");

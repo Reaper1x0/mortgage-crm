@@ -9,7 +9,7 @@ const SubmissionFieldsController = {
     const userId = req.user;
     const id = req.params.id;
 
-    const submission = await Submission.findOne({ _id: id, userId }).populate("documents.document");
+    const submission = await Submission.findOne({ _id: id }).populate("documents.document");
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     // recompute if requested or if missing snapshot
@@ -40,7 +40,7 @@ const SubmissionFieldsController = {
     const userId = req.user;
     const id = req.params.id;
 
-    const submission = await Submission.findOne({ _id: id, userId }).populate("documents.document");
+    const submission = await Submission.findOne({ _id: id }).populate("documents.document");
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     const masterFields = await MasterField.find({}).lean();

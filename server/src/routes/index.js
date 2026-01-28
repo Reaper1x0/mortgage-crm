@@ -6,6 +6,7 @@ const extractionRoutes = require("./extraction.routes");
 const masterFieldRoutes = require("./masterFields.routes");
 const submissionRoutes = require("./submission.routes");
 const templateRoutes = require("./template.routes");
+const userRoutes = require("./user.routes");
 
 const defaultRoutes = [
   {
@@ -23,12 +24,15 @@ const defaultRoutes = [
   {
     path: "/submissions",
     route: submissionRoutes,
-  }
-  ,
+  },
   {
     path: "/templates",
     route: templateRoutes,
-  }
+  },
+  {
+    path: "/users",
+    route: userRoutes,
+  },
 ];
 
 defaultRoutes.forEach(({ path, route }) => {

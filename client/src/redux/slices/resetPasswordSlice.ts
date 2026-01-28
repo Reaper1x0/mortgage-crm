@@ -29,24 +29,20 @@ export const resetPassword = createAsyncThunk<
 >("auth/resetPassword", async (payload, { dispatch, rejectWithValue }) => {
   try {
     const response = await AuthService.resetPassword(payload);
-    dispatch(
-      addToast({
-        message: response.data.message,
-        type: response.data.success ? "success" : "error",
-        duration: 3000,
-        position: "top-right",
-      })
-    );
+    // Show success toast only
+    if (response.data.success) {
+      dispatch(
+        addToast({
+          message: response.data.message,
+          type: "success",
+          duration: 3000,
+          position: "top-right",
+        })
+      );
+    }
     return response?.data?.success;
   } catch (error: any) {
-    dispatch(
-      addToast({
-        message: error.response?.data?.reason || "Error resetting new password!",
-        type: "error",
-        duration: 3000,
-        position: "top-right",
-      })
-    );
+    // Error toast is handled automatically by centralized error handler
     return rejectWithValue(error.message);
   }
 });

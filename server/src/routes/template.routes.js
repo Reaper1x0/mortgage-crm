@@ -1,12 +1,11 @@
 const express = require("express");
-const { isAuth } = require("../middlewares");
-const hasRole = require("../middlewares/hasRole.middleware");
+const { isAuth, hasRole } = require("../middlewares");
 const TemplateController = require("../controllers/template.controller");
 const { uploadTemplatePdf } = require("../middlewares/templateUpload.model");
 
 const router = express.Router();
 
-// Admin-only for now
+// Admin: Manage templates (create, update, render)
 router.post(
   "/",
   isAuth,
@@ -15,13 +14,14 @@ router.post(
   TemplateController.createTemplate
 );
 
-router.get("/", isAuth, hasRole(["Admin"]), TemplateController.listTemplates);
-router.get("/:id", isAuth, hasRole(["Admin"]), TemplateController.getTemplate);
+// Admin, Agent, Viewer: Read-only access to templates
+router.get("/", isAuth, hasRole(["Admin", "Agent", "Viewer"]), TemplateController.listTemplates);
+router.get("/:id", isAuth, hasRole(["Admin", "Agent", "Viewer"]), TemplateController.getTemplate);
 
-// Save placements
+// Admin: Save placements
 router.put("/:id/placements", isAuth, hasRole(["Admin"]), TemplateController.savePlacements);
 
-// Render
+// Admin: Render template
 router.post("/:id/render", isAuth, hasRole(["Admin"]), TemplateController.renderTemplate);
 
 module.exports = router;

@@ -13,6 +13,7 @@ import SubmissionsPage from "./components/Submissions/SubmissionsPage";
 import SubmissionManagementPage from "./components/Submissions/SubmissionManagementPage";
 import TemplateMaker from "./components/TemplateMaker/TemplatesPage";
 import TemplateDesignerPage from "./components/TemplateMaker/TemplateDesignerPage";
+import UsersPage from "./components/Users/UsersPage";
 
 function App() {
   return (
@@ -37,7 +38,7 @@ function App() {
         ></Route>
 
         <Route path="/workspace" element={<AdminLayout />}>
-          <Route element={<ProtectedRoute roles={["Admin"]} />}>
+          <Route element={<ProtectedRoute roles={["Admin", "Agent", "Viewer"]} />}>
             <Route path="submissions" element={<SubmissionsPage />}></Route>
             <Route
               path="submissions/:id"
@@ -46,6 +47,7 @@ function App() {
             <Route path="master-fields" element={<MasterFieldTable />}></Route>
             <Route path="template-maker" element={<TemplateMaker />}></Route>
             <Route path="template-maker/:templateId/manage" element={<TemplateDesignerPage />}></Route>
+            <Route path="users" element={<UsersPage />}></Route>
           </Route>
         </Route>
         <Route path="*" element={<Layout element={<NotFoundPage />} />}></Route>

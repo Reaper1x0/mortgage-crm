@@ -6,7 +6,6 @@ import AuthPage from "./AuthPage";
 import { AuthService } from "../../service/authService";
 import { addToast } from "../../redux/slices/toasterSlice";
 import { useDispatch } from "react-redux";
-import { AxiosError } from "axios";
 
 const Register: React.FC = () => {
   const { t } = useLanguage();
@@ -42,12 +41,8 @@ const Register: React.FC = () => {
         navigate("/");
       }
     } catch (err: unknown) {
-      const axiosErr = err as AxiosError<any>;
-      if ((axiosErr as any).status === 403) {
-        dispatch(addToast({ message: axiosErr.response?.data.errorMessage || axiosErr.message, type: "error", duration: 3000, position: "top-right" }));
-      } else {
-        dispatch(addToast({ message: axiosErr.response?.data.reason || axiosErr.message, type: "error", duration: 3000, position: "top-right" }));
-      }
+      // Error toast is handled automatically by centralized error handler
+      console.error("Registration error:", err);
     } finally {
       setLoading(false);
     }

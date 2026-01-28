@@ -394,7 +394,7 @@ const ExtractionController = {
 
     const personName = req.body?.personName || null;
 
-    const submission = await Submission.findOne({ _id: submissionId, userId });
+    const submission = await Submission.findOne({ _id: submissionId });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     const results = [];
@@ -498,7 +498,7 @@ const ExtractionController = {
     const userId = req.user;
     const submissionId = req.params.id;
 
-    const submission = await Submission.findOne({ _id: submissionId, userId }).populate("documents.document");
+    const submission = await Submission.findOne({ _id: submissionId }).populate("documents.document");
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     return R2XX(res, "Documents fetched successfully.", 200, {
@@ -518,7 +518,7 @@ const ExtractionController = {
 
     if (!file) return R4XX(res, 400, "file is required.");
 
-    const submission = await Submission.findOne({ _id: submissionId, userId });
+    const submission = await Submission.findOne({ _id: submissionId });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     const docEntry = submission.documents.id(docEntryId);
@@ -566,7 +566,7 @@ const ExtractionController = {
     }
 
     await Submission.updateOne(
-      { _id: submissionId, userId, "documents._id": docEntryId },
+      { _id: submissionId, "documents._id": docEntryId },
       {
         $set: {
           "documents.$.document": savedFile._id,
@@ -608,7 +608,7 @@ const ExtractionController = {
     const submissionId = req.params.id;
     const docEntryId = req.params.docEntryId;
 
-    const submission = await Submission.findOne({ _id: submissionId, userId });
+    const submission = await Submission.findOne({ _id: submissionId });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     const docEntry = submission.documents.id(docEntryId);
@@ -616,7 +616,7 @@ const ExtractionController = {
 
     const fileId = docEntry.document;
 
-    await Submission.updateOne({ _id: submissionId, userId }, { $pull: { documents: { _id: docEntryId } } });
+    await Submission.updateOne({ _id: submissionId }, { $pull: { documents: { _id: docEntryId } } });
 
     const updatedSubmission = await recomputeSubmissionFields(submissionId, userId);
 

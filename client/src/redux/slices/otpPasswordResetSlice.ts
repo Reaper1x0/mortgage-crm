@@ -30,25 +30,21 @@ export const verifyPasswordOtp = createAsyncThunk<
 >("auth/verifyOtp", async (otpData, { dispatch }) => {
   try {
     const response = await AuthService.verifyPasswordOtp(otpData);
-    dispatch(
-      addToast({
-        message: response.data.message,
-        type: response.data.success ? "success" : "error",
-        duration: 3000,
-        position: "top-right",
-      })
-    );
+    // Show success toast only
+    if (response.data.success) {
+      dispatch(
+        addToast({
+          message: response.data.message,
+          type: "success",
+          duration: 3000,
+          position: "top-right",
+        })
+      );
+    }
     return response?.data?.success ? true : false;
   } catch (error: any) {
-    console.log(error)
-    dispatch(
-      addToast({
-        message: error.response?.data?.reason || "Error verifing Otp!",
-        type: "error",
-        duration: 3000,
-        position: "top-right",
-      })
-    );
+    console.error("OTP verification error:", error);
+    // Error toast is handled automatically by centralized error handler
     return false;
   }
 });
