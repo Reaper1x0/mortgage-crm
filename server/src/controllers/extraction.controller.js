@@ -82,6 +82,7 @@ RULES:
 
 /**
  * PASS B: Full extraction but only for a reduced schema (present keys only)
+ * Enhanced with validation and comprehensive traceability
  */
 const FIELD_EXTRACTION_SYSTEM_PROMPT = `
 You are an extraction engine. Follow these rules strictly:
@@ -89,10 +90,13 @@ You are an extraction engine. Follow these rules strictly:
 CONTEXT
 - You will receive TEXT FOR EXACTLY ONE DOCUMENT FILE.
 - Extract values ONLY from that document's text.
+- You will receive validation rules for each field from the schema.
 
 GOAL
 - Extract values for ONLY the fields provided in the schema.
 - Return ONLY the fields that are present (do not include missing fields).
+- Validate each extracted value against the field's validation rules.
+- Provide comprehensive traceability information for each extraction.
 
 STRICT RULES
 - Return ONLY a single JSON object (no prose).
@@ -103,6 +107,9 @@ STRICT RULES
   - present: true
   - value: first found value (or null if unclear)
   - conflicts: include all distinct conflicting raw values
+- For each occurrence, provide the exact snippet, page number (if available), and line context
+- Validate each extracted value against ALL validation rules provided for that field
+- Document the source location (snippet, page) for traceability
 
 OUTPUT JSON SHAPE
 {
@@ -113,19 +120,59 @@ OUTPUT JSON SHAPE
       "value": { "raw": "<string|number>", "normalized": "<string|number|omitted>" } | null,
       "conflicts": [{ "raw": "<string|number>" }, ...],
       "occurrences": [
-        { "snippet": "<short surrounding text>", "page": null, "line_hint": null }
+        {
+          "snippet": "<exact surrounding text with the value highlighted>",
+          "page": <number or null>,
+          "line_hint": "<line number or context>"
+        }
       ],
       "confidence": "high|medium|low",
-      "notes": ""
+      "notes": "",
+      "validation": {
+        "validated": true,
+        "passed": true|false,
+        "errors": [
+          {
+            "rule": "<validation rule that failed>",
+            "message": "<human-readable error message>",
+            "severity": "error|warning"
+          }
+        ]
+      },
+      "traceability": {
+        "document_name": "<file name>",
+        "extraction_method": "openai",
+        "extracted_at": "<ISO timestamp>"
+      }
     }
   ]
 }
+
+VALIDATION RULES:
+- For each field, check ALL validation_rules provided in the schema
+- If a rule fails, add an error entry with:
+  - rule: the exact rule string that failed
+  - message: a clear explanation of why it failed
+  - severity: "error" for critical failures, "warning" for minor issues
+- If all rules pass, set "passed": true and "errors": []
+- Always set "validated": true if you attempted validation
+
+TRACEABILITY REQUIREMENTS:
+- document_name: Use the FILE_NAME provided
+- extraction_method: Always "openai"
+- extracted_at: Current timestamp in ISO format
+- For occurrences: Provide the most specific location information available
+  - snippet: Include enough context to identify where the value was found (at least 50 chars before and after)
+  - page: Extract page number if mentioned in the text or if document structure indicates it
+  - line_hint: Provide line number, paragraph number, or section identifier if available
 `;
 
-function sanitizeExtractedFields(fieldsArray, allowedKeysSet) {
+function sanitizeExtractedFields(fieldsArray, allowedKeysSet, fileName, fileId) {
   if (!Array.isArray(fieldsArray)) return [];
 
   const out = [];
+  const extractedAt = new Date();
+  
   for (const f of fieldsArray) {
     const key = String(f?.key || "").trim();
     if (!key) continue;
@@ -133,6 +180,33 @@ function sanitizeExtractedFields(fieldsArray, allowedKeysSet) {
     // drop anything not in schema
     if (allowedKeysSet && !allowedKeysSet.has(key) && key !== "legal_name") continue;
 
+    // Sanitize validation results
+    const validation = f?.validation || {};
+    const validationErrors = Array.isArray(validation.errors)
+      ? validation.errors
+          .map((e) => ({
+            rule: String(e?.rule || ""),
+            message: String(e?.message || ""),
+            severity: ["error", "warning"].includes(e?.severity) ? e.severity : "error",
+          }))
+          .filter((e) => e.rule && e.message)
+      : [];
+
+    // Sanitize occurrences with enhanced traceability
+    const occurrences = Array.isArray(f?.occurrences)
+      ? f.occurrences.map((o) => ({
+          snippet: String(o?.snippet || ""),
+          page: typeof o?.page === "number" ? o.page : null,
+          line_hint: String(o?.line_hint || ""),
+          document_name: String(fileName || ""),
+          document_id: fileId || null,
+          extracted_at: extractedAt,
+        }))
+      : [];
+
+    // Sanitize traceability
+    const traceability = f?.traceability || {};
+    
     out.push({
       key,
       value: {
@@ -144,15 +218,22 @@ function sanitizeExtractedFields(fieldsArray, allowedKeysSet) {
             .map((c) => ({ raw: c?.raw ?? null }))
             .filter((x) => x.raw !== null)
         : [],
-      occurrences: Array.isArray(f?.occurrences)
-        ? f.occurrences.map((o) => ({
-            snippet: o?.snippet ?? "",
-            page: o?.page ?? null,
-            line_hint: o?.line_hint ?? null,
-          }))
-        : [],
+      occurrences,
       confidence: ["high", "medium", "low"].includes(f?.confidence) ? f.confidence : "low",
       notes: typeof f?.notes === "string" ? f.notes : "",
+      validation: {
+        validated: Boolean(validation.validated),
+        passed: Boolean(validation.passed) && validationErrors.length === 0,
+        errors: validationErrors,
+        validated_at: validation.validated ? extractedAt : null,
+      },
+      traceability: {
+        document_name: String(traceability.document_name || fileName || ""),
+        document_id: traceability.document_id || fileId || null,
+        file_id: fileId || null,
+        extracted_at: traceability.extracted_at ? new Date(traceability.extracted_at) : extractedAt,
+        extraction_method: traceability.extraction_method || "openai",
+      },
     });
   }
   return out;
@@ -226,23 +307,11 @@ ${JSON.stringify(compactSchema, null, 2)}
   return { presentKeys, allowedKeys };
 }
 
-async function extractFieldsForPresentKeys({ text, fileName, masterFieldsItems, presentKeys }) {
-  const presentSet = new Set((presentKeys || []).map((k) => String(k)));
-  const reducedSchema = (masterFieldsItems || [])
-    .filter((m) => presentSet.has(String(m.key)))
-    .map((m) => ({
-      key: m.key,
-      type: m.type,
-      required: !!m.required,
-      description: m.description || "", // ok if empty
-    }));
-
-  const allowedKeys = new Set(reducedSchema.map((f) => String(f.key)));
-
-  // If Pass A returns nothing, don't waste a Pass B call
-  if (!reducedSchema.length) {
-    return [];
-  }
+/**
+ * Extract fields for a single chunk of the schema
+ */
+async function extractFieldsForChunk({ text, fileName, schemaChunk, fileId }) {
+  const allowedKeys = new Set(schemaChunk.map((f) => String(f.key)));
 
   const userPrompt = `
 FILE_NAME: ${fileName}
@@ -254,8 +323,24 @@ ${text}
 
 FIELDS (reduced schema; match by "key"):
 <<<
-${JSON.stringify({ fields: reducedSchema }, null, 2)}
+${JSON.stringify({ fields: schemaChunk }, null, 2)}
 >>>
+
+INSTRUCTIONS:
+1. Extract values for each field from the document text
+2. For each extracted value, validate it against ALL validation_rules provided for that field
+3. Provide comprehensive traceability:
+   - Include exact snippets showing where the value was found
+   - Include page numbers if available in the document
+   - Include line hints or section identifiers
+   - Set document_name to: "${fileName}"
+   - Set extraction_method to: "openai"
+   - Set extracted_at to current ISO timestamp
+4. For validation:
+   - Test each validation rule against the extracted value
+   - If a rule fails, add an error with the rule name, clear message, and severity
+   - Set "validated": true and "passed": false if any errors exist
+   - Set "validated": true and "passed": true if all rules pass
 `;
 
   const messages = [
@@ -263,9 +348,8 @@ ${JSON.stringify({ fields: reducedSchema }, null, 2)}
     { role: "user", content: userPrompt },
   ];
 
-  console.log("[LLM-B] file:", fileName);
-  console.log("[LLM-B] presentKeysCount:", reducedSchema.length);
-  console.log("[LLM-B] reducedSchemaJSONStringLen:", JSON.stringify(reducedSchema).length);
+  console.log("[LLM-B] chunk size:", schemaChunk.length);
+  console.log("[LLM-B] chunkSchemaJSONStringLen:", JSON.stringify(schemaChunk).length);
   console.log("[LLM-B] userPromptLen:", userPrompt.length);
 
   const completion = await openai.chat.completions.create({
@@ -273,33 +357,128 @@ ${JSON.stringify({ fields: reducedSchema }, null, 2)}
     messages,
     response_format: { type: "json_object" },
     temperature: 0,
+    max_tokens: 16384, // Explicitly set max tokens for gpt-4o
   });
 
   const content = completion.choices?.[0]?.message?.content || "{}";
+  const finishReason = completion.choices?.[0]?.finish_reason;
+  
   console.log("[LLM-B] usage:", completion.usage);
-  console.log("[LLM-B] model:", completion.model);
-  console.log("[LLM-B] outputLen:", (content || "").length);
+  console.log("[LLM-B] finish_reason:", finishReason);
+
+  // Check if response was truncated
+  if (finishReason === "length") {
+    console.error("[LLM-B] WARNING: Response was truncated even with chunking!");
+    throw new Error(
+      `Model response was truncated due to token limit even with chunk size ${schemaChunk.length}. ` +
+      `Consider reducing chunk size further.`
+    );
+  }
 
   let payload;
   try {
     payload = JSON.parse(content);
   } catch (e) {
-    throw new Error("Model returned invalid JSON.");
+    // Log the actual error and partial content for debugging
+    console.error("[LLM-B] JSON parse error:", e.message);
+    console.error("[LLM-B] Content preview (first 500 chars):", content.substring(0, 500));
+    console.error("[LLM-B] Content preview (last 500 chars):", content.substring(Math.max(0, content.length - 500)));
+    throw new Error(`Model returned invalid JSON: ${e.message}`);
   }
 
-  console.log(
-    "[LLM-B] returnedFieldsCount(raw):",
-    Array.isArray(payload?.fields) ? payload.fields.length : 0
-  );
+  const extracted = sanitizeExtractedFields(payload?.fields, allowedKeys, fileName, fileId);
+  return extracted;
+}
 
-  const extracted = sanitizeExtractedFields(payload?.fields, allowedKeys);
+async function extractFieldsForPresentKeys({ text, fileName, masterFieldsItems, presentKeys, fileId }) {
+  const presentSet = new Set((presentKeys || []).map((k) => String(k)));
+  const reducedSchema = (masterFieldsItems || [])
+    .filter((m) => presentSet.has(String(m.key)))
+    .map((m) => ({
+      key: m.key,
+      type: m.type,
+      required: !!m.required,
+      description: m.description || "",
+      validation_rules: Array.isArray(m.validation_rules) ? m.validation_rules : [],
+    }));
 
-  // Debug: keys dropped due to mismatch (helps explain 31->28 type issues)
-  const returnedKeys = Array.isArray(payload?.fields) ? payload.fields.map((f) => String(f?.key || "").trim()) : [];
-  const notAllowed = returnedKeys.filter((k) => k && !allowedKeys.has(k));
-  if (notAllowed.length) console.log("[LLM-B] keysNotInReducedSchema:", notAllowed);
+  // If Pass A returns nothing, don't waste a Pass B call
+  if (!reducedSchema.length) {
+    return [];
+  }
+
+  // Chunk size: process in batches to avoid token limits
+  // With validation and traceability, each field can be quite large, so use smaller chunks
+  const CHUNK_SIZE = 30; // Reduced from 50 to handle detailed responses
+  
+  // If we have many fields, split into chunks
+  if (reducedSchema.length > CHUNK_SIZE) {
+    console.log(`[LLM-B] Splitting ${reducedSchema.length} fields into chunks of ${CHUNK_SIZE}`);
+    
+    const chunks = [];
+    for (let i = 0; i < reducedSchema.length; i += CHUNK_SIZE) {
+      chunks.push(reducedSchema.slice(i, i + CHUNK_SIZE));
+    }
+    
+    console.log(`[LLM-B] Processing ${chunks.length} chunks`);
+    
+    // Process chunks sequentially to avoid rate limits
+    const allExtracted = [];
+    for (let i = 0; i < chunks.length; i++) {
+      console.log(`[LLM-B] Processing chunk ${i + 1}/${chunks.length}`);
+      try {
+        const chunkResults = await extractFieldsForChunk({
+          text,
+          fileName,
+          schemaChunk: chunks[i],
+          fileId,
+        });
+        allExtracted.push(...chunkResults);
+      } catch (err) {
+        console.error(`[LLM-B] Chunk ${i + 1} failed:`, err.message);
+        // Continue with other chunks even if one fails
+        // The error will be logged but we'll return what we have
+      }
+    }
+    
+    console.log(`[LLM-B] Total extracted fields: ${allExtracted.length}`);
+    
+    // Log validation summary
+    const validationSummary = allExtracted.reduce((acc, f) => {
+      if (f.validation?.validated) {
+        acc.validated++;
+        if (f.validation.passed) acc.passed++;
+        if (f.validation.errors?.length) acc.failed++;
+      }
+      return acc;
+    }, { validated: 0, passed: 0, failed: 0 });
+    console.log("[LLM-B] validationSummary:", validationSummary);
+    
+    return allExtracted;
+  }
+
+  // For smaller requests, process using the chunk function (single chunk)
+  console.log(`[LLM-B] Processing ${reducedSchema.length} fields in single request`);
+  
+  const extracted = await extractFieldsForChunk({
+    text,
+    fileName,
+    schemaChunk: reducedSchema,
+    fileId,
+  });
 
   console.log("[LLM-B] returnedFieldsCount(sanitized):", extracted.length);
+  
+  // Log validation summary
+  const validationSummary = extracted.reduce((acc, f) => {
+    if (f.validation?.validated) {
+      acc.validated++;
+      if (f.validation.passed) acc.passed++;
+      if (f.validation.errors?.length) acc.failed++;
+    }
+    return acc;
+  }, { validated: 0, passed: 0, failed: 0 });
+  console.log("[LLM-B] validationSummary:", validationSummary);
 
   return extracted;
 }
@@ -307,7 +486,7 @@ ${JSON.stringify({ fields: reducedSchema }, null, 2)}
 /**
  * Used by replace endpoint (kept compatible, now also two-pass)
  */
-async function runFieldExtractionForSingleText({ text, fileName, masterFields }) {
+async function runFieldExtractionForSingleText({ text, fileName, masterFields, fileId }) {
   const masterItems = Array.isArray(masterFields?.items)
     ? masterFields.items
     : Array.isArray(masterFields)
@@ -325,6 +504,7 @@ async function runFieldExtractionForSingleText({ text, fileName, masterFields })
     fileName,
     masterFieldsItems: masterItems,
     presentKeys,
+    fileId: fileId || null,
   });
 
   return extracted_fields;
@@ -443,6 +623,7 @@ const ExtractionController = {
           fileName: file.originalname,
           masterFieldsItems: masterItems,
           presentKeys,
+          fileId: savedFile._id,
         });
 
         documentEntries.push({
@@ -450,6 +631,8 @@ const ExtractionController = {
           document: savedFile._id,
           extracted_fields,
           uploadDate: new Date(),
+          document_name: file.originalname,
+          document_type: file.mimetype || "",
         });
 
         results.push({
@@ -559,6 +742,7 @@ const ExtractionController = {
         text,
         fileName: file.originalname,
         masterFields: masterSchemaFields,
+        fileId: savedFile._id,
       });
     } catch (err) {
       await FileService.hardDelete(savedFile._id, userId);

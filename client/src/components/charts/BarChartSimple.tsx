@@ -21,7 +21,7 @@ interface BarChartSimpleProps {
   loading?: boolean;
   className?: string;
   dataKey?: string;
-  color?: "primary" | "accent" | "success" | "warning" | "info";
+  color?: "primary" | "accent" | "success" | "warning" | "info" | "danger";
 }
 
 // Helper to get CSS variable value
@@ -49,6 +49,8 @@ const BarChartSimple: React.FC<BarChartSimpleProps> = ({
     successHover: getCSSVar("--color-success-hover"),
     warning: getCSSVar("--color-warning"),
     warningHover: getCSSVar("--color-warning-hover"),
+    danger: getCSSVar("--color-danger"),
+    dangerHover: getCSSVar("--color-danger-hover"),
     info: getCSSVar("--color-info"),
     infoHover: getCSSVar("--color-info-hover"),
     text: getCSSVar("--color-text"),
@@ -68,6 +70,8 @@ const BarChartSimple: React.FC<BarChartSimpleProps> = ({
       successHover: getCSSVar("--color-success-hover"),
       warning: getCSSVar("--color-warning"),
       warningHover: getCSSVar("--color-warning-hover"),
+      danger: getCSSVar("--color-danger"),
+      dangerHover: getCSSVar("--color-danger-hover"),
       info: getCSSVar("--color-info"),
       infoHover: getCSSVar("--color-info-hover"),
       text: getCSSVar("--color-text"),
@@ -83,9 +87,12 @@ const BarChartSimple: React.FC<BarChartSimpleProps> = ({
       accent: { main: baseColors.accent, hover: baseColors.accentHover },
       success: { main: baseColors.success, hover: baseColors.successHover },
       warning: { main: baseColors.warning, hover: baseColors.warningHover },
+      danger: { main: baseColors.danger, hover: baseColors.dangerHover },
       info: { main: baseColors.info, hover: baseColors.infoHover },
     };
-    return { ...baseColors, selected: colorMap[color] };
+    // Fallback to primary if color doesn't exist
+    const selected = colorMap[color] || colorMap.primary;
+    return { ...baseColors, selected };
   }, [color, baseColors]);
 
   if (loading) {

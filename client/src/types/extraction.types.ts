@@ -5,6 +5,10 @@ export type FieldOccurrence = {
   snippet: string;
   page: number | null;
   line_hint: string | null;
+  // Enhanced traceability
+  document_name?: string;
+  document_id?: string;
+  extracted_at?: string;
 };
 
 export type FieldConflict = {
@@ -16,6 +20,27 @@ export type FieldValue = {
   normalized?: string | number;
 } | null;
 
+export type ValidationError = {
+  rule: string;
+  message: string;
+  severity: "error" | "warning";
+};
+
+export type FieldValidation = {
+  validated: boolean;
+  passed: boolean;
+  errors: ValidationError[];
+  validated_at?: string | null;
+};
+
+export type FieldTraceability = {
+  document_name: string;
+  document_id?: string | null;
+  file_id?: string | null;
+  extracted_at?: string;
+  extraction_method: "openai" | "manual";
+};
+
 export type FieldItem = {
   key: string;
   present: boolean;
@@ -24,6 +49,10 @@ export type FieldItem = {
   occurrences: FieldOccurrence[];
   confidence: ConfidenceLevel;
   notes?: string;
+  // Validation results
+  validation?: FieldValidation;
+  // Source traceability
+  traceability?: FieldTraceability;
 };
 
 export type FieldsPayload = {

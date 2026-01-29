@@ -188,53 +188,90 @@ const DashboardService = {
 
   /**
    * Get validation failures
-   * Maps eligibility.needs_review_keys to validation rules from MasterField
-   * Falls back to counting by key if no MasterField or rules exist
+   * Uses the new validation structure: submission_fields[].validation.errors[]
+   * Counts actual validation rule failures from the validation.errors array
+   * Returns enhanced data with severity breakdown, sample messages, and affected fields
    */
   getValidationFailures: async (range, startDate, endDate) => {
     const { start, end } = getDateRange(range, startDate, endDate);
 
-    // Get all submissions in range with needs_review_keys
+    // Get all submissions in range with submission_fields
+    // We need submission_fields to access validation.errors
     const submissions = await Submission.find({
       createdAt: { $gte: start, $lte: end },
-      "eligibility.needs_review_keys": { $exists: true, $ne: [] },
+      "submission_fields": { $exists: true, $ne: [] },
     })
-      .select("eligibility.needs_review_keys")
+      .select("submission_fields")
       .lean();
 
-    // Get all MasterFields for mapping
-    const masterFields = await MasterField.find({}).lean();
-    const masterFieldMap = {};
-    masterFields.forEach((mf) => {
-      masterFieldMap[mf.key] = mf;
-    });
-
-    // Count failures by rule
-    const ruleCounts = {};
+    // Enhanced tracking: rule -> { count, severityCounts, sampleMessages, affectedFields }
+    const ruleData = {};
+    let totalFailures = 0;
 
     submissions.forEach((submission) => {
-      const needsReviewKeys =
-        submission.eligibility?.needs_review_keys || [];
-      needsReviewKeys.forEach((key) => {
-        const masterField = masterFieldMap[key];
-        if (masterField && masterField.validation_rules) {
-          // Count by each validation rule
-          masterField.validation_rules.forEach((rule) => {
-            ruleCounts[rule] = (ruleCounts[rule] || 0) + 1;
+      const submissionFields = submission.submission_fields || [];
+      
+      submissionFields.forEach((field) => {
+        // Check if field has validation errors
+        if (
+          field.validation &&
+          field.validation.validated &&
+          !field.validation.passed &&
+          Array.isArray(field.validation.errors) &&
+          field.validation.errors.length > 0
+        ) {
+          // Process each validation error
+          field.validation.errors.forEach((error) => {
+            const rule = error.rule || "unknown";
+            const severity = error.severity || "error";
+            const message = error.message || "";
+            
+            if (!ruleData[rule]) {
+              ruleData[rule] = {
+                count: 0,
+                severityCounts: { error: 0, warning: 0 },
+                sampleMessages: [],
+                affectedFields: new Set(),
+              };
+            }
+            
+            ruleData[rule].count++;
+            ruleData[rule].severityCounts[severity] = (ruleData[rule].severityCounts[severity] || 0) + 1;
+            totalFailures++;
+            
+            // Store sample messages (keep up to 3 unique ones)
+            if (message && !ruleData[rule].sampleMessages.includes(message) && ruleData[rule].sampleMessages.length < 3) {
+              ruleData[rule].sampleMessages.push(message);
+            }
+            
+            // Track affected field keys
+            if (field.key) {
+              ruleData[rule].affectedFields.add(field.key);
+            }
           });
-        } else {
-          // Fallback: count by key itself
-          ruleCounts[key] = (ruleCounts[key] || 0) + 1;
         }
       });
     });
 
-    // Convert to array and sort by count descending
-    const topValidationFailures = Object.entries(ruleCounts)
-      .map(([rule, count]) => ({ rule, count }))
-      .sort((a, b) => b.count - a.count);
+    // Convert to array format with enhanced data
+    const topValidationFailures = Object.entries(ruleData)
+      .map(([rule, data]) => ({
+        rule,
+        count: data.count,
+        percentage: totalFailures > 0 ? Math.round((data.count / totalFailures) * 100 * 10) / 10 : 0,
+        severityCounts: data.severityCounts,
+        sampleMessages: data.sampleMessages,
+        affectedFieldsCount: data.affectedFields.size,
+        affectedFields: Array.from(data.affectedFields).slice(0, 5), // Top 5 affected fields
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20); // Top 20 failures
 
-    return { topValidationFailures };
+    return { 
+      topValidationFailures,
+      totalFailures,
+      uniqueRules: topValidationFailures.length,
+    };
   },
 
   /**

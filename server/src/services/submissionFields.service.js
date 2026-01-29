@@ -119,6 +119,13 @@ async function recomputeSubmissionFields(submissionId, userId) {
       if (!masterByKey.has(key) && key !== "legal_name") continue; // ignore unknown keys
 
       if (!candsByKey.has(key)) candsByKey.set(key, []);
+      
+      // Get document name for traceability
+      const documentName = docEntry.document_name || 
+        (docEntry.document && typeof docEntry.document === "object" 
+          ? docEntry.document.original_name || docEntry.document.display_name 
+          : "");
+      
       candsByKey.get(key).push({
         key,
         value: {
@@ -129,10 +136,27 @@ async function recomputeSubmissionFields(submissionId, userId) {
         conflicts: Array.isArray(f?.conflicts) ? f.conflicts : [],
         occurrences: Array.isArray(f?.occurrences) ? f.occurrences : [],
         notes: f?.notes || "",
+        // Preserve validation if present
+        validation: f?.validation || {
+          validated: false,
+          passed: false,
+          errors: [],
+          validated_at: null,
+        },
+        // Preserve traceability if present, or build from document
+        traceability: f?.traceability || {
+          document_name: documentName,
+          document_id: docEntry._id || null,
+          file_id: fileId || null,
+          extracted_at: new Date(),
+          extraction_method: "openai",
+        },
         source: {
           type: "extraction",
           documentEntryId: docEntry._id,
           fileId: fileId || null,
+          document_name: documentName,
+          extracted_at: new Date(),
         },
         is_reviewed: false,
         reviewedAt: null,
@@ -161,11 +185,46 @@ async function recomputeSubmissionFields(submissionId, userId) {
     const chosen = pickBestCandidate(cands);
     const conflicts = mergeDistinctConflicts(cands, chosen);
 
-    const needsReview = chosen.confidence === "low" || conflicts.length > 0;
+    // Check if validation failed (needs review)
+    const hasValidationErrors = chosen.validation?.validated && 
+      !chosen.validation.passed && 
+      chosen.validation.errors?.length > 0;
+    
+    const needsReview = chosen.confidence === "low" || 
+      conflicts.length > 0 || 
+      hasValidationErrors;
+
+    // Merge validation from best candidate (prefer validated results)
+    const bestValidation = cands
+      .filter(c => c.validation?.validated)
+      .sort((a, b) => {
+        // Prefer passed validations, then by error count
+        if (a.validation.passed && !b.validation.passed) return -1;
+        if (!a.validation.passed && b.validation.passed) return 1;
+        return (a.validation.errors?.length || 0) - (b.validation.errors?.length || 0);
+      })[0]?.validation || chosen.validation;
+
+    // Merge traceability (prefer most complete)
+    const bestTraceability = cands
+      .filter(c => c.traceability?.document_name)
+      .sort((a, b) => {
+        const aComplete = (a.traceability?.document_name ? 1 : 0) + 
+                         (a.traceability?.file_id ? 1 : 0);
+        const bComplete = (b.traceability?.document_name ? 1 : 0) + 
+                         (b.traceability?.file_id ? 1 : 0);
+        return bComplete - aComplete;
+      })[0]?.traceability || chosen.traceability;
 
     finalFields.push({
       ...chosen,
       conflicts: conflicts.length ? conflicts : chosen.conflicts || [],
+      validation: bestValidation || {
+        validated: false,
+        passed: false,
+        errors: [],
+        validated_at: null,
+      },
+      traceability: bestTraceability || chosen.traceability,
       is_reviewed: needsReview ? false : true,
       reviewedAt: needsReview ? null : new Date(),
     });
@@ -203,7 +262,11 @@ async function recomputeSubmissionFields(submissionId, userId) {
     const hasConflicts =
       Array.isArray(field.conflicts) && field.conflicts.length > 0;
     const low = (field.confidence || "low") === "low";
-    if (!field.is_reviewed || hasConflicts || low) {
+    const hasValidationErrors = field.validation?.validated && 
+      !field.validation.passed && 
+      field.validation.errors?.length > 0;
+    
+    if (!field.is_reviewed || hasConflicts || low || hasValidationErrors) {
       needs_review_keys.push(key);
     }
   }
@@ -245,7 +308,11 @@ async function recomputeSubmissionFields(submissionId, userId) {
     const hasConflicts =
       Array.isArray(field.conflicts) && field.conflicts.length > 0;
     const low = (field.confidence || "low") === "low";
-    if (!field.is_reviewed || hasConflicts || low) {
+    const hasValidationErrors = field.validation?.validated && 
+      !field.validation.passed && 
+      field.validation.errors?.length > 0;
+    
+    if (!field.is_reviewed || hasConflicts || low || hasValidationErrors) {
       needs_review_optional_keys.push(key);
     }
   }

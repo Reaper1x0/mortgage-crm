@@ -6,7 +6,7 @@ import StatusBadge from "../Reusable/StatusBadge";
 import Callout from "../Reusable/Callout";
 import Button from "../Reusable/Button";
 
-import { FiCheck, FiRefreshCw, FiSave, FiAlertTriangle } from "react-icons/fi";
+import { FiCheck, FiRefreshCw, FiSave, FiAlertTriangle, FiInfo, FiFileText } from "react-icons/fi";
 
 type MasterField = {
   _id: string;
@@ -16,14 +16,44 @@ type MasterField = {
   description: string;
 };
 
+type ValidationError = {
+  rule: string;
+  message: string;
+  severity: "error" | "warning";
+};
+
+type FieldValidation = {
+  validated: boolean;
+  passed: boolean;
+  errors: ValidationError[];
+  validated_at?: string | null;
+};
+
+type FieldOccurrence = {
+  snippet: string;
+  page: number | null;
+  line_hint: string | null;
+  document_name?: string;
+  document_id?: string;
+  extracted_at?: string;
+};
+
 type SubmissionField = {
   key: string;
   value?: { raw: any; normalized?: any };
   confidence?: "high" | "medium" | "low";
   conflicts?: Array<{ raw: any }>;
   notes?: string;
-  source?: { type: "extraction" | "manual" };
+  source?: {
+    type: "extraction" | "manual";
+    document_name?: string;
+    extracted_at?: string;
+  };
   is_reviewed?: boolean;
+  // Validation results
+  validation?: FieldValidation;
+  // Source occurrences with traceability
+  occurrences?: FieldOccurrence[];
 };
 
 type Eligibility = {
@@ -107,6 +137,9 @@ export default function MasterFieldsPanel({
       const conflictsCount = f?.conflicts?.length || 0;
       const confidence = f?.confidence || (f ? "low" : undefined);
       const isManual = f?.source?.type === "manual";
+      
+      // Check for validation failures
+      const hasValidationErrors = f?.validation?.validated && !f.validation.passed && (f.validation.errors?.length || 0) > 0;
 
       const isMissingReq = mf.required && eligibility.missing_required_keys.includes(mf.key);
       const isReviewReq = mf.required && eligibility.needs_review_keys.includes(mf.key);
@@ -115,7 +148,7 @@ export default function MasterFieldsPanel({
       const isReviewOpt = !mf.required && reviewOpt.includes(mf.key);
 
       const needsReviewGeneric =
-        !!f && ((confidence || "low") === "low" || conflictsCount > 0 || !f.is_reviewed);
+        !!f && ((confidence || "low") === "low" || conflictsCount > 0 || !f.is_reviewed || hasValidationErrors);
 
       const isMissing = mf.required ? isMissingReq : isMissingOpt;
       const isReview = mf.required ? isReviewReq : (isReviewOpt || needsReviewGeneric);
@@ -133,6 +166,7 @@ export default function MasterFieldsPanel({
         isMissing,
         isReview,
         isDone,
+        hasValidationErrors,
       };
     });
 
@@ -434,6 +468,12 @@ export default function MasterFieldsPanel({
                           {r.conflictsCount} conflict(s)
                         </StatusBadge>
                       ) : null}
+
+                      {f?.validation?.validated ? (
+                        <StatusBadge tone={f.validation.passed ? "success" : "danger"}>
+                          {f.validation.passed ? "Validated ✓" : "Validation Failed"}
+                        </StatusBadge>
+                      ) : null}
                     </div>
 
                     {mf.description ? (
@@ -453,6 +493,109 @@ export default function MasterFieldsPanel({
                             <li key={idx}>{String(c.raw)}</li>
                           ))}
                         </ul>
+                      </div>
+                    ) : null}
+
+                    {/* Validation Errors */}
+                    {f?.validation?.validated && !f.validation.passed && f.validation.errors?.length > 0 ? (
+                      <div className="mt-3 rounded-2xl border border-danger-border bg-danger/10 p-3">
+                        <div className="flex items-center gap-2 text-sm font-bold text-danger">
+                          <FiAlertTriangle />
+                          Validation Failed
+                        </div>
+                        <ul className="mt-2 space-y-1.5">
+                          {f.validation.errors.map((error, idx) => (
+                            <li key={idx} className="text-sm">
+                              <div className="font-medium text-text">
+                                {error.rule}
+                              </div>
+                              <div className="text-xs text-card-text">{error.message}</div>
+                              {error.severity === "warning" && (
+                                <div className="mt-0.5 text-xs text-warning">Warning</div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {/* Validation Passed Badge */}
+                    {f?.validation?.validated && f.validation.passed ? (
+                      <div className="mt-2">
+                        <StatusBadge tone="success">Validated ✓</StatusBadge>
+                      </div>
+                    ) : null}
+
+                    {/* Traceability Information */}
+                    {f?.source?.document_name || f?.source?.extracted_at ? (
+                      <div className="mt-3 rounded-xl border border-card-border bg-card-hover p-2.5">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-card-text">
+                          <FiInfo className="h-3 w-3" />
+                          Source Traceability
+                        </div>
+                        <div className="mt-1.5 space-y-1 text-xs">
+                          {f.source.document_name && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-text">Document:</span>
+                              <span className="text-card-text break-words">{f.source.document_name}</span>
+                            </div>
+                          )}
+                          {f.source.extracted_at && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-text">Extracted:</span>
+                              <span className="text-card-text">
+                                {new Date(f.source.extracted_at).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Source Evidence (Occurrences) */}
+                    {f?.occurrences && f.occurrences.length > 0 ? (
+                      <div className="mt-3">
+                        <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-card-text">
+                          <FiFileText className="h-3 w-3" />
+                          Source Evidence
+                        </div>
+                        <div className="space-y-2">
+                          {f.occurrences.slice(0, 2).map((occ, idx) => (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-card-border bg-card-hover p-2.5"
+                            >
+                              <div className="mb-1.5 text-xs italic text-text break-words">
+                                "{occ.snippet}"
+                              </div>
+                              <div className="flex flex-wrap items-center gap-3 text-[11px] text-card-text">
+                                {occ.page != null && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="font-medium">Page:</span>
+                                    <span>{occ.page}</span>
+                                  </span>
+                                )}
+                                {occ.line_hint && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="font-medium">Line:</span>
+                                    <span>{occ.line_hint}</span>
+                                  </span>
+                                )}
+                                {occ.document_name && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="font-medium">From:</span>
+                                    <span className="truncate max-w-[150px]">{occ.document_name}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {f.occurrences.length > 2 && (
+                            <div className="text-xs text-card-text">
+                              +{f.occurrences.length - 2} more occurrence(s)
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ) : null}
                   </div>

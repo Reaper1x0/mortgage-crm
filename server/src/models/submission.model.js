@@ -13,6 +13,10 @@ const ExtractedFieldSchema = new mongoose.Schema({
       snippet: { type: String, default: "" },
       page: { type: Number, default: null },
       line_hint: { type: String, default: null },
+      // Enhanced traceability
+      document_name: { type: String, default: "" },
+      document_id: { type: mongoose.Schema.Types.ObjectId, default: null },
+      extracted_at: { type: Date, default: Date.now },
     },
   ],
   confidence: {
@@ -22,6 +26,27 @@ const ExtractedFieldSchema = new mongoose.Schema({
     default: "low",
   },
   notes: { type: String, default: "" },
+  // Validation results
+  validation: {
+    validated: { type: Boolean, default: false },
+    passed: { type: Boolean, default: false },
+    errors: [
+      {
+        rule: { type: String, required: true },
+        message: { type: String, required: true },
+        severity: { type: String, enum: ["error", "warning"], default: "error" },
+      },
+    ],
+    validated_at: { type: Date, default: null },
+  },
+  // Source traceability
+  traceability: {
+    document_name: { type: String, default: "" },
+    document_id: { type: mongoose.Schema.Types.ObjectId, default: null },
+    file_id: { type: mongoose.Schema.Types.ObjectId, default: null },
+    extracted_at: { type: Date, default: Date.now },
+    extraction_method: { type: String, enum: ["openai", "manual"], default: "openai" },
+  },
 });
 
 /* -------------------- Documents inside a submission -------------------- */
@@ -34,6 +59,9 @@ const DocumentSchema = new mongoose.Schema({
   },
   extracted_fields: { type: [ExtractedFieldSchema], default: [] },
   uploadDate: { type: Date, default: Date.now },
+  // Document metadata for traceability
+  document_name: { type: String, default: "" },
+  document_type: { type: String, default: "" },
 });
 
 /* -------------------- Submission-level aggregated fields -------------------- */
@@ -64,6 +92,10 @@ const SubmissionFieldSchema = new mongoose.Schema(
         snippet: { type: String, default: "" },
         page: { type: Number, default: null },
         line_hint: { type: String, default: null },
+        // Enhanced traceability
+        document_name: { type: String, default: "" },
+        document_id: { type: mongoose.Schema.Types.ObjectId, default: null },
+        extracted_at: { type: Date, default: Date.now },
       },
     ],
     notes: { type: String, default: "" },
@@ -82,6 +114,23 @@ const SubmissionFieldSchema = new mongoose.Schema(
         ref: "File",
         default: null,
       },
+      // Enhanced traceability
+      document_name: { type: String, default: "" },
+      extracted_at: { type: Date, default: null },
+    },
+
+    // Validation results
+    validation: {
+      validated: { type: Boolean, default: false },
+      passed: { type: Boolean, default: false },
+      errors: [
+        {
+          rule: { type: String, required: true },
+          message: { type: String, required: true },
+          severity: { type: String, enum: ["error", "warning"], default: "error" },
+        },
+      ],
+      validated_at: { type: Date, default: null },
     },
 
     is_reviewed: { type: Boolean, default: false },

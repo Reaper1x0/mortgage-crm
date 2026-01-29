@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { useDashboardAnalytics, DashboardRange } from "../../hooks/useDashboardAnalytics";
+import { useDashboardAnalytics } from "../../hooks/useDashboardAnalytics";
+import { DashboardRange } from "../../service/dashboardService";
 import PageHeader from "../Reusable/PageHeader";
 import Card from "../Reusable/Card";
 import Button from "../Reusable/Button";
 import LineTrendChart from "../charts/LineTrendChart";
 import DonutWorkloadChart from "../charts/DonutWorkloadChart";
-import { cn } from "../../utils/cn";
+import StatusBadge from "../Reusable/StatusBadge";
+import { FiAlertCircle, FiAlertTriangle, FiInfo } from "react-icons/fi";
 
 const DashboardAnalytics: React.FC = () => {
   const [range, setRange] = useState<DashboardRange>("daily");
@@ -65,8 +67,6 @@ const DashboardAnalytics: React.FC = () => {
       ].filter((d) => d.value > 0)
     : [];
 
-  // Prepare validation failures for table
-  const validationFailures = data.validationFailures?.topValidationFailures || [];
 
   return (
     <div className="p-6 space-y-6">
@@ -139,48 +139,98 @@ const DashboardAnalytics: React.FC = () => {
         {/* Top Validation Failures */}
         <Card>
           <div className="p-4">
-            <h3 className="text-lg font-semibold text-text mb-4">
-              Top Validation Failures
-            </h3>
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-text">
+                Top Validation Failures
+              </h3>
+              {!loading && data.validationFailures && (
+                <div className="text-sm text-text-secondary mt-1">
+                  {data.validationFailures.totalFailures} failures • {data.validationFailures.uniqueRules} rules
+                </div>
+              )}
+            </div>
+
             {loading ? (
-              <div className="h-64 flex items-center justify-center">
-                <div className="text-text-secondary">Loading...</div>
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className="p-3 rounded-lg border border-card-border bg-card animate-pulse"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="h-6 bg-card-border rounded w-20" />
+                      <div className="flex-1 min-w-0">
+                        <div className="h-4 bg-card-border rounded w-3/4 mb-2" />
+                        <div className="h-3 bg-card-border rounded w-1/2" />
+                      </div>
+                      <div className="h-6 bg-card-border rounded w-16" />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ) : validationFailures.length === 0 ? (
-              <div className="h-64 flex items-center justify-center">
+            ) : (data.validationFailures?.topValidationFailures || []).length === 0 ? (
+              <div className="h-64 flex flex-col items-center justify-center">
+                <FiInfo className="h-12 w-12 text-text-secondary mb-2" />
                 <div className="text-text-secondary">No validation failures</div>
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-card-border">
-                        <th className="text-left py-2 px-3 text-sm font-semibold text-text">
-                          Rule
-                        </th>
-                        <th className="text-right py-2 px-3 text-sm font-semibold text-text">
-                          Count
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {validationFailures.map((failure, index) => (
-                        <tr
-                          key={index}
-                          className="border-b border-card-border hover:bg-card-hover"
-                        >
-                          <td className="py-2 px-3 text-sm text-text-secondary">
+                {(data.validationFailures?.topValidationFailures || [])
+                  .slice(0, 10)
+                  .map((failure, index) => (
+                    <div
+                      key={index}
+                      className="p-3 rounded-lg border border-card-border hover:bg-card-hover transition"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        {/* Left: Severity badges */}
+                        <div className="flex flex-col gap-1 items-start min-w-[90px]">
+                          {failure.severityCounts.error > 0 && (
+                            <StatusBadge tone="danger" className="text-xs">
+                              <FiAlertCircle className="h-3 w-3 mr-1" />
+                              {failure.severityCounts.error}
+                            </StatusBadge>
+                          )}
+                          {failure.severityCounts.warning > 0 && (
+                            <StatusBadge tone="warning" className="text-xs">
+                              <FiAlertTriangle className="h-3 w-3 mr-1" />
+                              {failure.severityCounts.warning}
+                            </StatusBadge>
+                          )}
+                        </div>
+
+                        {/* Middle: Rule + optional message */}
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className="text-sm font-medium text-text truncate"
+                            title={failure.rule}
+                          >
                             {failure.rule}
-                          </td>
-                          <td className="py-2 px-3 text-sm text-text text-right">
+                          </div>
+                          {failure.sampleMessages.length > 0 && (
+                            <div className="text-xs text-text-secondary italic truncate mt-0.5">
+                              {failure.sampleMessages[0]}
+                            </div>
+                          )}
+                          {failure.affectedFieldsCount > 0 && (
+                            <div className="text-xs text-text-secondary mt-1">
+                              {failure.affectedFieldsCount} field{failure.affectedFieldsCount !== 1 ? "s" : ""} affected
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Right: Count + % */}
+                        <div className="text-right min-w-[80px]">
+                          <div className="text-sm font-bold text-text">
                             {failure.count}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          </div>
+                          <div className="text-xs text-text-secondary">
+                            {failure.percentage}%
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
               </div>
             )}
           </div>

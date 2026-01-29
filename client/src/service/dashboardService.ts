@@ -18,10 +18,20 @@ export interface TrendBucket {
 export interface ValidationFailure {
   rule: string;
   count: number;
+  percentage: number;
+  severityCounts: {
+    error: number;
+    warning: number;
+  };
+  sampleMessages: string[];
+  affectedFieldsCount: number;
+  affectedFields: string[];
 }
 
 export interface ValidationFailuresData {
   topValidationFailures: ValidationFailure[];
+  totalFailures: number;
+  uniqueRules: number;
 }
 
 export interface WorkloadStatus {
