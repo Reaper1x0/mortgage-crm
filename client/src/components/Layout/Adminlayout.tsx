@@ -5,14 +5,16 @@ import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { LuBraces, LuInbox } from "react-icons/lu";
 import { RiFileEditFill } from "react-icons/ri";
 import { FiUsers } from "react-icons/fi";
+import { GrDashboard } from "react-icons/gr";
 
 export default function Layout() {
   const { user, role } = useAuth();
 
   const defaultLinks: SidebarLink[] = [
+    { to: "/workspace/dashboard/analytics", label: "Dashboard", icon: GrDashboard },
     { to: "/workspace/submissions", label: "Submissions", icon: LuInbox },
     { to: "/workspace/master-fields", label: "Master Fields Schema", icon: LuBraces },
-    { to: "/workspace/template-maker", label: "Templates", icon: RiFileEditFill },
+    { to: "/workspace/template-maker", label: "Templates", icon: RiFileEditFill },    
   ];
 
   // Add Users link only for Admin

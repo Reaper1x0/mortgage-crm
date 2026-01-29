@@ -7,6 +7,7 @@ const masterFieldRoutes = require("./masterFields.routes");
 const submissionRoutes = require("./submission.routes");
 const templateRoutes = require("./template.routes");
 const userRoutes = require("./user.routes");
+const dashboardRoutes = require("./dashboard.routes");
 
 const defaultRoutes = [
   {
@@ -32,6 +33,10 @@ const defaultRoutes = [
   {
     path: "/users",
     route: userRoutes,
+  },
+  {
+    path: "/dashboard",
+    route: dashboardRoutes,
   },
 ];
 

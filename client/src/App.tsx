@@ -14,6 +14,7 @@ import SubmissionManagementPage from "./components/Submissions/SubmissionManagem
 import TemplateMaker from "./components/TemplateMaker/TemplatesPage";
 import TemplateDesignerPage from "./components/TemplateMaker/TemplateDesignerPage";
 import UsersPage from "./components/Users/UsersPage";
+import DashboardAnalytics from "./components/Dashboard/DashboardAnalytics";
 
 function App() {
   return (
@@ -48,6 +49,7 @@ function App() {
             <Route path="template-maker" element={<TemplateMaker />}></Route>
             <Route path="template-maker/:templateId/manage" element={<TemplateDesignerPage />}></Route>
             <Route path="users" element={<UsersPage />}></Route>
+            <Route path="dashboard/analytics" element={<DashboardAnalytics />}></Route>
           </Route>
         </Route>
         <Route path="*" element={<Layout element={<NotFoundPage />} />}></Route>
