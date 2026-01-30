@@ -346,4 +346,131 @@ async function recomputeSubmissionFields(submissionId, userId) {
   return updated;
 }
 
-module.exports = { recomputeSubmissionFields };
+/**
+ * Filter and count fields based on filter type and search query
+ * @param {Array} masterFields - All master field definitions
+ * @param {Array} submissionFields - All submission fields
+ * @param {Object} eligibility - Eligibility status object
+ * @param {string} filter - Filter type: 'focus', 'all', 'req_missing', 'req_review', 'opt_missing', 'opt_review', 'done'
+ * @param {string} searchQuery - Search query string (optional)
+ * @returns {Object} Filtered rows and counts
+ */
+function filterAndCountFields(masterFields, submissionFields, eligibility, filter = "focus", searchQuery = "") {
+  // Ensure eligibility is an object
+  const elig = eligibility || {};
+  
+  const byKey = new Map();
+  (submissionFields || []).forEach((f) => {
+    byKey.set(String(f.key), f);
+  });
+
+  const missingOpt = elig.missing_optional_keys || [];
+  const reviewOpt = elig.needs_review_optional_keys || [];
+
+  // Build base rows with computed properties
+  const base = (masterFields || []).map((mf) => {
+    const f = byKey.get(String(mf.key));
+    const current = f?.value?.normalized ?? f?.value?.raw ?? null;
+
+    const hasValue = !isBlank(current);
+    const conflictsCount = f?.conflicts?.length || 0;
+    const confidence = f?.confidence || (f ? "low" : undefined);
+    const isManual = f?.source?.type === "manual";
+
+    // Check for validation failures
+    const hasValidationErrors =
+      f?.validation?.validated &&
+      !f.validation.passed &&
+      (f.validation.errors?.length || 0) > 0;
+
+    const isMissingReq = mf.required && (elig.missing_required_keys || []).includes(mf.key);
+    const isReviewReq = mf.required && (elig.needs_review_keys || []).includes(mf.key);
+
+    const isMissingOpt = !mf.required && missingOpt.includes(mf.key);
+    const isReviewOpt = !mf.required && reviewOpt.includes(mf.key);
+
+    const needsReviewGeneric =
+      !!f &&
+      ((confidence || "low") === "low" ||
+        conflictsCount > 0 ||
+        !f.is_reviewed ||
+        hasValidationErrors);
+
+    const isMissing = mf.required ? isMissingReq : isMissingOpt;
+    const isReview = mf.required ? isReviewReq : isReviewOpt || needsReviewGeneric;
+
+    // done means: filled + not missing + not review
+    const isDone = hasValue && !isMissing && !isReview;
+
+    return {
+      masterField: mf,
+      submissionField: f,
+      current,
+      isManual,
+      confidence,
+      conflictsCount,
+      isMissing,
+      isReview,
+      isDone,
+      hasValidationErrors,
+    };
+  });
+
+  // Apply search filter
+  const s = (searchQuery || "").trim().toLowerCase();
+  const searched = !s
+    ? base
+    : base.filter((x) => {
+        const k = String(x.masterField.key || "").toLowerCase();
+        const d = String(x.masterField.description || "").toLowerCase();
+        return k.includes(s) || d.includes(s);
+      });
+
+  // Apply filter type
+  let filtered = searched;
+  if (filter === "focus") {
+    filtered = searched
+      .filter((x) => x.isMissing || x.isReview)
+      .sort((a, b) => {
+        // missing first, then review
+        const ap = a.isMissing ? 0 : a.isReview ? 1 : 2;
+        const bp = b.isMissing ? 0 : b.isReview ? 1 : 2;
+        return ap - bp;
+      });
+  } else if (filter === "req_missing") {
+    filtered = searched.filter((x) => x.masterField.required && x.isMissing);
+  } else if (filter === "req_review") {
+    filtered = searched.filter((x) => x.masterField.required && x.isReview && !x.isMissing);
+  } else if (filter === "opt_missing") {
+    filtered = searched.filter((x) => !x.masterField.required && x.isMissing);
+  } else if (filter === "opt_review") {
+    filtered = searched.filter((x) => !x.masterField.required && x.isReview && !x.isMissing);
+  } else if (filter === "done") {
+    filtered = searched.filter((x) => x.isDone);
+  }
+  // else "all" - no additional filtering
+
+  // Calculate counts
+  const reqMissing = (elig.missing_required_keys || []).length;
+  const reqReview = (elig.needs_review_keys || []).length;
+  const optMissing = missingOpt.length;
+  const optReview = reviewOpt.length;
+  const focus = base.filter((r) => r.isMissing || r.isReview).length;
+
+  return {
+    rows: filtered,
+    counts: {
+      reqMissing,
+      reqReview,
+      optMissing,
+      optReview,
+      focus,
+    },
+  };
+}
+
+function isBlank(v) {
+  return v === null || v === undefined || String(v).trim() === "";
+}
+
+module.exports = { recomputeSubmissionFields, filterAndCountFields };

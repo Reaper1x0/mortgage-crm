@@ -1,12 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { SubmissionFieldStatusService } from "../../service/submissionFieldsStatusService";
 
 import Surface from "../Reusable/Surface";
 import StatusBadge from "../Reusable/StatusBadge";
 import Callout from "../Reusable/Callout";
-import Button from "../Reusable/Button";
-
-import { FiCheck, FiRefreshCw, FiSave, FiAlertTriangle, FiInfo, FiFileText } from "react-icons/fi";
+import ExtractedFieldRow from "./ExtractedFieldRow";
 
 type MasterField = {
   _id: string;
@@ -82,19 +80,12 @@ function pct(n: number, d: number) {
   return Math.max(0, Math.min(100, Math.round((n / d) * 100)));
 }
 
-function normalizeCurrent(f?: SubmissionField) {
-  const v = f?.value?.normalized ?? f?.value?.raw ?? null;
-  return v === undefined ? null : v;
-}
-
-function isBlank(v: any) {
-  return v === null || v === undefined || String(v).trim() === "";
-}
+// These functions are no longer needed - server handles normalization
 
 export default function MasterFieldsPanel({
   submissionId,
   masterFields,
-  submissionFields,
+  submissionFields: _submissionFields, // Kept for API compatibility, but data fetched from server
   eligibility,
   onUpdated,
 }: {
@@ -107,158 +98,79 @@ export default function MasterFieldsPanel({
     eligibility: Eligibility;
   }) => void;
 }) {
-  // Default filter: focus on what's needed (missing/review)
-  const [filter, setFilter] = useState<FilterKey>("focus");
+  // Default filter: show completed fields first
+  const [filter, setFilter] = useState<FilterKey>("done");
   const [q, setQ] = useState("");
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, any>>({});
+  const [filteredRows, setFilteredRows] = useState<any[]>([]);
+  const [counts, setCounts] = useState({
+    reqMissing: 0,
+    reqReview: 0,
+    optMissing: 0,
+    optReview: 0,
+    focus: 0,
+  });
+  const [loadingFilter, setLoadingFilter] = useState(false);
 
-  const byKey = useMemo(() => {
-    const m = new Map<string, SubmissionField>();
-    (submissionFields || []).forEach((f) => m.set(String(f.key), f));
-    return m;
-  }, [submissionFields]);
+  // byKey no longer needed - server provides filtered rows with all needed data
 
   const opt = useMemo(() => masterFields.filter((m) => !m.required), [masterFields]);
-
-  const missingOpt = eligibility.missing_optional_keys ?? [];
-  const reviewOpt = eligibility.needs_review_optional_keys ?? [];
 
   const reqPct = pct(eligibility.filled_required, eligibility.required_total);
   const optPct = pct(eligibility.filled_optional ?? 0, eligibility.optional_total ?? opt.length);
 
+  // Fetch filtered data from server when filter or search changes
+  useEffect(() => {
+    const fetchFilteredData = async () => {
+      try {
+        setLoadingFilter(true);
+        const resp = await SubmissionFieldStatusService.getSubmissionFieldStatus(submissionId, {
+          filter,
+          search: q,
+          recompute: false,
+        });
+        
+        if (resp?.filtered_rows) {
+          // Merge draft values into filtered rows
+          const rowsWithDraft = resp.filtered_rows.map((row: any) => {
+            const key = row.masterField.key;
+            const current = draft[key] !== undefined ? draft[key] : row.current;
+            return {
+              ...row,
+              current,
+            };
+          });
+          setFilteredRows(rowsWithDraft);
+        }
+        
+        if (resp?.counts) {
+          setCounts(resp.counts);
+        }
+      } catch (error) {
+        console.error("Failed to fetch filtered data:", error);
+      } finally {
+        setLoadingFilter(false);
+      }
+    };
+
+    fetchFilteredData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submissionId, filter, q]);
+
+  // Update rows when draft changes (without refetching)
   const rows = useMemo(() => {
-    const base = (masterFields || []).map((mf) => {
-      const f = byKey.get(String(mf.key));
-      const current = draft[mf.key] !== undefined ? draft[mf.key] : normalizeCurrent(f);
-
-      const hasValue = !isBlank(current);
-
-      const conflictsCount = f?.conflicts?.length || 0;
-      const confidence = f?.confidence || (f ? "low" : undefined);
-      const isManual = f?.source?.type === "manual";
-      
-      // Check for validation failures
-      const hasValidationErrors = f?.validation?.validated && !f.validation.passed && (f.validation.errors?.length || 0) > 0;
-
-      const isMissingReq = mf.required && eligibility.missing_required_keys.includes(mf.key);
-      const isReviewReq = mf.required && eligibility.needs_review_keys.includes(mf.key);
-
-      const isMissingOpt = !mf.required && missingOpt.includes(mf.key);
-      const isReviewOpt = !mf.required && reviewOpt.includes(mf.key);
-
-      const needsReviewGeneric =
-        !!f && ((confidence || "low") === "low" || conflictsCount > 0 || !f.is_reviewed || hasValidationErrors);
-
-      const isMissing = mf.required ? isMissingReq : isMissingOpt;
-      const isReview = mf.required ? isReviewReq : (isReviewOpt || needsReviewGeneric);
-
-      // done means: filled + not missing + not review
-      const isDone = hasValue && !isMissing && !isReview;
-
+    return filteredRows.map((row) => {
+      const key = row.masterField.key;
+      const current = draft[key] !== undefined ? draft[key] : row.current;
       return {
-        mf,
-        f,
+        ...row,
         current,
-        isManual,
-        confidence,
-        conflictsCount,
-        isMissing,
-        isReview,
-        isDone,
-        hasValidationErrors,
       };
     });
+  }, [filteredRows, draft]);
 
-    // search
-    const s = (q || "").trim().toLowerCase();
-    const searched = !s
-      ? base
-      : base.filter((x) => {
-          const k = String(x.mf.key || "").toLowerCase();
-          const d = String(x.mf.description || "").toLowerCase();
-          return k.includes(s) || d.includes(s);
-        });
-
-    // default: focus
-    if (filter === "focus") {
-      return searched
-        .filter((x) => x.isMissing || x.isReview)
-        .sort((a, b) => {
-          // missing first, then review
-          const ap = a.isMissing ? 0 : a.isReview ? 1 : 2;
-          const bp = b.isMissing ? 0 : b.isReview ? 1 : 2;
-          return ap - bp;
-        });
-    }
-
-    if (filter === "req_missing") return searched.filter((x) => x.mf.required && x.isMissing);
-    if (filter === "req_review") return searched.filter((x) => x.mf.required && x.isReview && !x.isMissing);
-    if (filter === "opt_missing") return searched.filter((x) => !x.mf.required && x.isMissing);
-    if (filter === "opt_review") return searched.filter((x) => !x.mf.required && x.isReview && !x.isMissing);
-    if (filter === "done") return searched.filter((x) => x.isDone);
-    return searched;
-  }, [masterFields, byKey, eligibility, filter, q, missingOpt, reviewOpt, draft]);
-
-  const inputFor = (
-    type: MasterField["type"],
-    value: any,
-    onChange: (v: any) => void
-  ) => {
-    // compact, consistent input styles (smaller than before)
-    const base =
-      "w-full rounded-xl border border-card-border bg-background px-3 py-2 text-sm text-text " +
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-shadow";
-
-    if (type === "boolean") {
-      return (
-        <select
-          className={base}
-          value={value === true ? "true" : value === false ? "false" : ""}
-          onChange={(e) => {
-            const v = e.target.value;
-            onChange(v === "" ? null : v === "true");
-          }}
-        >
-          <option value="">Select</option>
-          <option value="true">True</option>
-          <option value="false">False</option>
-        </select>
-      );
-    }
-
-    if (type === "date") {
-      return (
-        <input
-          type="date"
-          className={base}
-          value={typeof value === "string" ? value.slice(0, 10) : ""}
-          onChange={(e) => onChange(e.target.value || null)}
-        />
-      );
-    }
-
-    if (type === "number") {
-      return (
-        <input
-          type="number"
-          className={base}
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-        />
-      );
-    }
-
-    return (
-      <input
-        type="text"
-        className={base}
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
-        placeholder="Enter value…"
-      />
-    );
-  };
+  // Input handling moved to ExtractedFieldRow component
 
   const saveManual = async (key: string, value: any) => {
     try {
@@ -267,6 +179,7 @@ export default function MasterFieldsPanel({
         set: [{ key, value: { raw: value, normalized: value } }],
       });
       onUpdated({ submission_fields: resp.submission_fields, eligibility: resp.eligibility });
+      await refreshFilteredData();
     } finally {
       setSavingKey(null);
     }
@@ -279,6 +192,7 @@ export default function MasterFieldsPanel({
         review: [{ key, is_reviewed: true }],
       });
       onUpdated({ submission_fields: resp.submission_fields, eligibility: resp.eligibility });
+      await refreshFilteredData();
     } finally {
       setSavingKey(null);
     }
@@ -291,80 +205,74 @@ export default function MasterFieldsPanel({
         clear_manual: [key],
       });
       onUpdated({ submission_fields: resp.submission_fields, eligibility: resp.eligibility });
+      await refreshFilteredData();
     } finally {
       setSavingKey(null);
     }
   };
 
-  const counts = useMemo(() => {
-    const reqMissing = eligibility.missing_required_keys.length;
-    const reqReview = eligibility.needs_review_keys.length;
-    const optMissing = (missingOpt || []).length;
-    const optReview = (reviewOpt || []).length;
-    const focus = rows.filter((r) => r.isMissing || r.isReview).length;
-    return { reqMissing, reqReview, optMissing, optReview, focus };
-  }, [eligibility, missingOpt, reviewOpt, rows]);
+  // Helper to refresh filtered data after updates
+  const refreshFilteredData = async () => {
+    try {
+      const resp = await SubmissionFieldStatusService.getSubmissionFieldStatus(submissionId, {
+        filter,
+        search: q,
+        recompute: false,
+      });
+      if (resp?.filtered_rows) {
+        const rowsWithDraft = resp.filtered_rows.map((row: any) => {
+          const key = row.masterField.key;
+          const current = draft[key] !== undefined ? draft[key] : row.current;
+          return { ...row, current };
+        });
+        setFilteredRows(rowsWithDraft);
+      }
+      if (resp?.counts) {
+        setCounts(resp.counts);
+      }
+    } catch (error) {
+      console.error("Failed to refresh filtered data:", error);
+    }
+  };
 
   return (
     <div className="space-y-4">
-      {/* Summary header */}
-      <Surface variant="soft" className="p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-1">
-            <div className="text-lg font-extrabold text-text">Field Review</div>
-            <div className="text-sm text-card-text">
-              Work through missing and review items first. Save adds a manual override.
-            </div>
-
-            <div className="mt-2 flex flex-wrap gap-2">
-              <StatusBadge tone={eligibility.eligible ? "success" : "danger"}>
-                {eligibility.eligible ? "Eligible" : "Not eligible"}
-              </StatusBadge>
-
-              <StatusBadge tone="neutral">
-                Required: {eligibility.filled_required}/{eligibility.required_total}
-              </StatusBadge>
-
-              <StatusBadge tone="neutral">
-                Optional: {(eligibility.filled_optional ?? 0)}/{eligibility.optional_total ?? opt.length}
-              </StatusBadge>
-            </div>
+      {/* Compact Summary Header */}
+      <Surface variant="soft" className="p-4 rounded-lg">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          {/* Left: Title + Status Badges */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-base font-bold text-text">Field Review</div>
+            <StatusBadge tone={eligibility.eligible ? "success" : "danger"}>
+              {eligibility.eligible ? "Eligible" : "Not eligible"}
+            </StatusBadge>
+            <StatusBadge tone="neutral">
+              Required: {eligibility.filled_required}/{eligibility.required_total}
+            </StatusBadge>
+            <StatusBadge tone="neutral">
+              Optional: {(eligibility.filled_optional ?? 0)}/{eligibility.optional_total ?? opt.length}
+            </StatusBadge>
           </div>
 
-          <div className="w-full max-w-md space-y-3">
-            {/* Required progress */}
-            <div className="rounded-2xl border border-card-border bg-card p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-bold text-text">Eligibility (Required)</div>
-                <div className="text-xs text-card-text">{reqPct}%</div>
-              </div>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full border border-card-border bg-card-hover">
-                <div className="h-full bg-primary" style={{ width: `${reqPct}%` }} />
-              </div>
-
-              <div className="mt-3 flex items-center justify-between">
-                <div className="text-xs text-card-text">Optional completion</div>
-                <div className="text-xs text-card-text">{optPct}%</div>
-              </div>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full border border-card-border bg-card-hover">
-                <div className="h-full bg-primary" style={{ width: `${optPct}%` }} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Controls row */}
-        <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="w-full md:max-w-sm">
+          <div className="w-full sm:max-w-sm">
             <input
-              className="w-full rounded-xl border border-card-border bg-background px-3 py-2 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-shadow"
+              className="w-full rounded-lg border border-card-border bg-background px-3 py-1.5 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-shadow"
               placeholder="Search by key or description…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
+        </div>
 
-          <div className="flex flex-wrap gap-2">
+        {/* Controls row */}
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pt-3 border-t border-card-border">          
+
+          <div className="flex flex-wrap gap-1.5">
+            <FilterPill
+              active={filter === "done"}
+              label={`Completed`}
+              onClick={() => setFilter("done")}
+            />
             <FilterPill
               active={filter === "focus"}
               label={`Focus (${counts.focus})`}
@@ -391,11 +299,6 @@ export default function MasterFieldsPanel({
               onClick={() => setFilter("opt_review")}
             />
             <FilterPill
-              active={filter === "done"}
-              label="Completed"
-              onClick={() => setFilter("done")}
-            />
-            <FilterPill
               active={filter === "all"}
               label="All"
               onClick={() => setFilter("all")}
@@ -404,19 +307,34 @@ export default function MasterFieldsPanel({
         </div>
       </Surface>
 
-      {/* Empty Focus State */}
-      {filter === "focus" && rows.length === 0 ? (
-        <Callout tone="success" title="You’re done with required reviews">
-          No missing/review items found. You can check “All” if you want to verify optional values.
+      {/* Empty State Messages */}
+      {filter === "focus" && rows.length === 0 && !loadingFilter ? (
+        <Callout tone="success" title="You're done with required reviews">
+          No missing/review items found. You can check "All" if you want to verify optional values.
+        </Callout>
+      ) : null}
+      {filter === "done" && rows.length === 0 && !loadingFilter ? (
+        <Callout tone="info" title="No completed fields">
+          Complete fields to see them here. Try switching to "Focus" to see what needs attention.
         </Callout>
       ) : null}
 
-      {/* List */}
-      <Surface variant="soft" className="p-3">
-        <div className="divide-y divide-card-border">
-          {rows.map((r) => {
-            const mf = r.mf;
-            const f = r.f;
+      {/* Fields List */}
+      <div className="space-y-3">
+        {loadingFilter ? (
+          <Surface variant="soft" className="p-6">
+            <div className="text-center text-sm text-card-text">Loading filtered fields...</div>
+          </Surface>
+        ) : rows.length === 0 ? (
+          <Surface variant="soft" className="p-6">
+            <Callout tone="info" title="No fields to show">
+              Try switching filters or clearing the search.
+            </Callout>
+          </Surface>
+        ) : (
+          rows.map((r) => {
+            const mf = r.masterField;
+            const f = r.submissionField;
             const key = mf.key;
             const isBusy = savingKey === key;
 
@@ -424,256 +342,29 @@ export default function MasterFieldsPanel({
             const showRevert = r.isManual;
 
             return (
-              <div key={key} className="p-3">
-                <div className="grid gap-3 lg:grid-cols-12 lg:items-start">
-                  {/* Left: key + desc + badges */}
-                  <div className="lg:col-span-6 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-sm font-extrabold text-text break-words truncate">
-                        {key}
-                      </div>
-
-                      {mf.required ? (
-                        <StatusBadge tone="warning">Required</StatusBadge>
-                      ) : (
-                        <StatusBadge tone="neutral">Optional</StatusBadge>
-                      )}
-
-                      {r.isMissing ? (
-                        <StatusBadge tone="danger">Missing</StatusBadge>
-                      ) : r.isReview ? (
-                        <StatusBadge tone="warning">Needs review</StatusBadge>
-                      ) : (
-                        <StatusBadge tone="success">OK</StatusBadge>
-                      )}
-
-                      {r.isManual ? <StatusBadge tone="success">Manual</StatusBadge> : null}
-
-                      {r.confidence ? (
-                        <StatusBadge
-                          tone={
-                            r.confidence === "high"
-                              ? "success"
-                              : r.confidence === "medium"
-                              ? "warning"
-                              : "danger"
-                          }
-                        >
-                          Confidence: {r.confidence}
-                        </StatusBadge>
-                      ) : null}
-
-                      {r.conflictsCount > 0 ? (
-                        <StatusBadge tone="warning">
-                          {r.conflictsCount} conflict(s)
-                        </StatusBadge>
-                      ) : null}
-
-                      {f?.validation?.validated ? (
-                        <StatusBadge tone={f.validation.passed ? "success" : "danger"}>
-                          {f.validation.passed ? "Validated ✓" : "Validation Failed"}
-                        </StatusBadge>
-                      ) : null}
-                    </div>
-
-                    {mf.description ? (
-                      <div className="mt-1 text-sm text-card-text break-words">
-                        {mf.description}
-                      </div>
-                    ) : null}
-
-                    {r.conflictsCount > 0 ? (
-                      <div className="mt-3 rounded-2xl border border-warning-border bg-warning p-3">
-                        <div className="flex items-center gap-2 text-sm font-bold text-warning-text">
-                          <FiAlertTriangle />
-                          Conflicts
-                        </div>
-                        <ul className="mt-2 ml-4 list-disc text-sm text-text">
-                          {f?.conflicts?.map((c, idx) => (
-                            <li key={idx}>{String(c.raw)}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-
-                    {/* Validation Errors */}
-                    {f?.validation?.validated && !f.validation.passed && f.validation.errors?.length > 0 ? (
-                      <div className="mt-3 rounded-2xl border border-danger-border bg-danger/10 p-3">
-                        <div className="flex items-center gap-2 text-sm font-bold text-danger">
-                          <FiAlertTriangle />
-                          Validation Failed
-                        </div>
-                        <ul className="mt-2 space-y-1.5">
-                          {f.validation.errors.map((error, idx) => (
-                            <li key={idx} className="text-sm">
-                              <div className="font-medium text-text">
-                                {error.rule}
-                              </div>
-                              <div className="text-xs text-card-text">{error.message}</div>
-                              {error.severity === "warning" && (
-                                <div className="mt-0.5 text-xs text-warning">Warning</div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-
-                    {/* Validation Passed Badge */}
-                    {f?.validation?.validated && f.validation.passed ? (
-                      <div className="mt-2">
-                        <StatusBadge tone="success">Validated ✓</StatusBadge>
-                      </div>
-                    ) : null}
-
-                    {/* Traceability Information */}
-                    {f?.source?.document_name || f?.source?.extracted_at ? (
-                      <div className="mt-3 rounded-xl border border-card-border bg-card-hover p-2.5">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-card-text">
-                          <FiInfo className="h-3 w-3" />
-                          Source Traceability
-                        </div>
-                        <div className="mt-1.5 space-y-1 text-xs">
-                          {f.source.document_name && (
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-text">Document:</span>
-                              <span className="text-card-text break-words">{f.source.document_name}</span>
-                            </div>
-                          )}
-                          {f.source.extracted_at && (
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-text">Extracted:</span>
-                              <span className="text-card-text">
-                                {new Date(f.source.extracted_at).toLocaleString()}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {/* Source Evidence (Occurrences) */}
-                    {f?.occurrences && f.occurrences.length > 0 ? (
-                      <div className="mt-3">
-                        <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-card-text">
-                          <FiFileText className="h-3 w-3" />
-                          Source Evidence
-                        </div>
-                        <div className="space-y-2">
-                          {f.occurrences.slice(0, 2).map((occ, idx) => (
-                            <div
-                              key={idx}
-                              className="rounded-lg border border-card-border bg-card-hover p-2.5"
-                            >
-                              <div className="mb-1.5 text-xs italic text-text break-words">
-                                "{occ.snippet}"
-                              </div>
-                              <div className="flex flex-wrap items-center gap-3 text-[11px] text-card-text">
-                                {occ.page != null && (
-                                  <span className="flex items-center gap-1">
-                                    <span className="font-medium">Page:</span>
-                                    <span>{occ.page}</span>
-                                  </span>
-                                )}
-                                {occ.line_hint && (
-                                  <span className="flex items-center gap-1">
-                                    <span className="font-medium">Line:</span>
-                                    <span>{occ.line_hint}</span>
-                                  </span>
-                                )}
-                                {occ.document_name && (
-                                  <span className="flex items-center gap-1">
-                                    <span className="font-medium">From:</span>
-                                    <span className="truncate max-w-[150px]">{occ.document_name}</span>
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                          {f.occurrences.length > 2 && (
-                            <div className="text-xs text-card-text">
-                              +{f.occurrences.length - 2} more occurrence(s)
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {/* Right: editor + actions */}
-                  <div className="lg:col-span-6">
-                    <div className="grid gap-2 lg:grid-cols-12 lg:items-center">
-                      <div className="lg:col-span-7">
-                        {inputFor(mf.type, r.current, (v) =>
-                          setDraft((p) => ({ ...p, [key]: v }))
-                        )}
-                      </div>
-
-                      <div className="lg:col-span-5">
-                        <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
-                          {showAccept ? (
-                            <Button
-                              variant="secondary"
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => acceptExtracted(key)}
-                            >
-                              <span className="inline-flex items-center gap-2">
-                                <FiCheck /> Accept
-                              </span>
-                            </Button>
-                          ) : null}
-
-                          {showRevert ? (
-                            <Button
-                              variant="secondary"
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => revertManual(key)}
-                            >
-                              <span className="inline-flex items-center gap-2">
-                                <FiRefreshCw /> Revert
-                              </span>
-                            </Button>
-                          ) : null}
-
-                          {/* Save as primary action */}
-                          <Button
-                            variant="primary"
-                            type="button"
-                            disabled={isBusy}
-                            isLoading={isBusy}
-                            onClick={() => saveManual(key, r.current)}
-                          >
-                            <span className="inline-flex items-center gap-2">
-                              <FiSave /> Save
-                            </span>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Optional subtle helper */}
-                    {mf.required && r.isMissing ? (
-                      <div className="mt-2 text-xs text-card-text">
-                        This required field must be filled to pass eligibility.
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
+              <ExtractedFieldRow
+                key={key}
+                masterField={mf}
+                submissionField={f}
+                current={r.current}
+                isManual={r.isManual}
+                confidence={r.confidence}
+                conflictsCount={r.conflictsCount}
+                isMissing={r.isMissing}
+                isReview={r.isReview}
+                hasValidationErrors={r.hasValidationErrors}
+                onValueChange={(v) => setDraft((p) => ({ ...p, [key]: v }))}
+                onSave={() => saveManual(key, r.current)}
+                onAccept={showAccept ? () => acceptExtracted(key) : undefined}
+                onRevert={showRevert ? () => revertManual(key) : undefined}
+                isBusy={isBusy}
+                showAccept={showAccept}
+                showRevert={showRevert}
+              />
             );
-          })}
-
-          {rows.length === 0 ? (
-            <div className="p-6">
-              <Callout tone="info" title="No fields to show">
-                Try switching filters or clearing the search.
-              </Callout>
-            </div>
-          ) : null}
-        </div>
-      </Surface>
+          })
+        )}
+      </div>
 
       {eligibility.eligible ? (
         <Callout tone="success" title="Eligible">

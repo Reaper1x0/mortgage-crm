@@ -143,7 +143,7 @@ const Navbar = ({ user }: { user: User | null }) => {
                     <div className="flex flex-col gap-1">
                       <button
                         type="button"
-                        onClick={() => navigate("/workspace/submissions")}
+                        onClick={() => navigate("/workspace/dashboard/analytics")}
                         className={cn(
                           "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
                           "transition-all duration-200 hover:bg-card-hover text-text"

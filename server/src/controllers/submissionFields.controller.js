@@ -1,10 +1,11 @@
 const { R2XX, R4XX } = require("../Responses");
 const { catchAsync } = require("../utils");
 const { Submission, MasterField } = require("../models");
-const { recomputeSubmissionFields } = require("../services/submissionFields.service");
+const { recomputeSubmissionFields, filterAndCountFields } = require("../services/submissionFields.service");
 
 const SubmissionFieldsController = {
   // GET /api/submissions/:id/field-status
+  // Query params: filter (focus|all|req_missing|req_review|opt_missing|opt_review|done), search (string), recompute (1|0)
   getFieldStatus: catchAsync(async (req, res) => {
     const userId = req.user;
     const id = req.params.id;
@@ -19,11 +20,27 @@ const SubmissionFieldsController = {
 
     const masterFields = await MasterField.find({}).lean();
 
+    // Get filter and search parameters
+    const filter = req.query.filter || "focus";
+    const searchQuery = req.query.search || "";
+
+    // Filter and count fields on server side
+    const { rows, counts } = filterAndCountFields(
+      masterFields,
+      fresh.submission_fields || [],
+      fresh.eligibility || {},
+      filter,
+      searchQuery
+    );
+
     return R2XX(res, "Field status fetched.", 200, {
       submission: fresh,
       master_fields: masterFields,
       eligibility: fresh.eligibility,
       submission_fields: fresh.submission_fields || [],
+      // Server-side filtered results
+      filtered_rows: rows,
+      counts: counts,
     });
   }),
 

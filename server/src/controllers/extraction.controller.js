@@ -62,10 +62,13 @@ You are a document field KEY detector.
 
 You will receive:
 1) DOCUMENT TEXT for exactly one file
-2) A list of allowed field keys (and optional short labels)
+2) A list of allowed field keys with their descriptions/labels
 
 TASK:
-- Identify which keys are explicitly present in the document text.
+- Analyze the document text and identify which field keys from the provided list have corresponding data in the document.
+- Match document content to field keys based on semantic meaning, not just exact string matches.
+- For example, if the document contains "Property: Lot 12, Block 5..." and there's a key like "property_address" or "property_description", include that key.
+- If the document contains "Mortgagor: Name: John Doe" and there's a key like "mortgagor_name" or "borrower_name", include that key.
 - Return ONLY a JSON object with this exact shape:
 
 {
@@ -73,11 +76,12 @@ TASK:
 }
 
 RULES:
-- Output ONLY keys from the provided list.
-- Use exact key strings as provided.
-- Do NOT invent keys.
-- If unsure, DO NOT include the key.
-- Keep the list reasonably complete; include all keys that appear.
+- Output ONLY keys from the provided list (use exact key strings as provided).
+- Match based on semantic meaning: look for content that relates to each field's purpose.
+- Be comprehensive: include all keys where you can find related information in the document.
+- Use the field descriptions/labels to help understand what each key represents.
+- If a field's concept appears in the document (even with different wording), include the key.
+- Do NOT invent keys that aren't in the provided list.
 `;
 
 /**
@@ -240,10 +244,11 @@ function sanitizeExtractedFields(fieldsArray, allowedKeysSet, fileName, fileId) 
 }
 
 function buildCompactSchema(masterFieldsItems) {
-  // Compact schema: keeps tokens low but still usable for extraction
+  // Compact schema: includes key, label, description, and type for better matching
   return (masterFieldsItems || []).map((m) => ({
     key: m.key,
     label: m.label_on_form || m.label || "",
+    description: m.description || "",
     type: m.type,
   }));
 }
@@ -260,10 +265,24 @@ DOCUMENT TEXT:
 ${text}
 >>>
 
-ALLOWED KEYS (use ONLY these exact key strings):
+ALLOWED FIELD KEYS (analyze the document and identify which keys have matching data):
+Each field has:
+- key: The exact key string you must use in your response
+- label: A human-readable label for the field
+- description: What this field represents
+- type: The data type (string, number, date, etc.)
+
 <<<
 ${JSON.stringify(compactSchema, null, 2)}
 >>>
+
+INSTRUCTIONS:
+1. Read through the document text carefully
+2. For each field in the schema, check if the document contains information that matches that field's purpose
+3. Match based on meaning: if the document mentions "Property: Lot 12..." and there's a field about property address/description, include that field's key
+4. If the document mentions "Mortgagor: Name: John Doe" and there's a field about mortgagor/borrower name, include that field's key
+5. Return ALL keys where you can find related information in the document
+6. Use ONLY the exact key strings from the schema above
 `;
 
   const messages = [
@@ -286,24 +305,41 @@ ${JSON.stringify(compactSchema, null, 2)}
   });
 
   const content = completion.choices?.[0]?.message?.content || "{}";
+  const finishReason = completion.choices?.[0]?.finish_reason;
   console.log("[LLM-A] usage:", completion.usage);
   console.log("[LLM-A] model:", completion.model);
+  console.log("[LLM-A] finish_reason:", finishReason);
   console.log("[LLM-A] outputLen:", (content || "").length);
+  console.log("[LLM-A] outputContent:", content); // Log actual content for debugging
 
   let payload;
   try {
     payload = JSON.parse(content);
   } catch (e) {
     console.error("[LLM-A] invalid JSON:", e);
+    console.error("[LLM-A] raw content that failed to parse:", content);
     return { presentKeys: [], allowedKeys };
   }
 
+  console.log("[LLM-A] parsed payload:", JSON.stringify(payload, null, 2));
+
   const presentKeysRaw = Array.isArray(payload?.present_keys) ? payload.present_keys : [];
+  console.log("[LLM-A] presentKeysRaw (before filtering):", presentKeysRaw);
+  console.log("[LLM-A] allowedKeys sample (first 10):", Array.from(allowedKeys).slice(0, 10));
+  
   const presentKeys = presentKeysRaw
     .map((k) => String(k || "").trim())
     .filter((k) => k && allowedKeys.has(k));
 
   console.log("[LLM-A] presentKeysCount:", presentKeys.length);
+  console.log("[LLM-A] presentKeys:", presentKeys);
+  
+  if (presentKeys.length === 0 && presentKeysRaw.length > 0) {
+    console.warn("[LLM-A] WARNING: LLM returned keys but none matched allowedKeys!");
+    console.warn("[LLM-A] Keys returned by LLM:", presentKeysRaw);
+    console.warn("[LLM-A] Total allowed keys:", allowedKeys.size);
+  }
+  
   return { presentKeys, allowedKeys };
 }
 

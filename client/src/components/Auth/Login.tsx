@@ -64,7 +64,7 @@ const Login: React.FC = () => {
   const handleSubmit = async (values: Record<string, any>) => {
     const result = await dispatch(loginUser(values)).unwrap();
     if (result?.user) {
-      if (result.user.isEmailVerified) navigate("/workspace/submissions");
+      if (result.user.isEmailVerified) navigate("/workspace/dashboard/analytics");
       else navigate("/email-verification");
     }
   };

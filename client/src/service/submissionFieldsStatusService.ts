@@ -16,15 +16,54 @@ export type SubmissionFieldStatusResponse = {
   };
   submission_fields: any[];
   master_fields: any[];
+  // Server-side filtered results
+  filtered_rows?: Array<{
+    masterField: any;
+    submissionField: any;
+    current: any;
+    isManual: boolean;
+    confidence?: "high" | "medium" | "low";
+    conflictsCount: number;
+    isMissing: boolean;
+    isReview: boolean;
+    isDone: boolean;
+    hasValidationErrors: boolean;
+  }>;
+  counts?: {
+    reqMissing: number;
+    reqReview: number;
+    optMissing: number;
+    optReview: number;
+    focus: number;
+  };
 };
 
 export const SubmissionFieldStatusService = {
-  getSubmissionFieldStatus: async (submissionId: string) => {
+  getSubmissionFieldStatus: async (
+    submissionId: string,
+    options?: {
+      filter?: "focus" | "all" | "req_missing" | "req_review" | "opt_missing" | "opt_review" | "done";
+      search?: string;
+      recompute?: boolean;
+    }
+  ) => {
     if (!submissionId) return;
+
+    const params: Record<string, any> = {
+      recompute: options?.recompute !== false ? 1 : 0,
+    };
+
+    if (options?.filter) {
+      params.filter = options.filter;
+    }
+
+    if (options?.search) {
+      params.search = options.search;
+    }
 
     const response = await apiClient.get<SubmissionFieldStatusResponse>(
       `/submissions/${submissionId}/field-status`,
-      { params: { recompute: 1 } }
+      { params }
     );
 
     // Your backend returns { success, message, data: {...} }
