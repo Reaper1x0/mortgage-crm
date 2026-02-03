@@ -8,6 +8,7 @@ import NotFoundPage from "./components/Static/NotFoundPage";
 import Profile from "./components/Auth/Profile";
 import MasterFieldTable from "./components/MasterField/MasterFieldTable";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
+import PublicRoute from "./components/Auth/PublicRoute";
 import AdminLayout from "./components/Layout/Adminlayout";
 import SubmissionsPage from "./components/Submissions/SubmissionsPage";
 import SubmissionManagementPage from "./components/Submissions/SubmissionManagementPage";
@@ -20,19 +21,21 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout element={<Login />} />}></Route>
-        <Route
-          path="/register"
-          element={<Layout element={<Register />} />}
-        ></Route>
-        <Route
-          path="/email-verification/"
-          element={<Layout element={<EmailVerification />} />}
-        ></Route>
-        <Route
-          path="/forgot-password"
-          element={<Layout element={<ForgotPassword />} />}
-        ></Route>
+        <Route element={<PublicRoute />}>
+          <Route path="/" element={<Layout element={<Login />} />}></Route>
+          <Route
+            path="/register"
+            element={<Layout element={<Register />} />}
+          ></Route>
+          <Route
+            path="/email-verification/"
+            element={<Layout element={<EmailVerification />} />}
+          ></Route>
+          <Route
+            path="/forgot-password"
+            element={<Layout element={<ForgotPassword />} />}
+          ></Route>
+        </Route>
         <Route
           path="/profile"
           element={<Layout element={<Profile />} />}
