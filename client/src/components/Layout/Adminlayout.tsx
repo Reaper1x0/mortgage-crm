@@ -1,4 +1,4 @@
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import useAuth from "../../hooks/useAuth";
 import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
@@ -9,6 +9,10 @@ import { GrDashboard } from "react-icons/gr";
 
 export default function Layout() {
   const { user, role } = useAuth();
+  const location = useLocation();
+  
+  // Hide sidebar on template designer page
+  const isTemplateDesigner = location.pathname.includes("/template-maker/") && location.pathname.includes("/manage");
 
   const defaultLinks: SidebarLink[] = [
     { to: "/workspace/dashboard/analytics", label: "Dashboard", icon: GrDashboard },
@@ -30,8 +34,8 @@ export default function Layout() {
       {/* fixed header offset */}
       <div className="pt-14">
         <div className="flex w-full gap-4 px-4">
-          {/* Sidebar */}
-          <Sidebar links={links} />
+          {/* Sidebar - hidden on template designer page */}
+          {!isTemplateDesigner && <Sidebar links={links} />}
 
           {/* Main */}
           <main className="min-w-0 flex-1 py-4">

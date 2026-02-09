@@ -351,7 +351,7 @@ async function recomputeSubmissionFields(submissionId, userId) {
  * @param {Array} masterFields - All master field definitions
  * @param {Array} submissionFields - All submission fields
  * @param {Object} eligibility - Eligibility status object
- * @param {string} filter - Filter type: 'focus', 'all', 'req_missing', 'req_review', 'opt_missing', 'opt_review', 'done'
+ * @param {string} filter - Filter type: 'focus', 'all', 'req_missing', 'req_review', 'opt_missing', 'opt_review', 'done', 'extracted'
  * @param {string} searchQuery - Search query string (optional)
  * @returns {Object} Filtered rows and counts
  */
@@ -447,6 +447,10 @@ function filterAndCountFields(masterFields, submissionFields, eligibility, filte
     filtered = searched.filter((x) => !x.masterField.required && x.isReview && !x.isMissing);
   } else if (filter === "done") {
     filtered = searched.filter((x) => x.isDone);
+  } else if (filter === "extracted") {
+    // Show all fields that were extracted (source.type === "extraction")
+    // This includes both valid and invalid extracted fields
+    filtered = searched.filter((x) => x.submissionField?.source?.type === "extraction");
   }
   // else "all" - no additional filtering
 
@@ -456,6 +460,7 @@ function filterAndCountFields(masterFields, submissionFields, eligibility, filte
   const optMissing = missingOpt.length;
   const optReview = reviewOpt.length;
   const focus = base.filter((r) => r.isMissing || r.isReview).length;
+  const extracted = base.filter((r) => r.submissionField?.source?.type === "extraction").length;
 
   return {
     rows: filtered,
@@ -465,6 +470,7 @@ function filterAndCountFields(masterFields, submissionFields, eligibility, filte
       optMissing,
       optReview,
       focus,
+      extracted,
     },
   };
 }

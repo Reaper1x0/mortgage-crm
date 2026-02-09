@@ -5,7 +5,7 @@ const { recomputeSubmissionFields, filterAndCountFields } = require("../services
 
 const SubmissionFieldsController = {
   // GET /api/submissions/:id/field-status
-  // Query params: filter (focus|all|req_missing|req_review|opt_missing|opt_review|done), search (string), recompute (1|0)
+  // Query params: filter (focus|all|req_missing|req_review|opt_missing|opt_review|done|extracted), search (string), recompute (1|0)
   getFieldStatus: catchAsync(async (req, res) => {
     const userId = req.user;
     const id = req.params.id;

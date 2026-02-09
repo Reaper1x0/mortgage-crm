@@ -62,17 +62,25 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
+    // Skip token refresh if this is already a refresh token request to avoid infinite loops
+    const isRefreshRequest = originalRequest?.url?.includes('auth/refresh');
+    
     // Handle 401 errors with token refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
       originalRequest._retry = true;
       try {
         const newAccessToken = await refreshToken();
         originalRequest.headers.Authorization = newAccessToken;
         return apiClient(originalRequest); // Retry the request with new token
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         console.error("Token refresh error:", refreshError);
-        AuthService.logout();
-        return Promise.reject(refreshError);
+        // Only logout if refresh token endpoint returns 401 (both tokens are invalid)
+        // Don't logout for network errors, server errors, etc. as the access token might still be valid
+        if (refreshError?.response?.status === 401) {
+          AuthService.logout();
+        }
+        // For other errors, just reject the original request without logging out
+        return Promise.reject(error);
       }
     }
 

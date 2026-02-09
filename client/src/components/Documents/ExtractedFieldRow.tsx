@@ -293,7 +293,7 @@ const ExtractedFieldRow: React.FC<ExtractedFieldRowProps> = ({
           {/* Conflicts */}
           {conflictsCount > 0 && submissionField?.conflicts && (
             <div className="p-3 border-b border-card-border">
-              <div className="text-xs font-semibold text-warning-text mb-2">Conflicting Values</div>
+              <div className="text-xs font-semibold text-warning mb-2">Conflicting Values</div>
               <ul className="ml-4 list-disc text-xs text-text">
                 {submissionField.conflicts.map((c: { raw: any }, idx: number) => (
                   <li key={idx}>{String(c.raw)}</li>

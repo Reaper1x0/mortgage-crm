@@ -35,6 +35,7 @@ export type SubmissionFieldStatusResponse = {
     optMissing: number;
     optReview: number;
     focus: number;
+    extracted: number;
   };
 };
 
@@ -42,7 +43,7 @@ export const SubmissionFieldStatusService = {
   getSubmissionFieldStatus: async (
     submissionId: string,
     options?: {
-      filter?: "focus" | "all" | "req_missing" | "req_review" | "opt_missing" | "opt_review" | "done";
+      filter?: "focus" | "all" | "req_missing" | "req_review" | "opt_missing" | "opt_review" | "done" | "extracted";
       search?: string;
       recompute?: boolean;
     }

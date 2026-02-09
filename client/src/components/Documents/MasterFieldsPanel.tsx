@@ -73,7 +73,8 @@ type FilterKey =
   | "req_review"
   | "opt_missing"
   | "opt_review"
-  | "done";
+  | "done"
+  | "extracted";
 
 function pct(n: number, d: number) {
   if (!d || d <= 0) return 0;
@@ -98,8 +99,8 @@ export default function MasterFieldsPanel({
     eligibility: Eligibility;
   }) => void;
 }) {
-  // Default filter: show completed fields first
-  const [filter, setFilter] = useState<FilterKey>("done");
+  // Default filter: show extracted fields first
+  const [filter, setFilter] = useState<FilterKey>("extracted");
   const [q, setQ] = useState("");
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, any>>({});
@@ -110,6 +111,7 @@ export default function MasterFieldsPanel({
     optMissing: 0,
     optReview: 0,
     focus: 0,
+    extracted: 0,
   });
   const [loadingFilter, setLoadingFilter] = useState(false);
 
@@ -269,6 +271,11 @@ export default function MasterFieldsPanel({
 
           <div className="flex flex-wrap gap-1.5">
             <FilterPill
+              active={filter === "extracted"}
+              label={`Extracted (${counts.extracted})`}
+              onClick={() => setFilter("extracted")}
+            />
+            <FilterPill
               active={filter === "done"}
               label={`Completed`}
               onClick={() => setFilter("done")}
@@ -308,6 +315,11 @@ export default function MasterFieldsPanel({
       </Surface>
 
       {/* Empty State Messages */}
+      {filter === "extracted" && rows.length === 0 && !loadingFilter ? (
+        <Callout tone="info" title="No extracted fields">
+          No fields have been extracted from documents yet. Upload documents to extract field values.
+        </Callout>
+      ) : null}
       {filter === "focus" && rows.length === 0 && !loadingFilter ? (
         <Callout tone="success" title="You're done with required reviews">
           No missing/review items found. You can check "All" if you want to verify optional values.
