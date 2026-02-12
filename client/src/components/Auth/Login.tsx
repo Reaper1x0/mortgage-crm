@@ -1,18 +1,22 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "../../redux/store";
 import { loginUser } from "../../redux/slices/authSlice";
 import Form, { FormSection } from "../Reusable/Inputs/Form";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useLocation } from "react-router";
 import AuthPage from "./AuthPage";
 import { useLanguage } from "../../context/LanguageContext";
 import { ButtonProps } from "../Reusable/Button";
+import { useAuth } from "../../context/AuthContext";
 
 const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const { loading, error } = useSelector((state: RootState) => state.auth);
+  const { user, isAuthenticated } = useAuth();
+  const hasNavigated = useRef(false);
 
   const fields: FormSection["fields"] = [
     {
@@ -62,12 +66,27 @@ const Login: React.FC = () => {
   const sections: FormSection[] = [{ title: "", fields }];
 
   const handleSubmit = async (values: Record<string, any>) => {
-    const result = await dispatch(loginUser(values)).unwrap();
-    if (result?.user) {
-      if (result.user.isEmailVerified) navigate("/workspace/dashboard/analytics");
-      else navigate("/email-verification");
+    try {
+      await dispatch(loginUser(values)).unwrap();
+      // Navigation will be handled by useEffect below when user becomes available
+    } catch (error) {
+      // Error is handled by Redux
+      console.error("Login failed:", error);
     }
   };
+
+  // Navigate after successful login when user becomes available
+  useEffect(() => {
+    // Only navigate if we're still on the login page and haven't navigated yet
+    if (isAuthenticated && user && location.pathname === "/" && !hasNavigated.current) {
+      hasNavigated.current = true;
+      if (user.isEmailVerified) {
+        navigate("/workspace/dashboard/analytics", { replace: true });
+      } else {
+        navigate("/email-verification", { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate, location.pathname]);
 
   return (
     <AuthPage heading={t("login")} subheading={t("enter_your_credentials") || ""}>

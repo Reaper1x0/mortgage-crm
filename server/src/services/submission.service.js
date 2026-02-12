@@ -42,7 +42,27 @@ const SubmissionService = {
    * No user filtering - all users can view any submission
    */
   getSubmissionByKey: async (key) => {
-    return Submission.findOne({ _id: key }).populate("documents.document");
+    return Submission.findOne({ _id: key })
+      .populate({
+        path: "documents.document",
+        populate: {
+          path: "uploaded_by",
+          select: "fullName email username",
+          populate: {
+            path: "profile_picture",
+            select: "url storage_path display_name"
+          }
+        }
+      })
+      .populate("generated_documents.file_id")
+      .populate({
+        path: "generated_documents.generated_by",
+        select: "fullName email username",
+        populate: {
+          path: "profile_picture",
+          select: "url storage_path display_name"
+        }
+      });
   },
 
   // Update submission (Admin/Agent can update any submission)
@@ -53,7 +73,27 @@ const SubmissionService = {
       { _id: submissionId },
       { $set: payload },
       { new: true }
-    );
+    )
+      .populate({
+        path: "documents.document",
+        populate: {
+          path: "uploaded_by",
+          select: "fullName email username",
+          populate: {
+            path: "profile_picture",
+            select: "url storage_path display_name"
+          }
+        }
+      })
+      .populate("generated_documents.file_id")
+      .populate({
+        path: "generated_documents.generated_by",
+        select: "fullName email username",
+        populate: {
+          path: "profile_picture",
+          select: "url storage_path display_name"
+        }
+      });
   },
 };
 

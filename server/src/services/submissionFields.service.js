@@ -88,7 +88,18 @@ function mergeDistinctConflicts(allCands, chosen) {
 async function recomputeSubmissionFields(submissionId, userId) {
   const submission = await Submission.findOne({
     _id: submissionId,
-  }).populate("documents.document");
+  })
+    .populate({
+      path: "documents.document",
+      populate: {
+        path: "uploaded_by",
+        select: "fullName email username",
+        populate: {
+          path: "profile_picture",
+          select: "url storage_path display_name"
+        }
+      }
+    });
   if (!submission) return null;
 
   const masterFields = await MasterField.find({}).lean();
@@ -341,7 +352,18 @@ async function recomputeSubmissionFields(submissionId, userId) {
     { _id: submissionId },
     { $set: update },
     { new: true, runValidators: true }
-  ).populate("documents.document");
+  )
+    .populate({
+      path: "documents.document",
+      populate: {
+        path: "uploaded_by",
+        select: "fullName email username",
+        populate: {
+          path: "profile_picture",
+          select: "url storage_path display_name"
+        }
+      }
+    });
 
   return updated;
 }

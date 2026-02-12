@@ -37,6 +37,20 @@ export type SubmissionFieldStatusResponse = {
     focus: number;
     extracted: number;
   };
+  // Audit trail data grouped by field_key
+  audit_trail?: Record<string, Array<{
+    _id: string;
+    user_id: {
+      _id: string;
+      fullName?: string;
+      email?: string;
+      username?: string;
+    };
+    action: string;
+    timestamp: string;
+    field_key: string;
+    field_source?: string;
+  }>>;
 };
 
 export const SubmissionFieldStatusService = {

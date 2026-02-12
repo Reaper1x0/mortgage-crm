@@ -1,5 +1,17 @@
 import apiClient from "../api/apiClient";
 
+export interface FileRef {
+  _id: string;
+  display_name: string;
+  original_name: string;
+  storage_path: string;
+  url?: string;
+  type?: string;
+  content_type?: string;
+  extension?: string;
+  size_in_bytes?: number;
+}
+
 export interface User {
   _id: string;
   fullName: string;
@@ -7,6 +19,7 @@ export interface User {
   email: string;
   role: "Admin" | "Agent" | "Viewer";
   isEmailVerified: boolean;
+  profile_picture?: FileRef | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,8 +50,14 @@ export const UserService = {
     const response = await apiClient.get("/auth/profile");
     return response.data;
   },
-  updateProfile: async (data: Record<string, any>) => {
-    const response = await apiClient.post("/auth/update-profile", data);
+  updateProfile: async (data: FormData | Record<string, any>) => {
+    const response = await apiClient.post("/auth/update-profile", data, {
+      headers: data instanceof FormData ? { "Content-Type": "multipart/form-data" } : {},
+    });
+    return response.data;
+  },
+  changePassword: async (data: { currentPassword: string; newPassword: string }) => {
+    const response = await apiClient.post("/auth/change-password", data);
     return response.data;
   },
 

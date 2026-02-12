@@ -1,17 +1,24 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useDashboardAnalytics } from "../../hooks/useDashboardAnalytics";
 import { DashboardRange } from "../../service/dashboardService";
+import { AuditTrailService, AuditLog } from "../../service/auditTrailService";
 import PageHeader from "../Reusable/PageHeader";
 import Card from "../Reusable/Card";
 import Button from "../Reusable/Button";
 import LineTrendChart from "../charts/LineTrendChart";
 import DonutWorkloadChart from "../charts/DonutWorkloadChart";
 import StatusBadge from "../Reusable/StatusBadge";
-import { FiAlertCircle, FiAlertTriangle, FiInfo } from "react-icons/fi";
+import Avatar from "../Reusable/Avatar";
+import { FiAlertCircle, FiAlertTriangle, FiInfo, FiFile, FiEdit, FiCheck, FiUpload, FiDownload } from "react-icons/fi";
+import { normalizeUserForAvatar } from "../../utils/userUtils";
+import { timeAgo } from "../../utils/date";
+import { BACKEND_URL } from "../../constants/env.constants";
 
 const DashboardAnalytics: React.FC = () => {
   const [range, setRange] = useState<DashboardRange>("daily");
   const { data, loading, error, retry } = useDashboardAnalytics(range);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false);
 
   // KPI Cards Data
   const kpiCards = [
@@ -66,6 +73,46 @@ const DashboardAnalytics: React.FC = () => {
         },
       ].filter((d) => d.value > 0)
     : [];
+
+  // Fetch audit logs
+  useEffect(() => {
+    const fetchAuditLogs = async () => {
+      setAuditLogsLoading(true);
+      try {
+        const response = await AuditTrailService.getRecentAuditLogs({ limit: 20 });
+        setAuditLogs(response.audit_logs || []);
+      } catch (err) {
+        console.error("Failed to fetch audit logs:", err);
+      } finally {
+        setAuditLogsLoading(false);
+      }
+    };
+    fetchAuditLogs();
+  }, []);
+
+  // Get action icon and label
+  const getActionInfo = (action: string) => {
+    const actionMap: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+      document_uploaded: { icon: <FiUpload className="h-4 w-4" />, label: "Uploaded Document", color: "text-primary" },
+      document_replaced: { icon: <FiFile className="h-4 w-4" />, label: "Replaced Document", color: "text-warning" },
+      document_deleted: { icon: <FiFile className="h-4 w-4" />, label: "Deleted Document", color: "text-danger" },
+      field_extracted: { icon: <FiFile className="h-4 w-4" />, label: "Extracted Field", color: "text-primary" },
+      field_edited: { icon: <FiEdit className="h-4 w-4" />, label: "Edited Field", color: "text-warning" },
+      field_reviewed: { icon: <FiCheck className="h-4 w-4" />, label: "Reviewed Field", color: "text-success" },
+      field_approved: { icon: <FiCheck className="h-4 w-4" />, label: "Approved Field", color: "text-success" },
+      master_field_created: { icon: <FiFile className="h-4 w-4" />, label: "Created Master Field", color: "text-primary" },
+      master_field_updated: { icon: <FiEdit className="h-4 w-4" />, label: "Updated Master Field", color: "text-warning" },
+      master_field_deleted: { icon: <FiFile className="h-4 w-4" />, label: "Deleted Master Field", color: "text-danger" },
+      submission_created: { icon: <FiFile className="h-4 w-4" />, label: "Created Submission", color: "text-primary" },
+      submission_updated: { icon: <FiEdit className="h-4 w-4" />, label: "Updated Submission", color: "text-warning" },
+      submission_completed: { icon: <FiCheck className="h-4 w-4" />, label: "Completed Submission", color: "text-success" },
+      template_created: { icon: <FiFile className="h-4 w-4" />, label: "Created Template", color: "text-primary" },
+      template_updated: { icon: <FiEdit className="h-4 w-4" />, label: "Updated Template", color: "text-warning" },
+      document_generated: { icon: <FiDownload className="h-4 w-4" />, label: "Generated Document", color: "text-primary" },
+      document_downloaded: { icon: <FiDownload className="h-4 w-4" />, label: "Downloaded Document", color: "text-primary" },
+    };
+    return actionMap[action] || { icon: <FiFile className="h-4 w-4" />, label: action, color: "text-text" };
+  };
 
 
   return (
@@ -260,6 +307,97 @@ const DashboardAnalytics: React.FC = () => {
           </div>
         </Card>
       </div>
+
+      {/* Recent Activity / Audit Logs */}
+      <Card>
+        <div className="p-4">
+          <h3 className="text-lg font-semibold text-text mb-4">Recent Activity</h3>
+          {auditLogsLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="p-3 rounded-lg border border-card-border bg-card animate-pulse"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-card-border rounded-full" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-card-border rounded w-3/4 mb-2" />
+                      <div className="h-3 bg-card-border rounded w-1/2" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : auditLogs.length === 0 ? (
+            <div className="h-64 flex flex-col items-center justify-center">
+              <FiInfo className="h-12 w-12 text-text-secondary mb-2" />
+              <div className="text-text-secondary">No recent activity</div>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              {auditLogs.map((log) => {
+                const actionInfo = getActionInfo(log.action);
+                const user = log.user_id;
+                const submission = typeof log.submission_id === "object" ? log.submission_id : null;
+                const userName = user?.fullName || user?.username || log.user_name || log.user_email || "Unknown";
+                
+                return (
+                  <div
+                    key={log._id}
+                    className="p-3 rounded-lg border border-card-border hover:bg-card-hover transition"
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Avatar */}
+                      <div className="flex-shrink-0">
+                        <Avatar
+                          user={normalizeUserForAvatar(user, BACKEND_URL)}
+                          size="sm"
+                        />
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-text">{userName}</span>
+                          <span className={`flex items-center gap-1 ${actionInfo.color}`}>
+                            {actionInfo.icon}
+                            <span className="text-sm">{actionInfo.label}</span>
+                          </span>
+                        </div>
+                        
+                        {/* Additional context */}
+                        <div className="mt-1 text-xs text-card-text space-y-0.5">
+                          {log.document_name && (
+                            <div>
+                              <span className="font-medium">Document:</span> {log.document_name}
+                            </div>
+                          )}
+                          {log.field_key && (
+                            <div>
+                              <span className="font-medium">Field:</span> {log.field_key}
+                            </div>
+                          )}
+                          {submission && (
+                            <div>
+                              <span className="font-medium">Submission:</span> {submission.submission_name || submission.legal_name || "N/A"}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Timestamp */}
+                        <div className="mt-1 text-xs text-card-text">
+                          {timeAgo(log.timestamp)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Card>
     </div>
   );
 };

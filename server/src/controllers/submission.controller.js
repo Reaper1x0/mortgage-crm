@@ -2,6 +2,7 @@ const { R2XX, R4XX } = require("../Responses");
 const SubmissionService = require("../services/submission.service");
 const { catchAsync } = require("../utils");
 const { parsePagination } = require("../utils/pagination.utils");
+const AuditTrailService = require("../services/auditTrail.service");
 
 const SubmissionController = {
   // Create a new Submission
@@ -9,16 +10,46 @@ const SubmissionController = {
     const user = req.user;
     const data = req.body;
     const submission = await SubmissionService.createSubmission(data, user);
+    
+    // Log audit trail
+    await AuditTrailService.log({
+      entity_type: "submission",
+      entity_id: submission._id,
+      user_id: user,
+      action: "submission_created",
+      action_details: {
+        submission_id: submission._id,
+        submission_name: submission.submission_name,
+        legal_name: submission.legal_name || null,
+      },
+      submission_id: submission._id,
+    });
+    
     return R2XX(res, "Submission created successfully", 201, { submission });
   }),
   updateSubmission: catchAsync(async (req, res) => {
     const data = req.body;
     const { key } = req.params;
+    const userId = req.user;
     const submission = await SubmissionService.updateSubmission(key, data);
     
     if (!submission) {
       return R4XX(res, 404, "Submission not found");
     }
+    
+    // Log audit trail
+    await AuditTrailService.log({
+      entity_type: "submission",
+      entity_id: submission._id,
+      user_id: userId,
+      action: "submission_updated",
+      action_details: {
+        submission_id: submission._id,
+        submission_name: submission.submission_name,
+        updated_fields: Object.keys(data),
+      },
+      submission_id: submission._id,
+    });
     
     return R2XX(res, "Submission updated successfully", 200, { submission });
   }),

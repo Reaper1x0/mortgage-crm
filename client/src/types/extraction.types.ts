@@ -73,6 +73,8 @@ export type FileRef = {
   extension?: string;
   size_in_bytes?: number;
   status?: "uploaded" | "failed" | "deleted";
+  uploaded_by?: string | { _id: string; name?: string; email?: string };
+  uploaded_at?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -85,6 +87,17 @@ export type SubmissionDocument = {
   uploadDate?: string; // ISO string (backend Date)
 };
 
+export type GeneratedDocument = {
+  _id?: string;
+  template_id?: string;
+  template_name?: string;
+  file_id?: FileRef | string;
+  generated_by?: string | { _id: string; name?: string; email?: string };
+  generated_at?: string;
+  download_count?: number;
+  last_downloaded_at?: string;
+};
+
 export type Submission = {
   _id: string;
   userId: string;
@@ -94,6 +107,7 @@ export type Submission = {
   legal_name?: string | null;
 
   documents: SubmissionDocument[];
+  generated_documents?: GeneratedDocument[];
 
   createdAt?: string;
   updatedAt?: string;

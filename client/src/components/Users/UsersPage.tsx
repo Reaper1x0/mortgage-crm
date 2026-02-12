@@ -9,7 +9,10 @@ import { prettyDate } from "../../utils/date";
 import PageHeader from "../Reusable/PageHeader";
 import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
 import IconButton from "../Reusable/IconButton";
+import Avatar from "../Reusable/Avatar";
 import { FiEdit, FiTrash } from "react-icons/fi";
+import { normalizeUserForAvatar } from "../../utils/userUtils";
+import { BACKEND_URL } from "../../constants/env.constants";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -88,8 +91,22 @@ export default function UsersPage() {
 
   const columns = useMemo(
     () => [
-      { title: "Full Name", dataIndex: "fullName" },
-      { title: "Username", dataIndex: "username" },
+      {
+        title: "Full Name",
+        dataIndex: "fullName",
+        render: (_: any, row: User) => (
+          <div className="flex items-center gap-3">
+            <Avatar
+              user={normalizeUserForAvatar(row, BACKEND_URL)}
+              size="sm"
+            />
+            <div>
+              <div className="font-semibold text-text">{row.fullName}</div>
+              <div className="text-xs text-card-text">{row.username}</div>
+            </div>
+          </div>
+        ),
+      },
       { title: "Email", dataIndex: "email" },
       {
         title: "Role",

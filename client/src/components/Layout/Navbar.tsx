@@ -1,30 +1,27 @@
-import { useMemo, useState } from "react";
-import { User } from "../../types/auth.types";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useLanguage } from "../../context/LanguageContext";
-import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "../../redux/store";
-import { logout } from "../../redux/slices/logoutSlice";
-import DropdownMenu from "../Reusable/DropdownMenu";
 import { useTheme } from "../../context/ThemeContext";
+import DropdownMenu from "../Reusable/DropdownMenu";
 import Modal from "../Reusable/Modal";
 import Button from "../Reusable/Button";
+import Avatar from "../Reusable/Avatar";
+import { normalizeUserForAvatar } from "../../utils/userUtils";
+import { BACKEND_URL } from "../../constants/env.constants";
 import { cn } from "../../utils/cn";
 import { FiSun, FiMoon } from "react-icons/fi";
+import { useAuth } from "../../context/AuthContext";
 
-const Navbar = ({ user }: { user: User | null }) => {
+const Navbar = () => {
   const { t } = useLanguage();
   const { theme, setTheme } = useTheme();
-  const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const { loading } = useSelector((state: RootState) => state.logout);
+  const { user, logout: handleLogout, isAuthenticated } = useAuth();
 
   const [isLogoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
 
-  const initials = useMemo(() => {
-    const ch = user?.fullName?.trim()?.charAt(0);
-    return (ch || "U").toUpperCase();
-  }, [user?.fullName]);
+  const userInfo = normalizeUserForAvatar(user, BACKEND_URL);
 
   const mode: "light" | "dark" = theme === "dark" ? "dark" : "light";
 
@@ -32,12 +29,17 @@ const Navbar = ({ user }: { user: User | null }) => {
     setTheme(mode === "dark" ? "light" : "dark");
   };
 
-  const handleLogout = async () => {
+  const handleLogoutClick = async () => {
+    setLogoutLoading(true);
     try {
-      await dispatch(logout()).unwrap();
+      await handleLogout();
       navigate("/");
-    } catch {
+    } catch (error) {
+      console.error("Logout error:", error);
       navigate("/");
+    } finally {
+      setLogoutLoading(false);
+      setLogoutModalOpen(false);
     }
   };
 
@@ -55,7 +57,7 @@ const Navbar = ({ user }: { user: User | null }) => {
           </Link>
 
           <div className="flex items-center gap-2">
-            {!user ? (
+            {!isAuthenticated ? (
               <Button variant="primary" onClick={() => navigate("/")}>
                 {t("join_now")}
               </Button>
@@ -115,18 +117,11 @@ const Navbar = ({ user }: { user: User | null }) => {
                       )}
                       aria-label="User menu"
                     >
-                      <span
-                        className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-full",
-                          "border border-secondary-border bg-secondary text-secondary-text"
-                        )}
-                      >
-                        <span className="text-sm font-extrabold">{initials}</span>
-                      </span>
+                      <Avatar user={userInfo} size="sm" />
 
                       <div className="hidden sm:flex flex-col pr-2">
                         <span className="text-sm font-semibold text-text leading-tight">
-                          {user.fullName}
+                          {user?.fullName || "User"}
                         </span>
                       </div>
                     </button>
@@ -134,8 +129,8 @@ const Navbar = ({ user }: { user: User | null }) => {
                 >
                   <div className="min-w-[240px]">
                     <div className="px-2 py-2">
-                      <div className="text-sm font-semibold text-text">{user.fullName}</div>
-                      <div className="text-xs text-card-text">{user.email}</div>
+                      <div className="text-sm font-semibold text-text">{user?.fullName || "User"}</div>
+                      <div className="text-xs text-card-text">{user?.email || ""}</div>
                     </div>
 
                     <div className="my-2 border-t border-card-border" />
@@ -154,7 +149,7 @@ const Navbar = ({ user }: { user: User | null }) => {
 
                       <button
                         type="button"
-                        onClick={() => navigate("/profile")}
+                        onClick={() => navigate("/workspace/profile")}
                         className={cn(
                           "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
                           "transition-all duration-200 hover:bg-card-hover text-text"
@@ -191,7 +186,7 @@ const Navbar = ({ user }: { user: User | null }) => {
           <Button variant="secondary" onClick={() => setLogoutModalOpen(false)}>
             {t("cancel")}
           </Button>
-          <Button variant="danger" onClick={handleLogout} isLoading={loading}>
+          <Button variant="danger" onClick={handleLogoutClick} isLoading={logoutLoading}>
             {t("logout")}
           </Button>
         </div>

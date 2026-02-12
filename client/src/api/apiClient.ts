@@ -30,16 +30,32 @@ const refreshToken = async () => {
     const device_id = getDeviceId();
     if (!refreshToken) throw new Error("No refresh token available");
 
-    const response = await axios.get(`${API_BASE_URL}auth/refresh`, {
+    // Construct URL properly - ensure no double slashes and correct path
+    const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+    const refreshUrl = `${baseUrl}/auth/refresh`;
+    
+    const response = await axios.get(refreshUrl, {
       headers: {
         Authorization: accessToken,
         "refresh-token": refreshToken,
         device_id: device_id
       },
     });
-    const newAccessToken = response.data.accessToken;
+    
+    // Handle both response.data.accessToken and response.data.data.accessToken
+    const responseData = response.data?.data || response.data;
+    const newAccessToken = responseData?.accessToken;
+    const newRefreshToken = responseData?.refreshToken;
+
+    if (!newAccessToken) {
+      throw new Error("No access token in refresh response");
+    }
 
     localStorage.setItem("accessToken", newAccessToken);
+    if (newRefreshToken) {
+      localStorage.setItem("refreshToken", newRefreshToken);
+    }
+    
     return newAccessToken;
   } catch (error) {
     console.error("Token refresh failed:", error);
@@ -74,12 +90,17 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest); // Retry the request with new token
       } catch (refreshError: any) {
         console.error("Token refresh error:", refreshError);
-        // Only logout if refresh token endpoint returns 401 (both tokens are invalid)
-        // Don't logout for network errors, server errors, etc. as the access token might still be valid
-        if (refreshError?.response?.status === 401) {
+        // Logout if refresh token endpoint returns 401 (both tokens are invalid) or 404 (endpoint not found/invalid session)
+        // Also logout on 403 (forbidden) as it indicates invalid/expired tokens
+        const shouldLogout = 
+          refreshError?.response?.status === 401 || 
+          refreshError?.response?.status === 404 || 
+          refreshError?.response?.status === 403;
+        
+        if (shouldLogout) {
           AuthService.logout();
         }
-        // For other errors, just reject the original request without logging out
+        // For other errors (network, 500, etc.), just reject the original request without logging out
         return Promise.reject(error);
       }
     }

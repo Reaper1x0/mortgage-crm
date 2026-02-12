@@ -97,6 +97,18 @@ const resetPassword = {
   }),
 };
 
+const changePassword = {
+  body: Joi.object().keys({
+    currentPassword: Joi.string().required().messages({
+      "any.required": AUTH.PASSWORD_REQUIRED,
+    }),
+    newPassword: Joi.string().min(8).required().messages({
+      "any.required": AUTH.NEWPASSWORD_REQUIRED,
+      "string.min": AUTH.PASSWORD_LENGTH,
+    }),
+  }),
+};
+
 module.exports = {
   register,
   login,
@@ -104,4 +116,5 @@ module.exports = {
   forgetPassword,
   resetPasswordOtpVerifiction,
   resetPassword,
+  changePassword,
 };

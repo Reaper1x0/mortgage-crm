@@ -9,7 +9,7 @@ import { FiEdit2 } from "react-icons/fi";
 import { useNavigate } from "react-router";
 import { Submission } from "../../types/extraction.types";
 import PageHeader from "../Reusable/PageHeader";
-import useAuth from "../../hooks/useAuth";
+import { useAuth } from "../../context/AuthContext";
 import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
 
 const getRowId = (row: Submission) => row._id || "";

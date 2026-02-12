@@ -11,6 +11,7 @@ const UserService = {
     const { email, password } = credentials;
     const user = await userService.getUserByEmail(email);
     if (!user || !(await user.isPasswordMatch(password))) return false;
+    // profile_picture is already populated by getUserByEmail
     return user;
   },
 };

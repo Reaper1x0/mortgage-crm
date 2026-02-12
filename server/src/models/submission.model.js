@@ -144,7 +144,7 @@ const SubmissionSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      ref: "User",
+      ref: "users",
     },
 
     status: {
@@ -179,6 +179,19 @@ const SubmissionSchema = new mongoose.Schema(
 
       updatedAt: { type: Date, default: null },
     },
+
+    // Generated documents (filled PDFs from templates)
+    generated_documents: [
+      {
+        template_id: { type: mongoose.Schema.Types.ObjectId, ref: "Template" },
+        template_name: { type: String },
+        file_id: { type: mongoose.Schema.Types.ObjectId, ref: "File", required: true },
+        generated_by: { type: mongoose.Schema.Types.ObjectId, ref: "users", required: true },
+        generated_at: { type: Date, default: Date.now },
+        download_count: { type: Number, default: 0 },
+        last_downloaded_at: { type: Date },
+      },
+    ],
   },
   { timestamps: true }
 );

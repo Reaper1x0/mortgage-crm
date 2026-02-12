@@ -40,6 +40,11 @@ const userSchema = mongoose.Schema(
       default: "Viewer",
       required: true,
     },
+    profile_picture: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "File",
+      default: null,
+    },
   },
   {
     timestamps: true,

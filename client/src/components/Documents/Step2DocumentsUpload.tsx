@@ -9,6 +9,10 @@ import ActionBar from "../Reusable/ActionBar";
 import FileList from "../Reusable/FileList";
 import Callout from "../Reusable/Callout";
 import StatusBadge from "../Reusable/StatusBadge";
+import Avatar from "../Reusable/Avatar";
+import { timeAgo } from "../../utils/date";
+import { getUserDisplayName, normalizeUserForAvatar } from "../../utils/userUtils";
+import { BACKEND_URL } from "../../constants/env.constants";
 
 import Button from "../Reusable/Button";
 import IconButton from "../Reusable/IconButton";
@@ -198,8 +202,12 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
               const id = d?._id as string;
               const name = getFileName(d.document);
               const url = getFileUrl(d.document);
-              const when = d.uploadDate ? new Date(d.uploadDate).toLocaleString() : "—";
               const extractedCount = Array.isArray(d.extracted_fields) ? d.extracted_fields.length : 0;
+              
+              // Get uploader info
+              const uploaderInfo = d.document?.uploaded_by;
+              const uploaderName = uploaderInfo ? getUserDisplayName(uploaderInfo) : null;
+              const uploadedAtTimeAgo = d.document?.uploaded_at ? timeAgo(d.document.uploaded_at) : null;
 
               const isBusy = actionLoadingId === id;
 
@@ -215,7 +223,18 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
 
                         <div className="min-w-0">
                           <div className="truncate text-sm font-extrabold text-text">{name}</div>
-                          <div className="mt-1 text-xs text-card-text">Uploaded: {when}</div>
+                          <div className="mt-1 flex items-center gap-2 text-xs text-card-text">
+                            {uploaderInfo ? (
+                              <Avatar
+                                user={normalizeUserForAvatar(uploaderInfo, BACKEND_URL)}
+                                size="xs"
+                                showTooltip={true}
+                                tooltipText={`Uploaded by ${uploaderName || "Unknown"}${uploadedAtTimeAgo ? ` ${uploadedAtTimeAgo}` : ""}`}
+                              />
+                            ) : (
+                              <span className="text-card-text">by Unknown</span>
+                            )}
+                          </div>
                         </div>
                       </div>
 

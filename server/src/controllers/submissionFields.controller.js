@@ -2,6 +2,7 @@ const { R2XX, R4XX } = require("../Responses");
 const { catchAsync } = require("../utils");
 const { Submission, MasterField } = require("../models");
 const { recomputeSubmissionFields, filterAndCountFields } = require("../services/submissionFields.service");
+const AuditTrailService = require("../services/auditTrail.service");
 
 const SubmissionFieldsController = {
   // GET /api/submissions/:id/field-status
@@ -10,7 +11,16 @@ const SubmissionFieldsController = {
     const userId = req.user;
     const id = req.params.id;
 
-    const submission = await Submission.findOne({ _id: id }).populate("documents.document");
+    const submission = await Submission.findOne({ _id: id })
+      .populate("documents.document")
+      .populate({
+        path: "documents.document.uploaded_by",
+        select: "fullName email username",
+        populate: {
+          path: "profile_picture",
+          select: "url storage_path display_name"
+        }
+      });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     // recompute if requested or if missing snapshot
@@ -33,6 +43,9 @@ const SubmissionFieldsController = {
       searchQuery
     );
 
+    // Get audit trail for all fields
+    const fieldsAuditTrail = await AuditTrailService.getSubmissionFieldsAuditTrail(id);
+
     return R2XX(res, "Field status fetched.", 200, {
       submission: fresh,
       master_fields: masterFields,
@@ -41,6 +54,8 @@ const SubmissionFieldsController = {
       // Server-side filtered results
       filtered_rows: rows,
       counts: counts,
+      // Audit trail data grouped by field_key
+      audit_trail: fieldsAuditTrail,
     });
   }),
 
@@ -57,7 +72,16 @@ const SubmissionFieldsController = {
     const userId = req.user;
     const id = req.params.id;
 
-    const submission = await Submission.findOne({ _id: id }).populate("documents.document");
+    const submission = await Submission.findOne({ _id: id })
+      .populate("documents.document")
+      .populate({
+        path: "documents.document.uploaded_by",
+        select: "fullName email username",
+        populate: {
+          path: "profile_picture",
+          select: "url storage_path display_name"
+        }
+      });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     const masterFields = await MasterField.find({}).lean();
@@ -77,6 +101,22 @@ const SubmissionFieldsController = {
         const key = String(k);
         const existing = byKey.get(key);
         if (existing && existing.source?.type === "manual") {
+          // Log before clearing
+          await AuditTrailService.log({
+            entity_type: "field",
+            entity_id: `${id}_${key}`, // Composite key
+            user_id: userId,
+            action: "field_edited",
+            action_details: {
+              field_key: key,
+              action: "cleared_manual_override",
+              old_value: existing.value,
+              new_value: null,
+            },
+            field_key: key,
+            field_source: "manual",
+            submission_id: id,
+          });
           byKey.delete(key);
         }
       }
@@ -93,6 +133,10 @@ const SubmissionFieldsController = {
         const normalized = item?.value?.normalized ?? null;
         const notes = typeof item?.notes === "string" ? item.notes : "";
 
+        // Get old value for audit trail
+        const existing = byKey.get(key);
+        const oldValue = existing ? { raw: existing.value?.raw, normalized: existing.value?.normalized } : null;
+
         byKey.set(key, {
           key,
           value: { raw, normalized },
@@ -104,18 +148,54 @@ const SubmissionFieldsController = {
           is_reviewed: true,
           reviewedAt: new Date(),
         });
+
+        // Log field edit audit trail
+        await AuditTrailService.log({
+          entity_type: "field",
+          entity_id: `${id}_${key}`, // Composite key
+          user_id: userId,
+          action: existing ? "field_edited" : "field_extracted",
+          action_details: {
+            field_key: key,
+            old_value: oldValue,
+            new_value: { raw, normalized },
+            notes: notes || null,
+          },
+          field_key: key,
+          field_source: "manual",
+          submission_id: id,
+        });
       }
     }
 
-    // review accept extracted (don’t change value, just mark reviewed if exists)
+    // review accept extracted (don't change value, just mark reviewed if exists)
     if (Array.isArray(review)) {
       for (const r of review) {
         const key = String(r?.key || "");
         const existing = byKey.get(key);
         if (!existing) continue;
+        const wasReviewed = existing.is_reviewed;
         existing.is_reviewed = true;
         existing.reviewedAt = new Date();
         byKey.set(key, existing);
+
+        // Log review audit trail (only if not already reviewed)
+        if (!wasReviewed) {
+          await AuditTrailService.log({
+            entity_type: "field",
+            entity_id: `${id}_${key}`, // Composite key
+            user_id: userId,
+            action: "field_reviewed",
+            action_details: {
+              field_key: key,
+              value: existing.value,
+              source: existing.source?.type || "unknown",
+            },
+            field_key: key,
+            field_source: existing.source?.type || "extraction",
+            submission_id: id,
+          });
+        }
       }
     }
 

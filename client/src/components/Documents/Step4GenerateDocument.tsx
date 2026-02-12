@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import Button from "../Reusable/Button";
 import { TemplateService } from "../../service/templateService";
 import { SubmissionFieldStatusService } from "../../service/submissionFieldsStatusService";
+import { SubmissionService } from "../../service/submissionService";
 import { BACKEND_URL } from "../../constants/env.constants";
-import { addToast } from "../../redux/slices/toasterSlice";
 import { useDispatch } from "react-redux";
+import { FiFileText, FiDownload, FiCalendar } from "react-icons/fi";
 
 type TemplateCatalogItem = {
   _id: string;
@@ -37,8 +38,9 @@ export default function Step4GenerateDocument({
   const [generating, setGenerating] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [generatedDocuments, setGeneratedDocuments] = useState<any[]>([]);
 
-  // Load templates + submission fields status (so we use reviewed values)
+  // Load templates + submission fields status + generated documents
   useEffect(() => {
     if (!submissionId) return;
 
@@ -46,13 +48,15 @@ export default function Step4GenerateDocument({
       setLoading(true);
       setError(null);
       try {
-        const [tplRes, status] = await Promise.all([
+        const [tplRes, status, submissionRes] = await Promise.all([
           TemplateService.listTemplates(),
           SubmissionFieldStatusService.getSubmissionFieldStatus(submissionId),
+          SubmissionService.getSubmissionById(submissionId),
         ]);
 
         setTemplates(tplRes.templates || []);
         setSubmissionFields(status?.submission_fields || []);
+        setGeneratedDocuments(submissionRes?.submission?.generated_documents || []);
 
         // auto-select first template (optional)
         const firstId = tplRes.templates?.[0]?._id;
@@ -109,13 +113,23 @@ export default function Step4GenerateDocument({
         if (valuesByKey[k] !== undefined) slimValues[k] = valuesByKey[k];
       }
 
-      const res = await TemplateService.render(selectedId, slimValues);
-      const url = res?.result?.outputUrl;
+      const res = await TemplateService.render(selectedId, slimValues, submissionId);
+      const url = res?.result?.outputUrl || res?.result?.fileUrl;
       if (!url) throw new Error("Render did not return outputUrl");
 
-      const full = `${BACKEND_URL}${url}`;
+      const full = url.startsWith("http") ? url : `${BACKEND_URL}${url}`;
       setGeneratedUrl(full);
       window.open(full, "_blank");
+      
+      // Refresh generated documents list
+      if (res?.result?.fileId) {
+        try {
+          const submissionRes = await SubmissionService.getSubmissionById(submissionId);
+          setGeneratedDocuments(submissionRes?.submission?.generated_documents || []);
+        } catch (err) {
+          console.error("Failed to refresh generated documents:", err);
+        }
+      }
     } catch (e: any) {
       console.error("Error generating document:", e);
       // Error toast is handled automatically by centralized error handler
@@ -272,6 +286,54 @@ export default function Step4GenerateDocument({
               </div>
             )}
           </div>
+
+          {/* Generated Documents List */}
+          {generatedDocuments.length > 0 && (
+            <div className="rounded-2xl border border-card-border bg-background p-4">
+              <div className="text-base font-semibold text-text mb-3">Generated Documents</div>
+              <div className="space-y-2">
+                {generatedDocuments.map((doc: any) => {
+                  const fileUrl = doc.file_id?.url || (typeof doc.file_id === "object" ? doc.file_id?.url : null);
+                  const fileName = doc.file_id?.display_name || doc.file_id?.original_name || "Generated Document";
+                  const fullUrl = fileUrl ? (fileUrl.startsWith("http") ? fileUrl : `${BACKEND_URL}${fileUrl}`) : null;
+                  
+                  return (
+                    <div
+                      key={doc._id || doc.file_id?._id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-card-border bg-card p-3"
+                    >
+                      <div className="min-w-0 flex items-center gap-2">
+                        <FiFileText className="h-4 w-4 text-card-text shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-text truncate">{fileName}</div>
+                          <div className="text-xs text-card-text">
+                            {doc.template_name && <span>Template: {doc.template_name} • </span>}
+                            {doc.generated_at && (
+                              <span className="inline-flex items-center gap-1">
+                                <FiCalendar className="h-3 w-3" />
+                                {new Date(doc.generated_at).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {fullUrl && (
+                        <a
+                          href={fullUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-md border border-card-border bg-background px-2 py-1 text-xs text-text hover:bg-card-hover"
+                        >
+                          <FiDownload className="h-3 w-3" />
+                          Open
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

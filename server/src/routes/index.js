@@ -8,6 +8,7 @@ const submissionRoutes = require("./submission.routes");
 const templateRoutes = require("./template.routes");
 const userRoutes = require("./user.routes");
 const dashboardRoutes = require("./dashboard.routes");
+const auditTrailRoutes = require("./auditTrail.routes");
 
 const defaultRoutes = [
   {
@@ -37,6 +38,10 @@ const defaultRoutes = [
   {
     path: "/dashboard",
     route: dashboardRoutes,
+  },
+  {
+    path: "/audit-trail",
+    route: auditTrailRoutes,
   },
 ];
 

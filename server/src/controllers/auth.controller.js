@@ -8,8 +8,10 @@ const {
   authService,
   otpService,
 } = require("../services");
+const { FileService } = require("../services/file.service");
 const { OTP_TYPES, TOKENS } = require("../constants");
 const { sanitizers } = require("../sanitizers");
+const { bcryptUtils } = require("../utils");
 
 const AuthController = {
   register: catchAsync(async (req, res) => {
@@ -276,11 +278,58 @@ const AuthController = {
     // Update fullName (no uniqueness check)
     if (fullName) user.fullName = fullName;
 
+    // Handle profile picture upload
+    if (req.file) {
+      // Delete old profile picture if exists
+      if (user.profile_picture) {
+        try {
+          await FileService.hardDelete(user.profile_picture, userId, userId);
+        } catch (err) {
+          console.error("Failed to delete old profile picture:", err);
+        }
+      }
+
+      // Upload new profile picture
+      const profilePictureFile = await FileService.createFromUpload(
+        {
+          file: req.file,
+          displayName: `profile-${userId}`,
+          folder: "uploads/profiles",
+          meta: { userId, type: "profile_picture" },
+        },
+        userId,
+        userId
+      );
+
+      user.profile_picture = profilePictureFile._id;
+    }
+
     const updatedUser = await user.save();
+    await updatedUser.populate("profile_picture");
 
     R2XX(res, "Profile updated successfully.", 200, {
       user: sanitizers.userSanitizer(updatedUser),
     });
+  }),
+
+  changePassword: catchAsync(async (req, res) => {
+    const userId = req.user;
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await userService.getUserById(userId);
+    if (!user) return R4XX(res, 404, "User not found");
+
+    // Verify current password
+    const isPasswordValid = await user.isPasswordMatch(currentPassword);
+    if (!isPasswordValid) {
+      return R4XX(res, 401, "Current password is incorrect.");
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    R2XX(res, "Password changed successfully.", 200);
   }),
 
   getUserNameAvailibility: catchAsync(async (req, res) => {

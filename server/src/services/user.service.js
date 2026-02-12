@@ -3,10 +3,10 @@ const { mongoosePaginate } = require("../utils/mongoosePaginate.utils");
 
 const UserService = {
   getUserByEmail: async (email) => {
-    return await User.findOne({ email });
+    return await User.findOne({ email }).populate("profile_picture");
   },
   getUserById: async (id) => {
-    return await User.findById(id);
+    return await User.findById(id).populate("profile_picture");
   },
   getUserByUserName: async (username) => {
     return await User.findOne({ username: username });
@@ -28,6 +28,10 @@ const UserService = {
       page,
       limit,
       lean: true,
+      populate: {
+        path: "profile_picture",
+        select: "url storage_path display_name"
+      }
     });
   },
   deleteUserById: async function (id) {

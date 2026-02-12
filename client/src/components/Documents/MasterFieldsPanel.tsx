@@ -76,11 +76,6 @@ type FilterKey =
   | "done"
   | "extracted";
 
-function pct(n: number, d: number) {
-  if (!d || d <= 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((n / d) * 100)));
-}
-
 // These functions are no longer needed - server handles normalization
 
 export default function MasterFieldsPanel({
@@ -114,13 +109,11 @@ export default function MasterFieldsPanel({
     extracted: 0,
   });
   const [loadingFilter, setLoadingFilter] = useState(false);
+  const [auditTrail, setAuditTrail] = useState<Record<string, any[]>>({});
 
   // byKey no longer needed - server provides filtered rows with all needed data
 
   const opt = useMemo(() => masterFields.filter((m) => !m.required), [masterFields]);
-
-  const reqPct = pct(eligibility.filled_required, eligibility.required_total);
-  const optPct = pct(eligibility.filled_optional ?? 0, eligibility.optional_total ?? opt.length);
 
   // Fetch filtered data from server when filter or search changes
   useEffect(() => {
@@ -148,6 +141,10 @@ export default function MasterFieldsPanel({
         
         if (resp?.counts) {
           setCounts(resp.counts);
+        }
+        
+        if (resp?.audit_trail) {
+          setAuditTrail(resp.audit_trail);
         }
       } catch (error) {
         console.error("Failed to fetch filtered data:", error);
@@ -372,6 +369,7 @@ export default function MasterFieldsPanel({
                 isBusy={isBusy}
                 showAccept={showAccept}
                 showRevert={showRevert}
+                auditTrail={auditTrail[key] || []}
               />
             );
           })

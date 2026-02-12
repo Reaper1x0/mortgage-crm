@@ -13,6 +13,7 @@ const { FileService } = require("../services/file.service");
 const { Submission } = require("../models");
 const MasterFieldService = require("../services/masterFields.service");
 const { recomputeSubmissionFields } = require("../services/submissionFields.service");
+const AuditTrailService = require("../services/auditTrail.service");
 
 /**
  * Small helper to call OpenAI for CNIC name extraction
@@ -629,7 +630,8 @@ const ExtractionController = {
             folder: `uploads/submissions/${submissionId}`,
             meta: { submissionId },
           },
-          userId
+          userId,
+          userId // uploaded_by
         );
 
         const text = await extractTextFromFile({
@@ -670,6 +672,28 @@ const ExtractionController = {
           document_name: file.originalname,
           document_type: file.mimetype || "",
         });
+
+        // Log field extraction audit trail
+        // For fields, we use a composite key: submissionId + field_key as entity_id
+        for (const field of extracted_fields) {
+          await AuditTrailService.log({
+            entity_type: "field",
+            entity_id: `${submissionId}_${field.key}`, // Composite key for field tracking
+            user_id: userId,
+            action: "field_extracted",
+            action_details: {
+              field_key: field.key,
+              raw_value: field.value?.raw,
+              normalized_value: field.value?.normalized,
+              confidence: field.confidence,
+            },
+            field_key: field.key,
+            field_source: "extraction",
+            document_id: savedFile._id,
+            document_name: file.originalname,
+            submission_id: submissionId,
+          });
+        }
 
         results.push({
           original_name: file.originalname,
@@ -717,7 +741,18 @@ const ExtractionController = {
     const userId = req.user;
     const submissionId = req.params.id;
 
-    const submission = await Submission.findOne({ _id: submissionId }).populate("documents.document");
+    const submission = await Submission.findOne({ _id: submissionId })
+      .populate({
+        path: "documents.document",
+        populate: {
+          path: "uploaded_by",
+          select: "fullName email username",
+          populate: {
+            path: "profile_picture",
+            select: "url storage_path display_name"
+          }
+        }
+      });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     return R2XX(res, "Documents fetched successfully.", 200, {
@@ -756,7 +791,8 @@ const ExtractionController = {
           replaced_oldFileId: String(oldFileId),
         },
       },
-      userId
+      userId,
+      userId // uploaded_by
     );
 
     const text = await extractTextFromFile({
@@ -796,11 +832,33 @@ const ExtractionController = {
       }
     );
 
+    // Log field extraction audit trail for replaced document
+    for (const field of extracted_fields) {
+      await AuditTrailService.log({
+        entity_type: "field",
+        entity_id: `${submissionId}_${field.key}`, // Composite key
+        user_id: userId,
+        action: "field_extracted",
+        action_details: {
+          field_key: field.key,
+          raw_value: field.value?.raw,
+          normalized_value: field.value?.normalized,
+          confidence: field.confidence,
+          replaced_document: true,
+        },
+        field_key: field.key,
+        field_source: "extraction",
+        document_id: savedFile._id,
+        document_name: file.originalname,
+        submission_id: submissionId,
+      });
+    }
+
     const updatedSubmission = await recomputeSubmissionFields(submissionId, userId);
 
     const warnings = [];
     try {
-      if (oldFileId) await FileService.hardDelete(oldFileId, userId);
+      if (oldFileId) await FileService.hardDelete(oldFileId, userId, userId);
     } catch (e) {
       console.error("Old file hard delete failed:", e);
       warnings.push({
@@ -842,7 +900,7 @@ const ExtractionController = {
 
     const warnings = [];
     try {
-      if (fileId) await FileService.hardDelete(fileId, userId);
+      if (fileId) await FileService.hardDelete(fileId, userId, userId);
     } catch (e) {
       console.error("File hard delete failed:", e);
       warnings.push({

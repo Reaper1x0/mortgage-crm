@@ -41,6 +41,8 @@ export const loginUser = createAsyncThunk(
       localStorage.setItem("accessToken", response.data.accessToken);
       localStorage.setItem("refreshToken", response.data.refreshToken);
       localStorage.setItem("user", JSON.stringify(response.data.user));
+      // Trigger custom event so AuthContext can update immediately (same tab)
+      window.dispatchEvent(new CustomEvent("auth:user-updated", { detail: response.data.user }));
       return response.data;
     } catch (error: any) {
       // Error toast is handled automatically by centralized error handler

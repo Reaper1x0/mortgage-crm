@@ -24,8 +24,8 @@ export const TemplateService = {
     return res.data;
   },
 
-  render: async (id: string, values: Record<string, any>) => {
-    const res = await apiClient.post(`/templates/${id}/render`, { values });
+  render: async (id: string, values: Record<string, any>, submissionId?: string) => {
+    const res = await apiClient.post(`/templates/${id}/render`, { values, submissionId });
     return res.data;
   },
 

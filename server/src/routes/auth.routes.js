@@ -1,4 +1,5 @@
 const { Router } = require("express");
+const multer = require("multer");
 const { authValidation } = require("../validations");
 const { authController } = require("../controllers");
 
@@ -12,6 +13,10 @@ const {
   getDeviceId,
 } = require("../middlewares");
 const isAuthOptional = require("../middlewares/isAuthOptional.middleware");
+
+// Multer config for profile picture upload
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 const router = Router();
 
@@ -83,7 +88,9 @@ router.get("/refresh", getDeviceId, authController.refresh);
 
 router.get("/profile", isAuth, isMember, authController.getProfile);
 
-router.post("/update-profile", isAuth, authController.updateProfile);
+router.post("/update-profile", isAuth, upload.single("profilePicture"), authController.updateProfile);
+
+router.post("/change-password", isAuth, validate(authValidation.changePassword), authController.changePassword);
 
 router.get("/username-availbility/:username", isAuthOptional, authController.getUserNameAvailibility);
 

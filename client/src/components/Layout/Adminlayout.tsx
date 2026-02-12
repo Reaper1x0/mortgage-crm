@@ -1,14 +1,14 @@
 import { Outlet, useLocation } from "react-router";
-import useAuth from "../../hooks/useAuth";
+import { useAuth } from "../../context/AuthContext";
 import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { LuBraces, LuInbox } from "react-icons/lu";
 import { RiFileEditFill } from "react-icons/ri";
-import { FiUsers } from "react-icons/fi";
+import { FiUsers, FiUser } from "react-icons/fi";
 import { GrDashboard } from "react-icons/gr";
 
 export default function Layout() {
-  const { user, role } = useAuth();
+  const { role } = useAuth();
   const location = useLocation();
   
   // Hide sidebar on template designer page
@@ -18,7 +18,8 @@ export default function Layout() {
     { to: "/workspace/dashboard/analytics", label: "Dashboard", icon: GrDashboard },
     { to: "/workspace/submissions", label: "Submissions", icon: LuInbox },
     { to: "/workspace/master-fields", label: "Master Fields Schema", icon: LuBraces },
-    { to: "/workspace/template-maker", label: "Templates", icon: RiFileEditFill },    
+    { to: "/workspace/template-maker", label: "Templates", icon: RiFileEditFill },
+    { to: "/workspace/profile", label: "Profile", icon: FiUser },
   ];
 
   // Add Users link only for Admin
@@ -29,7 +30,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background text-text">
-      <Navbar user={user} />
+      <Navbar />
 
       {/* fixed header offset */}
       <div className="pt-14">

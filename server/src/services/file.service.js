@@ -1,113 +1,57 @@
 // backend/services/fileService.js
+// Uses unified storage service for all file operations
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const crypto = require("crypto");
-const mime = require("mime-types");
 const mongoose = require("mongoose");
 const { File } = require("../models");
-
-// const { FirebaseStorageService } = require("./FirebaseStorageService"); // ✅ enable later
+const storageService = require("./storage.service");
+const AuditTrailService = require("./auditTrail.service");
 
 function isObjectId(v) {
   return mongoose.Types.ObjectId.isValid(v);
 }
 
-function safeName(name = "") {
-  return String(name).trim().replace(/\s+/g, "_");
-}
-
-function inferContentType({ mimetype, originalname }) {
-  return (
-    mimetype || mime.lookup(originalname || "") || "application/octet-stream"
-  );
-}
-
 /**
- * ✅ TEMP / Vercel-safe temp file helper (if you ever need it)
+ * TEMP / Vercel-safe temp file helper (if you ever need it)
  */
 function writeTempFile(buffer, ext = "") {
   const tempDir = path.join(os.tmpdir(), "tmp");
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
   const filepath = path.join(
     tempDir,
-    `tmp-${Date.now()}-${crypto.randomBytes(6).toString("hex")}${ext}`
+    `tmp-${Date.now()}-${require("crypto").randomBytes(6).toString("hex")}${ext}`
   );
   fs.writeFileSync(filepath, buffer);
   return filepath;
 }
 
-/**
- * ✅ Pretend "Firebase upload" (returns the same shape you would store)
- * Replace this later with FirebaseStorageService.uploadBuffer(...)
- */
-async function pretendFirebaseUpload({
-  buffer,
-  originalName,
-  displayName,
-  folder = "uploads",
-  bucketName = "fake-bucket",
-  contentType,
-  customMetadata = {},
-}) {
-  const detectedType =
-    contentType || mime.lookup(originalName) || "application/octet-stream";
-  const ext =
-    path.extname(originalName || "") ||
-    (detectedType ? `.${mime.extension(detectedType) || ""}` : "");
-  const baseName = safeName(path.basename(originalName || "file", ext));
-  const unique = crypto.randomBytes(8).toString("hex");
-
-  const storagePath = `${folder}/${Date.now()}_${baseName}_${unique}${ext}`;
-  const md5Hash = crypto.createHash("md5").update(buffer).digest("hex");
-
-  // fake downloadable URL (replace later with real firebase url / signed url)
-  const url = `https://storage.example.com/${encodeURIComponent(
-    bucketName
-  )}/${encodeURIComponent(storagePath)}`;
-
-  const type = detectedType ? String(detectedType).split("/")[0] : "";
-
-  return {
-    display_name: displayName || originalName || "",
-    original_name: originalName || displayName || "",
-    storage_path: storagePath,
-    bucket: bucketName,
-    url,
-    type,
-    content_type: detectedType,
-    extension: ext || "",
-    size_in_bytes: buffer?.length || 0,
-    checksum_md5: md5Hash,
-    meta: {
-      ...customMetadata,
-    },
-  };
-}
-
 class FileService {
   /**
-   * ✅ CREATE (Upload + Save in Mongo)
+   * CREATE (Upload + Save in Mongo)
    * @param {Object} params
    * @param {Object} params.file - multer file (buffer/path/originalname/mimetype/size)
    * @param {string} [params.displayName]
-   * @param {string} [params.folder] - e.g. "uploads/org123/user456"
+   * @param {string} [params.folder] - e.g. "uploads/submissions/123"
    * @param {Object} [params.meta] - additional meta to store in Mongo
-   * @param {ObjectId|string} ownerId
+   * @param {ObjectId|string} ownerId - Owner of the file
+   * @param {ObjectId|string} uploadedBy - User who uploaded (for audit trail)
+   * @param {ObjectId|string} [submissionId] - Related submission (for audit trail)
    */
   static async createFromUpload(
     { file, displayName, folder = "uploads", meta = {} },
-    ownerId
+    ownerId,
+    uploadedBy = null
   ) {
     if (!ownerId || !isObjectId(ownerId))
       throw new Error("createFromUpload: valid ownerId is required");
     if (!file) throw new Error("createFromUpload: file is required");
 
+    // Use ownerId as uploadedBy if not provided
+    const uploaderId = uploadedBy && isObjectId(uploadedBy) ? uploadedBy : ownerId;
+
     const originalName = file.originalname || file.name || "file";
-    const contentType = inferContentType({
-      mimetype: file.mimetype,
-      originalname: originalName,
-    });
+    const contentType = file.mimetype || require("mime-types").lookup(originalName) || "application/octet-stream";
 
     let buffer = file.buffer;
     if (!buffer && file.path) {
@@ -116,19 +60,8 @@ class FileService {
     if (!buffer || !Buffer.isBuffer(buffer))
       throw new Error("createFromUpload: file buffer is missing");
 
-    // ✅ Later you will enable firebase upload here:
-    // const storage = new FirebaseStorageService();
-    // const firebaseInfo = await storage.uploadBuffer({
-    //   buffer,
-    //   originalName,
-    //   displayName: displayName || originalName,
-    //   folder,
-    //   contentType,
-    //   customMetadata: meta,
-    // });
-
-    // ✅ For now: pretend firebase upload
-    const firebaseInfo = await pretendFirebaseUpload({
+    // Use unified storage service
+    const storageInfo = await storageService.uploadBuffer({
       buffer,
       originalName,
       displayName: displayName || originalName,
@@ -138,11 +71,32 @@ class FileService {
     });
 
     const doc = await File.create({
-      ...firebaseInfo,
+      ...storageInfo,
       owner_id: ownerId,
+      uploaded_by: uploaderId,
+      uploaded_at: new Date(),
       status: "uploaded",
-      meta: { ...(firebaseInfo.meta || {}), ...(meta || {}) },
+      meta: { ...(storageInfo.meta || {}), ...(meta || {}) },
     });
+
+    // Log audit trail only for actual documents (not profile pictures or other non-document files)
+    // Skip audit logging for profile pictures, system files, etc.
+    if (meta.type !== "profile_picture" && !meta.skipAuditLog) {
+      await AuditTrailService.log({
+        entity_type: "document",
+        entity_id: doc._id,
+        user_id: uploaderId,
+        action: "document_uploaded",
+        action_details: {
+          file_name: originalName,
+          file_size: buffer.length,
+          content_type: contentType,
+        },
+        document_id: doc._id,
+        document_name: originalName,
+        submission_id: meta.submissionId || null,
+      });
+    }
 
     return doc;
   }
@@ -213,10 +167,10 @@ class FileService {
   }
 
   /**
-   * ✅ SOFT DELETE (owner scoped)
-   * Marks status=deleted, (optionally deletes in Firebase later)
+   * SOFT DELETE (owner scoped)
+   * Marks status=deleted (file remains in storage)
    */
-  static async softDelete(fileId, ownerId) {
+  static async softDelete(fileId, ownerId, deletedBy = null) {
     if (!ownerId || !isObjectId(ownerId))
       throw new Error("softDelete: valid ownerId is required");
     if (!fileId || !isObjectId(fileId))
@@ -225,20 +179,37 @@ class FileService {
     const file = await File.findOne({ _id: fileId, owner_id: ownerId });
     if (!file) return null;
 
-    // ✅ Later: delete from firebase storage
-    // const storage = new FirebaseStorageService();
-    // await storage.deleteByPath(file.storage_path);
+    const deleterId = deletedBy && isObjectId(deletedBy) ? deletedBy : ownerId;
 
     file.status = "deleted";
     await file.save();
+
+    // Log audit trail only for actual documents (not profile pictures or other non-document files)
+    // Skip audit logging for profile pictures, system files, etc.
+    if (file.meta?.type !== "profile_picture" && !file.meta?.skipAuditLog) {
+      await AuditTrailService.log({
+        entity_type: "document",
+        entity_id: fileId,
+        user_id: deleterId,
+        action: "document_deleted",
+        action_details: {
+          file_name: file.original_name,
+          soft_delete: true,
+        },
+        document_id: fileId,
+        document_name: file.original_name,
+        submission_id: file.meta?.submissionId || null,
+      });
+    }
+
     return file;
   }
 
   /**
-   * ✅ HARD DELETE (owner scoped)
-   * Removes Mongo record (optionally delete from Firebase)
+   * HARD DELETE (owner scoped)
+   * Removes Mongo record and deletes from storage
    */
-  static async hardDelete(fileId, ownerId) {
+  static async hardDelete(fileId, ownerId, deletedBy = null) {
     if (!ownerId || !isObjectId(ownerId))
       throw new Error("hardDelete: valid ownerId is required");
     if (!fileId || !isObjectId(fileId))
@@ -247,25 +218,47 @@ class FileService {
     const file = await File.findOne({ _id: fileId, owner_id: ownerId });
     if (!file) return null;
 
-    // ✅ Later: delete from firebase storage (uncomment)
-    // const storage = new FirebaseStorageService();
-    // await storage.deleteByPath(file.storage_path);
+    const deleterId = deletedBy && isObjectId(deletedBy) ? deletedBy : ownerId;
 
-    // ✅ For now: pretend delete (does nothing)
-    await pretendFirebaseDeleteByPath(file.storage_path, file.bucket);
+    // Delete from storage using unified service
+    try {
+      await storageService.deleteByPath(file.storage_path);
+    } catch (err) {
+      console.error("Storage delete failed (continuing with DB delete):", err);
+    }
 
     await File.deleteOne({ _id: fileId, owner_id: ownerId });
+
+    // Log audit trail only for actual documents (not profile pictures or other non-document files)
+    // Skip audit logging for profile pictures, system files, etc.
+    if (file.meta?.type !== "profile_picture" && !file.meta?.skipAuditLog) {
+      await AuditTrailService.log({
+        entity_type: "document",
+        entity_id: fileId,
+        user_id: deleterId,
+        action: "document_deleted",
+        action_details: {
+          file_name: file.original_name,
+          storage_path: file.storage_path,
+        },
+        document_id: fileId,
+        document_name: file.original_name,
+        submission_id: file.meta?.submissionId || null,
+      });
+    }
+
     return { deleted: true, fileId };
   }
 
   /**
-   * ✅ REPLACE (upload new, mark old deleted)
+   * REPLACE (upload new, mark old deleted)
    * Returns: { oldFile, newFile }
    */
   static async replace(
     fileId,
     { file: newFile, displayName, folder = "uploads", meta = {} },
-    ownerId
+    ownerId,
+    replacedBy = null
   ) {
     if (!ownerId || !isObjectId(ownerId))
       throw new Error("replace: valid ownerId is required");
@@ -276,6 +269,8 @@ class FileService {
     const oldFile = await File.findOne({ _id: fileId, owner_id: ownerId });
     if (!oldFile) return null;
 
+    const replacerId = replacedBy && isObjectId(replacedBy) ? replacedBy : ownerId;
+
     const created = await FileService.createFromUpload(
       {
         file: newFile,
@@ -283,24 +278,41 @@ class FileService {
         folder,
         meta,
       },
-      ownerId
+      ownerId,
+      replacerId
     );
 
-    // ✅ Later: delete old file in firebase
-    // const storage = new FirebaseStorageService();
-    // await storage.deleteByPath(oldFile.storage_path);
+    // Delete old file from storage
+    try {
+      await storageService.deleteByPath(oldFile.storage_path);
+    } catch (err) {
+      console.error("Storage delete failed for old file (continuing):", err);
+    }
 
     oldFile.status = "deleted";
     await oldFile.save();
 
+    // Log audit trail only for actual documents (not profile pictures or other non-document files)
+    // Skip audit logging for profile pictures, system files, etc.
+    if (oldFile.meta?.type !== "profile_picture" && !oldFile.meta?.skipAuditLog && meta.type !== "profile_picture" && !meta.skipAuditLog) {
+      await AuditTrailService.log({
+        entity_type: "document",
+        entity_id: fileId,
+        user_id: replacerId,
+        action: "document_replaced",
+        action_details: {
+          old_file_name: oldFile.original_name,
+          new_file_name: newFile.originalname,
+          old_file_id: String(oldFile._id),
+          new_file_id: String(created._id),
+        },
+        document_id: fileId,
+        document_name: oldFile.original_name,
+        submission_id: meta.submissionId || oldFile.meta?.submissionId || null,
+      });
+    }
+
     return { oldFile, newFile: created };
-  }
-  static async pretendFirebaseDeleteByPath(
-    storagePath,
-    bucketName = "fake-bucket"
-  ) {
-    // no-op for now
-    return { deleted: true, bucket: bucketName, storagePath };
   }
 }
 

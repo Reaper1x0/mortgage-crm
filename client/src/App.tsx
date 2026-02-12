@@ -16,10 +16,12 @@ import TemplateMaker from "./components/TemplateMaker/TemplatesPage";
 import TemplateDesignerPage from "./components/TemplateMaker/TemplateDesignerPage";
 import UsersPage from "./components/Users/UsersPage";
 import DashboardAnalytics from "./components/Dashboard/DashboardAnalytics";
+import { AuthProvider } from "./context/AuthContext";
 
 function App() {
   return (
-    <BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
       <Routes>
         <Route element={<PublicRoute />}>
           <Route path="/" element={<Layout element={<Login />} />}></Route>
@@ -36,10 +38,6 @@ function App() {
             element={<Layout element={<ForgotPassword />} />}
           ></Route>
         </Route>
-        <Route
-          path="/profile"
-          element={<Layout element={<Profile />} />}
-        ></Route>
 
         <Route path="/workspace" element={<AdminLayout />}>
           <Route element={<ProtectedRoute roles={["Admin", "Agent", "Viewer"]} />}>
@@ -53,11 +51,13 @@ function App() {
             <Route path="template-maker/:templateId/manage" element={<TemplateDesignerPage />}></Route>
             <Route path="users" element={<UsersPage />}></Route>
             <Route path="dashboard/analytics" element={<DashboardAnalytics />}></Route>
+            <Route path="profile" element={<Profile />} />
           </Route>
         </Route>
         <Route path="*" element={<Layout element={<NotFoundPage />} />}></Route>
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
