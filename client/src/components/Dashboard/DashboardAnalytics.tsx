@@ -9,7 +9,16 @@ import LineTrendChart from "../charts/LineTrendChart";
 import DonutWorkloadChart from "../charts/DonutWorkloadChart";
 import StatusBadge from "../Reusable/StatusBadge";
 import Avatar from "../Reusable/Avatar";
-import { FiAlertCircle, FiAlertTriangle, FiInfo, FiFile, FiEdit, FiCheck, FiUpload, FiDownload } from "react-icons/fi";
+import {
+  FiAlertCircle,
+  FiAlertTriangle,
+  FiInfo,
+  FiFile,
+  FiEdit,
+  FiCheck,
+  FiUpload,
+  FiDownload,
+} from "react-icons/fi";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { timeAgo } from "../../utils/date";
 import { BACKEND_URL } from "../../constants/env.constants";
@@ -79,7 +88,9 @@ const DashboardAnalytics: React.FC = () => {
     const fetchAuditLogs = async () => {
       setAuditLogsLoading(true);
       try {
-        const response = await AuditTrailService.getRecentAuditLogs({ limit: 20 });
+        const response = await AuditTrailService.getRecentAuditLogs({
+          limit: 20,
+        });
         setAuditLogs(response.audit_logs || []);
       } catch (err) {
         console.error("Failed to fetch audit logs:", err);
@@ -92,54 +103,130 @@ const DashboardAnalytics: React.FC = () => {
 
   // Get action icon and label
   const getActionInfo = (action: string) => {
-    const actionMap: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-      document_uploaded: { icon: <FiUpload className="h-4 w-4" />, label: "Uploaded Document", color: "text-primary" },
-      document_replaced: { icon: <FiFile className="h-4 w-4" />, label: "Replaced Document", color: "text-warning" },
-      document_deleted: { icon: <FiFile className="h-4 w-4" />, label: "Deleted Document", color: "text-danger" },
-      field_extracted: { icon: <FiFile className="h-4 w-4" />, label: "Extracted Field", color: "text-primary" },
-      field_edited: { icon: <FiEdit className="h-4 w-4" />, label: "Edited Field", color: "text-warning" },
-      field_reviewed: { icon: <FiCheck className="h-4 w-4" />, label: "Reviewed Field", color: "text-success" },
-      field_approved: { icon: <FiCheck className="h-4 w-4" />, label: "Approved Field", color: "text-success" },
-      master_field_created: { icon: <FiFile className="h-4 w-4" />, label: "Created Master Field", color: "text-primary" },
-      master_field_updated: { icon: <FiEdit className="h-4 w-4" />, label: "Updated Master Field", color: "text-warning" },
-      master_field_deleted: { icon: <FiFile className="h-4 w-4" />, label: "Deleted Master Field", color: "text-danger" },
-      submission_created: { icon: <FiFile className="h-4 w-4" />, label: "Created Submission", color: "text-primary" },
-      submission_updated: { icon: <FiEdit className="h-4 w-4" />, label: "Updated Submission", color: "text-warning" },
-      submission_completed: { icon: <FiCheck className="h-4 w-4" />, label: "Completed Submission", color: "text-success" },
-      template_created: { icon: <FiFile className="h-4 w-4" />, label: "Created Template", color: "text-primary" },
-      template_updated: { icon: <FiEdit className="h-4 w-4" />, label: "Updated Template", color: "text-warning" },
-      document_generated: { icon: <FiDownload className="h-4 w-4" />, label: "Generated Document", color: "text-primary" },
-      document_downloaded: { icon: <FiDownload className="h-4 w-4" />, label: "Downloaded Document", color: "text-primary" },
+    const actionMap: Record<
+      string,
+      { icon: React.ReactNode; label: string; color: string }
+    > = {
+      document_uploaded: {
+        icon: <FiUpload className="h-4 w-4" />,
+        label: "Uploaded Document",
+        color: "text-primary",
+      },
+      document_replaced: {
+        icon: <FiFile className="h-4 w-4" />,
+        label: "Replaced Document",
+        color: "text-warning",
+      },
+      document_deleted: {
+        icon: <FiFile className="h-4 w-4" />,
+        label: "Deleted Document",
+        color: "text-danger",
+      },
+      field_extracted: {
+        icon: <FiFile className="h-4 w-4" />,
+        label: "Extracted Field",
+        color: "text-primary",
+      },
+      field_edited: {
+        icon: <FiEdit className="h-4 w-4" />,
+        label: "Edited Field",
+        color: "text-warning",
+      },
+      field_reviewed: {
+        icon: <FiCheck className="h-4 w-4" />,
+        label: "Reviewed Field",
+        color: "text-success",
+      },
+      field_approved: {
+        icon: <FiCheck className="h-4 w-4" />,
+        label: "Approved Field",
+        color: "text-success",
+      },
+      master_field_created: {
+        icon: <FiFile className="h-4 w-4" />,
+        label: "Created Master Field",
+        color: "text-primary",
+      },
+      master_field_updated: {
+        icon: <FiEdit className="h-4 w-4" />,
+        label: "Updated Master Field",
+        color: "text-warning",
+      },
+      master_field_deleted: {
+        icon: <FiFile className="h-4 w-4" />,
+        label: "Deleted Master Field",
+        color: "text-danger",
+      },
+      submission_created: {
+        icon: <FiFile className="h-4 w-4" />,
+        label: "Created Submission",
+        color: "text-primary",
+      },
+      submission_updated: {
+        icon: <FiEdit className="h-4 w-4" />,
+        label: "Updated Submission",
+        color: "text-warning",
+      },
+      submission_completed: {
+        icon: <FiCheck className="h-4 w-4" />,
+        label: "Completed Submission",
+        color: "text-success",
+      },
+      template_created: {
+        icon: <FiFile className="h-4 w-4" />,
+        label: "Created Template",
+        color: "text-primary",
+      },
+      template_updated: {
+        icon: <FiEdit className="h-4 w-4" />,
+        label: "Updated Template",
+        color: "text-warning",
+      },
+      document_generated: {
+        icon: <FiDownload className="h-4 w-4" />,
+        label: "Generated Document",
+        color: "text-primary",
+      },
+      document_downloaded: {
+        icon: <FiDownload className="h-4 w-4" />,
+        label: "Downloaded Document",
+        color: "text-primary",
+      },
     };
-    return actionMap[action] || { icon: <FiFile className="h-4 w-4" />, label: action, color: "text-text" };
+    return (
+      actionMap[action] || {
+        icon: <FiFile className="h-4 w-4" />,
+        label: action,
+        color: "text-text",
+      }
+    );
   };
 
-
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-5 md:space-y-6">
       <PageHeader
         title="Dashboard Analytics"
         description="View analytics and metrics for submissions and processing"
         right={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant={range === "daily" ? "primary" : "secondary"}
               onClick={() => setRange("daily")}
-              className="text-xs"
+              className="text-xs px-2 sm:px-3"
             >
               Daily
             </Button>
             <Button
               variant={range === "weekly" ? "primary" : "secondary"}
               onClick={() => setRange("weekly")}
-              className="text-xs"
+              className="text-xs px-2 sm:px-3"
             >
               Weekly
             </Button>
             <Button
               variant={range === "monthly" ? "primary" : "secondary"}
               onClick={() => setRange("monthly")}
-              className="text-xs"
+              className="text-xs px-2 sm:px-3"
             >
               Monthly
             </Button>
@@ -159,79 +246,122 @@ const DashboardAnalytics: React.FC = () => {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
         {kpiCards.map((kpi, index) => (
           <Card key={index}>
-            <div className="p-4">
-              <div className="text-sm text-text-secondary mb-1">{kpi.title}</div>
+            <div className="p-3 sm:p-4">
+              <div className="text-xs sm:text-sm text-text-secondary mb-1">
+                {kpi.title}
+              </div>
               {loading ? (
-                <div className="h-8 w-20 bg-card-border animate-pulse rounded" />
+                <div className="h-6 sm:h-8 w-16 sm:w-20 bg-card-border animate-pulse rounded" />
               ) : (
-                <div className="text-2xl font-bold text-text">{kpi.value}</div>
+                <div className="text-lg sm:text-xl md:text-2xl font-bold text-text">
+                  {kpi.value}
+                </div>
               )}
             </div>
           </Card>
         ))}
       </div>
 
-      {/* Trends Chart */}
-      <Card>
-        <div className="p-4">
-          <h3 className="text-lg font-semibold text-text mb-4">Cases Processed Trends</h3>
-          <LineTrendChart data={trendsData} loading={loading} />
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Validation Failures */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6 items-stretch">
+        {/* Trends Chart */}
         <Card>
-          <div className="p-4">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-text">
-                Top Validation Failures
-              </h3>
-              {!loading && data.validationFailures && (
-                <div className="text-sm text-text-secondary mt-1">
-                  {data.validationFailures.totalFailures} failures • {data.validationFailures.uniqueRules} rules
+          <div className="p-3 sm:p-4">
+            <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4">
+              Cases Processed Trends
+            </h3>
+            <LineTrendChart data={trendsData} loading={loading} />
+          </div>
+        </Card>
+
+        {/* Workload Chart */}
+        <Card containerClassName="h-full">
+          <div className="p-3 sm:p-4 flex flex-col h-full">
+            <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4 flex-shrink-0">
+              Workload Distribution
+            </h3>
+            <div className="flex-1 flex flex-col justify-center">
+              <DonutWorkloadChart data={workloadData} loading={loading} />
+              {!loading && data.workload && (
+                <div className="mt-3 sm:mt-4 flex justify-center gap-4 sm:gap-6 flex-shrink-0">
+                  <div className="text-center">
+                    <div className="text-xl sm:text-2xl font-bold text-text">
+                      {data.workload.totals.pending}
+                    </div>
+                    <div className="text-xs sm:text-sm text-text-secondary">
+                      Pending
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl sm:text-2xl font-bold text-text">
+                      {data.workload.totals.completed}
+                    </div>
+                    <div className="text-xs sm:text-sm text-text-secondary">
+                      Completed
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
+          </div>
+        </Card>
+      </div>
+      {/* Top Validation Failures */}
+      <Card containerClassName="h-full">
+        <div className="p-3 sm:p-4 flex flex-col h-full">
+          <div className="mb-3 sm:mb-4 flex-shrink-0">
+            <h3 className="text-base sm:text-lg font-semibold text-text">
+              Top Validation Failures
+            </h3>
+            {!loading && data.validationFailures && (
+              <div className="text-xs sm:text-sm text-text-secondary mt-1">
+                {data.validationFailures.totalFailures} failures •{" "}
+                {data.validationFailures.uniqueRules} rules
+              </div>
+            )}
+          </div>
 
+          <div className="flex-1 min-h-0 overflow-hidden">
             {loading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div
                     key={i}
-                    className="p-3 rounded-lg border border-card-border bg-card animate-pulse"
+                    className="p-2 sm:p-3 rounded-lg border border-card-border bg-card animate-pulse"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="h-6 bg-card-border rounded w-20" />
+                    <div className="flex items-start justify-between gap-2 sm:gap-3">
+                      <div className="h-5 sm:h-6 bg-card-border rounded w-16 sm:w-20" />
                       <div className="flex-1 min-w-0">
-                        <div className="h-4 bg-card-border rounded w-3/4 mb-2" />
-                        <div className="h-3 bg-card-border rounded w-1/2" />
+                        <div className="h-3 sm:h-4 bg-card-border rounded w-3/4 mb-2" />
+                        <div className="h-2 sm:h-3 bg-card-border rounded w-1/2" />
                       </div>
-                      <div className="h-6 bg-card-border rounded w-16" />
+                      <div className="h-5 sm:h-6 bg-card-border rounded w-12 sm:w-16" />
                     </div>
                   </div>
                 ))}
               </div>
-            ) : (data.validationFailures?.topValidationFailures || []).length === 0 ? (
+            ) : (data.validationFailures?.topValidationFailures || [])
+                .length === 0 ? (
               <div className="h-64 flex flex-col items-center justify-center">
-                <FiInfo className="h-12 w-12 text-text-secondary mb-2" />
-                <div className="text-text-secondary">No validation failures</div>
+                <FiInfo className="h-10 w-10 sm:h-12 sm:w-12 text-text-secondary mb-2" />
+                <div className="text-sm sm:text-base text-text-secondary">
+                  No validation failures
+                </div>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 overflow-y-auto max-h-[500px] sm:max-h-[600px] pr-1">
                 {(data.validationFailures?.topValidationFailures || [])
                   .slice(0, 10)
                   .map((failure, index) => (
                     <div
                       key={index}
-                      className="p-3 rounded-lg border border-card-border hover:bg-card-hover transition"
+                      className="p-2 sm:p-3 rounded-lg border border-card-border hover:bg-card-hover transition"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-2 sm:gap-3">
                         {/* Left: Severity badges */}
-                        <div className="flex flex-col gap-1 items-start min-w-[90px]">
+                        <div className="flex flex-col gap-1 items-start min-w-[70px] sm:min-w-[90px] flex-shrink-0">
                           {failure.severityCounts.error > 0 && (
                             <StatusBadge tone="danger" className="text-xs">
                               <FiAlertCircle className="h-3 w-3 mr-1" />
@@ -249,7 +379,7 @@ const DashboardAnalytics: React.FC = () => {
                         {/* Middle: Rule + optional message */}
                         <div className="flex-1 min-w-0">
                           <div
-                            className="text-sm font-medium text-text truncate"
+                            className="text-xs sm:text-sm font-medium text-text truncate"
                             title={failure.rule}
                           >
                             {failure.rule}
@@ -261,14 +391,16 @@ const DashboardAnalytics: React.FC = () => {
                           )}
                           {failure.affectedFieldsCount > 0 && (
                             <div className="text-xs text-text-secondary mt-1">
-                              {failure.affectedFieldsCount} field{failure.affectedFieldsCount !== 1 ? "s" : ""} affected
+                              {failure.affectedFieldsCount} field
+                              {failure.affectedFieldsCount !== 1 ? "s" : ""}{" "}
+                              affected
                             </div>
                           )}
                         </div>
 
                         {/* Right: Count + % */}
-                        <div className="text-right min-w-[80px]">
-                          <div className="text-sm font-bold text-text">
+                        <div className="text-right min-w-[60px] sm:min-w-[80px] flex-shrink-0">
+                          <div className="text-xs sm:text-sm font-bold text-text">
                             {failure.count}
                           </div>
                           <div className="text-xs text-text-secondary">
@@ -281,73 +413,60 @@ const DashboardAnalytics: React.FC = () => {
               </div>
             )}
           </div>
-        </Card>
-
-        {/* Workload Chart */}
-        <Card>
-          <div className="p-4">
-            <h3 className="text-lg font-semibold text-text mb-4">Workload Distribution</h3>
-            <DonutWorkloadChart data={workloadData} loading={loading} />
-            {!loading && data.workload && (
-              <div className="mt-4 flex justify-center gap-6">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-text">
-                    {data.workload.totals.pending}
-                  </div>
-                  <div className="text-sm text-text-secondary">Pending</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-text">
-                    {data.workload.totals.completed}
-                  </div>
-                  <div className="text-sm text-text-secondary">Completed</div>
-                </div>
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
-
+        </div>
+      </Card>
       {/* Recent Activity / Audit Logs */}
       <Card>
-        <div className="p-4">
-          <h3 className="text-lg font-semibold text-text mb-4">Recent Activity</h3>
+        <div className="p-3 sm:p-4">
+          <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4">
+            Recent Activity
+          </h3>
           {auditLogsLoading ? (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {[1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
-                  className="p-3 rounded-lg border border-card-border bg-card animate-pulse"
+                  className="p-2 sm:p-3 rounded-lg border border-card-border bg-card animate-pulse"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 bg-card-border rounded-full" />
-                    <div className="flex-1">
-                      <div className="h-4 bg-card-border rounded w-3/4 mb-2" />
-                      <div className="h-3 bg-card-border rounded w-1/2" />
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="h-8 w-8 sm:h-10 sm:w-10 bg-card-border rounded-full flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="h-3 sm:h-4 bg-card-border rounded w-3/4 mb-2" />
+                      <div className="h-2 sm:h-3 bg-card-border rounded w-1/2" />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : auditLogs.length === 0 ? (
-            <div className="h-64 flex flex-col items-center justify-center">
-              <FiInfo className="h-12 w-12 text-text-secondary mb-2" />
-              <div className="text-text-secondary">No recent activity</div>
+            <div className="h-48 sm:h-64 flex flex-col items-center justify-center">
+              <FiInfo className="h-10 w-10 sm:h-12 sm:w-12 text-text-secondary mb-2" />
+              <div className="text-sm sm:text-base text-text-secondary">
+                No recent activity
+              </div>
             </div>
           ) : (
-            <div className="space-y-3 max-h-[600px] overflow-y-auto">
+            <div className="space-y-2 sm:space-y-3 max-h-[500px] sm:max-h-[600px] overflow-y-auto pr-1">
               {auditLogs.map((log) => {
                 const actionInfo = getActionInfo(log.action);
                 const user = log.user_id;
-                const submission = typeof log.submission_id === "object" ? log.submission_id : null;
-                const userName = user?.fullName || user?.username || log.user_name || log.user_email || "Unknown";
-                
+                const submission =
+                  typeof log.submission_id === "object"
+                    ? log.submission_id
+                    : null;
+                const userName =
+                  user?.fullName ||
+                  user?.username ||
+                  log.user_name ||
+                  log.user_email ||
+                  "Unknown";
+
                 return (
                   <div
                     key={log._id}
-                    className="p-3 rounded-lg border border-card-border hover:bg-card-hover transition"
+                    className="p-2 sm:p-3 rounded-lg border border-card-border hover:bg-card-hover transition"
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2 sm:gap-3">
                       {/* Avatar */}
                       <div className="flex-shrink-0">
                         <Avatar
@@ -358,29 +477,40 @@ const DashboardAnalytics: React.FC = () => {
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-text">{userName}</span>
-                          <span className={`flex items-center gap-1 ${actionInfo.color}`}>
+                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                          <span className="text-xs sm:text-sm font-semibold text-text">
+                            {userName}
+                          </span>
+                          <span
+                            className={`flex items-center gap-1 ${actionInfo.color}`}
+                          >
                             {actionInfo.icon}
-                            <span className="text-sm">{actionInfo.label}</span>
+                            <span className="text-xs sm:text-sm">
+                              {actionInfo.label}
+                            </span>
                           </span>
                         </div>
-                        
+
                         {/* Additional context */}
                         <div className="mt-1 text-xs text-card-text space-y-0.5">
                           {log.document_name && (
-                            <div>
-                              <span className="font-medium">Document:</span> {log.document_name}
+                            <div className="truncate">
+                              <span className="font-medium">Document:</span>{" "}
+                              {log.document_name}
                             </div>
                           )}
                           {log.field_key && (
-                            <div>
-                              <span className="font-medium">Field:</span> {log.field_key}
+                            <div className="truncate">
+                              <span className="font-medium">Field:</span>{" "}
+                              {log.field_key}
                             </div>
                           )}
                           {submission && (
-                            <div>
-                              <span className="font-medium">Submission:</span> {submission.submission_name || submission.legal_name || "N/A"}
+                            <div className="truncate">
+                              <span className="font-medium">Submission:</span>{" "}
+                              {submission.submission_name ||
+                                submission.legal_name ||
+                                "N/A"}
                             </div>
                           )}
                         </div>
@@ -403,4 +533,3 @@ const DashboardAnalytics: React.FC = () => {
 };
 
 export default DashboardAnalytics;
-

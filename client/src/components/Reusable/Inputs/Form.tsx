@@ -1,4 +1,4 @@
-import React, { FormEvent, useEffect } from "react";
+import React, { FormEvent, useEffect, useRef } from "react";
 import Input, { InputProps } from "./Input";
 import Select, { SelectInputProps } from "./Select";
 import TextArea, { TextAreaProps } from "./TextArea";
@@ -46,10 +46,53 @@ const Form: React.FC<FormProps> = ({
   sectionClassName = "",
 }) => {
   const [values, setValues] = React.useState<Record<string, any>>(defaultValues);
+  const prevDefaultValuesRef = useRef<Record<string, any>>(defaultValues);
+  const isInitialMount = useRef(true);
+
+  // Helper function to check if two objects are deeply equal
+  const areObjectsEqual = (obj1: Record<string, any>, obj2: Record<string, any>): boolean => {
+    const keys1 = Object.keys(obj1);
+    const keys2 = Object.keys(obj2);
+    
+    if (keys1.length !== keys2.length) {
+      return false;
+    }
+    
+    for (const key of keys1) {
+      if (obj1[key] !== obj2[key]) {
+        return false;
+      }
+    }
+    
+    return true;
+  };
 
   useEffect(() => {
-    // allow empty object too (e.g., login), but still update when profile loads
-    setValues(defaultValues || {});
+    // On initial mount, set values from defaultValues
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      prevDefaultValuesRef.current = defaultValues || {};
+      return;
+    }
+
+    // Only update form values if defaultValues has actually changed
+    // This prevents resetting the form when defaultValues is just a new empty object reference
+    const hasChanged = !areObjectsEqual(prevDefaultValuesRef.current, defaultValues || {});
+    
+    if (hasChanged) {
+      // Only reset if defaultValues has actual content (not just empty object)
+      // OR if it's explicitly different from previous (e.g., profile data loaded)
+      const hasContent = Object.keys(defaultValues || {}).length > 0;
+      const prevHasContent = Object.keys(prevDefaultValuesRef.current).length > 0;
+      
+      // Update if:
+      // 1. defaultValues has content and is different (e.g., profile loads)
+      // 2. OR if we're going from content to empty (explicit reset)
+      if (hasContent || (prevHasContent && !hasContent)) {
+        setValues(defaultValues || {});
+        prevDefaultValuesRef.current = defaultValues || {};
+      }
+    }
   }, [defaultValues]);
 
   const handleChange = (name: string, value: any) => setValues((prev) => ({ ...prev, [name]: value }));
