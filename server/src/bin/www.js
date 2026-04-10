@@ -1,8 +1,6 @@
 const mongoose = require("mongoose");
 const app = require("../index");
 const { envConfig, mongoConfig } = require("../config/");
-const { seedMasterFieldsBulk } = require("../seeders/masterFields.seeder");
-const { seedAdminUser } = require("../seeders/adminUser.seeder");
 // ---------------------------------------------------------------------------->>
 let server = null;
 
@@ -17,11 +15,6 @@ mongoose
   .then(async () => {
     server = app.listen(envConfig.PORT, () => {
       console.log(`Listening to port ${server.address().port}`);
-      // Seed master fields and admin user (both are async)
-      (async () => {
-        await seedMasterFieldsBulk();
-        await seedAdminUser();
-      })();
     });
   })
   .catch((err) => {

@@ -4,3 +4,5 @@ module.exports.emailService = require("./email.service");
 module.exports.otpService = require("./otp.service");
 module.exports.pdfRenderService = require("./pdfRender.service");
 module.exports.templateService = require("./template.service");
+module.exports.leadService = require("./lead.service");
+module.exports.workspaceService = require("./workspace.service");

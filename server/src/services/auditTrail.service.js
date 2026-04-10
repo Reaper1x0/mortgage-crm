@@ -33,6 +33,7 @@ class AuditTrailService {
     document_name = null,
     submission_id = null,
     ip_address = null,
+    workspace = null,
     metadata = {},
   }) {
     try {
@@ -49,10 +50,13 @@ class AuditTrailService {
         console.error("Failed to fetch user for audit trail:", err);
       }
 
+      const resolvedWorkspace = workspace ?? metadata.workspace ?? null;
+
       const auditEntry = await AuditTrail.create({
         entity_type,
         entity_id,
         user_id,
+        workspace: resolvedWorkspace,
         user_email,
         user_name,
         action,
@@ -63,7 +67,10 @@ class AuditTrailService {
         document_name,
         submission_id,
         ip_address,
-        metadata,
+        metadata: {
+          ...metadata,
+          ...(resolvedWorkspace ? { workspace: String(resolvedWorkspace) } : {}),
+        },
         timestamp: new Date(),
       });
 
@@ -79,8 +86,8 @@ class AuditTrailService {
    * Get audit trail for a submission
    */
   static async getSubmissionAuditTrail(submissionId, options = {}) {
-    const { limit = 100, sort = { timestamp: -1 } } = options;
-    return AuditTrail.find({ submission_id: submissionId })
+    const { limit = 100, sort = { timestamp: -1 }, workspaceId = null } = options;
+    return AuditTrail.find({ submission_id: submissionId, ...(workspaceId ? { workspace: workspaceId } : {}) })
       .populate("user_id", "name email")
       .sort(sort)
       .limit(limit)
@@ -91,8 +98,12 @@ class AuditTrailService {
    * Get audit trail for a specific entity
    */
   static async getEntityAuditTrail(entityType, entityId, options = {}) {
-    const { limit = 100, sort = { timestamp: -1 } } = options;
-    return AuditTrail.find({ entity_type: entityType, entity_id: entityId })
+    const { limit = 100, sort = { timestamp: -1 }, workspaceId = null } = options;
+    return AuditTrail.find({
+      entity_type: entityType,
+      entity_id: entityId,
+      ...(workspaceId ? { workspace: workspaceId } : {}),
+    })
       .populate("user_id", "name email")
       .sort(sort)
       .limit(limit)
@@ -103,9 +114,10 @@ class AuditTrailService {
    * Get field-level audit trail
    */
   static async getFieldAuditTrail(submissionId, fieldKey, options = {}) {
-    const { limit = 50, sort = { timestamp: -1 } } = options;
+    const { limit = 50, sort = { timestamp: -1 }, workspaceId = null } = options;
     return AuditTrail.find({
       submission_id: submissionId,
+      ...(workspaceId ? { workspace: workspaceId } : {}),
       field_key: fieldKey,
       action: { $in: ["field_extracted", "field_edited", "field_reviewed", "field_approved"] },
     })
@@ -126,9 +138,10 @@ class AuditTrailService {
    * Get audit trail for all fields in a submission (grouped by field_key)
    */
   static async getSubmissionFieldsAuditTrail(submissionId, options = {}) {
-    const { limit = 100 } = options;
+    const { limit = 100, workspaceId = null } = options;
     const auditEntries = await AuditTrail.find({
       submission_id: submissionId,
+      ...(workspaceId ? { workspace: workspaceId } : {}),
       entity_type: "field",
       action: { $in: ["field_extracted", "field_edited", "field_reviewed", "field_approved"] },
     })
@@ -160,9 +173,10 @@ class AuditTrailService {
    * Get document upload audit trail
    */
   static async getDocumentAuditTrail(documentId, options = {}) {
-    const { limit = 50, sort = { timestamp: -1 } } = options;
+    const { limit = 50, sort = { timestamp: -1 }, workspaceId = null } = options;
     return AuditTrail.find({
       document_id: documentId,
+      ...(workspaceId ? { workspace: workspaceId } : {}),
       action: { $in: ["document_uploaded", "document_replaced", "document_deleted"] },
     })
       .populate({
@@ -184,9 +198,9 @@ class AuditTrailService {
    * @param {Object} options - Options (limit, sort)
    */
   static async getRecentAuditLogs(filter = {}, options = {}) {
-    const { limit = 50, sort = { timestamp: -1 } } = options;
+    const { limit = 50, sort = { timestamp: -1 }, workspaceId = null } = options;
     
-    const query = { ...filter };
+    const query = { ...filter, ...(workspaceId ? { workspace: workspaceId } : {}) };
     
     return AuditTrail.find(query)
       .populate({

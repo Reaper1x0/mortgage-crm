@@ -6,7 +6,7 @@ const {
   handleCnicUpload,
   handleDocumentsUpload,
 } = require("../controllers/extraction.controller");
-const { isAuth, hasRole } = require("../middlewares");
+const { isAuth, requireWorkspace, hasRole } = require("../middlewares");
 
 const router = express.Router();
 
@@ -18,6 +18,7 @@ const upload = multer({ storage });
 router.post(
   "/cnic/extract-name/:id",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin", "Agent"]),
   upload.single("cnic"),
   handleCnicUpload
@@ -27,6 +28,7 @@ router.post(
 router.post(
   "/documents/extract-fields/:id",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin", "Agent"]),
   upload.array("documents", 10),
   handleDocumentsUpload

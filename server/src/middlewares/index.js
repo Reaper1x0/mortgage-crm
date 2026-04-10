@@ -1,4 +1,5 @@
 module.exports.isAuth = require("./auth.middleware");
+module.exports.requireWorkspace = require("./workspaceContext.middleware");
 module.exports.isMember = require("./isMember.middleware");
 module.exports.validate = require("./validate.middleware");
 module.exports.isNotMember = require("./isNotMember.middleware");

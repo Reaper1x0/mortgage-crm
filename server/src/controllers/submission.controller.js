@@ -9,13 +9,14 @@ const SubmissionController = {
   createSubmission: catchAsync(async (req, res) => {
     const user = req.user;
     const data = req.body;
-    const submission = await SubmissionService.createSubmission(data, user);
+    const submission = await SubmissionService.createSubmission(data, user, req.workspaceId);
     
     // Log audit trail
     await AuditTrailService.log({
       entity_type: "submission",
       entity_id: submission._id,
       user_id: user,
+      workspace: req.workspaceId,
       action: "submission_created",
       action_details: {
         submission_id: submission._id,
@@ -31,7 +32,7 @@ const SubmissionController = {
     const data = req.body;
     const { key } = req.params;
     const userId = req.user;
-    const submission = await SubmissionService.updateSubmission(key, data);
+    const submission = await SubmissionService.updateSubmission(key, data, req.workspaceId);
     
     if (!submission) {
       return R4XX(res, 404, "Submission not found");
@@ -42,6 +43,7 @@ const SubmissionController = {
       entity_type: "submission",
       entity_id: submission._id,
       user_id: userId,
+      workspace: req.workspaceId,
       action: "submission_updated",
       action_details: {
         submission_id: submission._id,
@@ -74,6 +76,7 @@ const SubmissionController = {
       page,
       limit,
       sort,
+      workspaceId: req.workspaceId,
     });
 
     return R2XX(res, "Submissions fetched successfully", 200, {
@@ -85,7 +88,7 @@ const SubmissionController = {
   // Get a Submission by its key (all users can view any submission)
   getSubmissionByKey: catchAsync(async (req, res) => {
     const { key } = req.params;
-    const submission = await SubmissionService.getSubmissionByKey(key);
+    const submission = await SubmissionService.getSubmissionByKey(key, req.workspaceId);
 
     if (!submission) {
       return R4XX(res, 404, "Submission not found");

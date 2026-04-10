@@ -9,8 +9,8 @@ function isObjectId(v) {
 
 const SubmissionService = {
   // ✅ Create a new Submission (always bind to this userId)
-  createSubmission: async (data, userId) => {
-    const payload = { ...data, userId }; // force owner
+  createSubmission: async (data, userId, workspaceId) => {
+    const payload = { ...data, userId, workspace: workspaceId }; // force owner + workspace
     const doc = await Submission.create(payload);
     return doc;
   },
@@ -21,11 +21,12 @@ const SubmissionService = {
       page = 1,
       limit = 10,
       sort = { createdAt: -1 },
+      workspaceId,
     } = opts;
 
     return mongoosePaginate({
       model: Submission,
-      filter: {}, // No user filter - show all submissions
+      filter: { workspace: workspaceId },
       sort,
       page,
       limit,
@@ -41,8 +42,8 @@ const SubmissionService = {
    *  - OR key as submission_name (string)
    * No user filtering - all users can view any submission
    */
-  getSubmissionByKey: async (key) => {
-    return Submission.findOne({ _id: key })
+  getSubmissionByKey: async (key, workspaceId) => {
+    return Submission.findOne({ _id: key, workspace: workspaceId })
       .populate({
         path: "documents.document",
         populate: {
@@ -66,11 +67,11 @@ const SubmissionService = {
   },
 
   // Update submission (Admin/Agent can update any submission)
-  updateSubmission: async (submissionId, data) => {
+  updateSubmission: async (submissionId, data, workspaceId) => {
     const payload = { ...data };
 
     return Submission.findOneAndUpdate(
-      { _id: submissionId },
+      { _id: submissionId, workspace: workspaceId },
       { $set: payload },
       { new: true }
     )

@@ -1,13 +1,31 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  ReactNode,
+  useMemo,
+} from "react";
 import { User } from "../types/auth.types";
 import { UserService } from "../service/userService";
 import { AuthService } from "../service/authService";
+import { WorkspaceService, WorkspaceSummary } from "../service/workspaceService";
+
+const ACTIVE_WORKSPACE_KEY = "activeWorkspaceId";
 
 interface AuthContextType {
   user: User | null;
+  /** Effective role in the active workspace (membership role). */
   role: string | null;
   loading: boolean;
   isAuthenticated: boolean;
+  workspaces: WorkspaceSummary[];
+  workspacesLoaded: boolean;
+  activeWorkspaceId: string | null;
+  setActiveWorkspaceId: (id: string | null) => void;
+  refreshWorkspaces: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
   logout: () => Promise<void>;
@@ -21,12 +39,15 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
+  const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string | null>(() =>
+    typeof localStorage !== "undefined" ? localStorage.getItem(ACTIVE_WORKSPACE_KEY) : null
+  );
   const isInitialMount = useRef(true);
   const refreshInProgress = useRef(false);
 
-  // ---- Load user from localStorage (initial hydration) ----
   const loadUserFromStorage = useCallback((): User | null => {
     try {
       const storedUser = localStorage.getItem("user");
@@ -42,13 +63,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return null;
   }, []);
 
-  // ---- Fetch fresh profile from API ----
+  const setActiveWorkspaceId = useCallback((id: string | null) => {
+    setActiveWorkspaceIdState(id);
+    if (id) {
+      localStorage.setItem(ACTIVE_WORKSPACE_KEY, id);
+    } else {
+      localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
+    }
+    window.dispatchEvent(new CustomEvent("workspace:changed", { detail: { workspaceId: id } }));
+  }, []);
+
+  const refreshWorkspaces = useCallback(async (): Promise<void> => {
+    const accessToken = localStorage.getItem("accessToken");
+    if (!accessToken) {
+      setWorkspaces([]);
+      setWorkspacesLoaded(true);
+      return;
+    }
+    try {
+      const response = await WorkspaceService.list();
+      const list = response.data?.workspaces ?? [];
+      setWorkspaces(list);
+
+      const stored = localStorage.getItem(ACTIVE_WORKSPACE_KEY);
+      const valid = stored && list.some((w) => w.workspaceId === stored);
+      if (list.length > 0 && !valid) {
+        setActiveWorkspaceId(list[0].workspaceId);
+      } else if (list.length === 0) {
+        setActiveWorkspaceId(null);
+      }
+    } catch (e) {
+      console.error("Failed to load workspaces:", e);
+      setWorkspaces([]);
+    } finally {
+      setWorkspacesLoaded(true);
+    }
+  }, [setActiveWorkspaceId]);
+
   const fetchProfile = useCallback(async (): Promise<void> => {
     const accessToken = localStorage.getItem("accessToken");
     if (!accessToken) {
       setUser(null);
-      setRole(null);
       setLoading(false);
+      setWorkspaces([]);
+      setWorkspacesLoaded(true);
       return;
     }
 
@@ -57,44 +115,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response?.user) {
         const userData = response.user as User;
         setUser(userData);
-        setRole(userData.role || null);
-        // Sync with localStorage
         localStorage.setItem("user", JSON.stringify(userData));
-        // Dispatch custom event for other tabs/components
         window.dispatchEvent(new CustomEvent("auth:user-updated", { detail: userData }));
       } else {
-        // No user in response - clear state
         setUser(null);
-        setRole(null);
         localStorage.removeItem("user");
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
       }
+      await refreshWorkspaces();
     } catch (error: any) {
       console.error("Failed to fetch profile:", error);
-      // If 401/403, user is not authenticated
       if (error?.response?.status === 401 || error?.response?.status === 403) {
         setUser(null);
-        setRole(null);
         localStorage.removeItem("user");
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
+        localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
       } else {
-        // For other errors, keep existing user from localStorage
         const storedUser = loadUserFromStorage();
         if (storedUser) {
           setUser(storedUser);
-          setRole(storedUser.role || null);
         }
+        await refreshWorkspaces();
       }
     } finally {
       setLoading(false);
     }
-  }, [loadUserFromStorage]);
+  }, [loadUserFromStorage, refreshWorkspaces]);
 
-  // ---- Refresh profile (public method) ----
   const refreshProfile = useCallback(async (): Promise<void> => {
-    if (refreshInProgress.current) return; // Prevent concurrent refreshes
+    if (refreshInProgress.current) return;
     refreshInProgress.current = true;
     try {
       await fetchProfile();
@@ -103,88 +154,88 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [fetchProfile]);
 
-  // ---- Update user in state and localStorage ----
   const updateUser = useCallback((userData: Partial<User>): void => {
     setUser((prevUser) => {
       if (!prevUser) return prevUser;
       const updatedUser = { ...prevUser, ...userData } as User;
-      setRole(updatedUser.role || null);
-      // Sync with localStorage
       localStorage.setItem("user", JSON.stringify(updatedUser));
-      // Dispatch custom event for other tabs/components
       window.dispatchEvent(new CustomEvent("auth:user-updated", { detail: updatedUser }));
       return updatedUser;
     });
   }, []);
 
-  // ---- Logout ----
   const logout = useCallback(async (): Promise<void> => {
     try {
       await AuthService.logout();
     } catch (error) {
       console.error("Logout error:", error);
-      // Clear local state even if API call fails
       localStorage.removeItem("user");
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
+      localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
     } finally {
       setUser(null);
-      setRole(null);
+      setWorkspaces([]);
+      setWorkspacesLoaded(true);
+      setActiveWorkspaceIdState(null);
       window.dispatchEvent(new CustomEvent("auth:user-logged-out"));
     }
   }, []);
 
-  // ---- Initialize on mount ----
+  const workspaceRole = useMemo(() => {
+    if (!activeWorkspaceId || workspaces.length === 0) return null;
+    return workspaces.find((w) => w.workspaceId === activeWorkspaceId)?.role ?? null;
+  }, [activeWorkspaceId, workspaces]);
+
+  const effectiveRole = workspaceRole ?? user?.role ?? null;
+
   useEffect(() => {
     if (!isInitialMount.current) return;
     isInitialMount.current = false;
 
-    // First, load from localStorage for instant UI
     const storedUser = loadUserFromStorage();
     if (storedUser) {
       setUser(storedUser);
-      setRole(storedUser.role || null);
       setLoading(false);
     }
 
-    // Then fetch fresh profile from API
     fetchProfile();
   }, [loadUserFromStorage, fetchProfile]);
 
-  // ---- Listen for storage changes (e.g., from other tabs) ----
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "user" || e.key === "accessToken") {
-        if (e.newValue) {
-          // User was updated in another tab
-          const storedUser = loadUserFromStorage();
-          if (storedUser) {
-            setUser(storedUser);
-            setRole(storedUser.role || null);
+      if (e.key === "user" || e.key === "accessToken" || e.key === ACTIVE_WORKSPACE_KEY) {
+        if (e.key === ACTIVE_WORKSPACE_KEY && e.newValue) {
+          setActiveWorkspaceIdState(e.newValue);
+        }
+        if (e.key === "user" || e.key === "accessToken") {
+          if (e.newValue) {
+            const storedUser = loadUserFromStorage();
+            if (storedUser) {
+              setUser(storedUser);
+              setLoading(false);
+            }
+          } else {
+            setUser(null);
             setLoading(false);
           }
-        } else {
-          // User was removed in another tab
-          setUser(null);
-          setRole(null);
-          setLoading(false);
         }
       }
     };
 
-    // Listen for custom events (same tab updates)
     const handleUserUpdated = (e: CustomEvent) => {
       const updatedUser = e.detail as User;
       setUser(updatedUser);
-      setRole(updatedUser.role || null);
       setLoading(false);
-      // Sync with localStorage
       localStorage.setItem("user", JSON.stringify(updatedUser));
+      void refreshWorkspaces();
     };
 
     const handleUserLoggedOut = () => {
       setUser(null);
-      setRole(null);
+      setWorkspaces([]);
+      setWorkspacesLoaded(true);
+      setActiveWorkspaceIdState(null);
       setLoading(false);
     };
 
@@ -197,13 +248,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       window.removeEventListener("auth:user-updated", handleUserUpdated as EventListener);
       window.removeEventListener("auth:user-logged-out", handleUserLoggedOut);
     };
-  }, [loadUserFromStorage]);
+  }, [loadUserFromStorage, refreshWorkspaces]);
 
   const value: AuthContextType = {
     user,
-    role,
+    role: effectiveRole,
     loading,
     isAuthenticated: !!user,
+    workspaces,
+    workspacesLoaded,
+    activeWorkspaceId,
+    setActiveWorkspaceId,
+    refreshWorkspaces,
     refreshProfile,
     updateUser,
     logout,
@@ -221,4 +277,3 @@ export const useAuth = (): AuthContextType => {
 };
 
 export default useAuth;
-

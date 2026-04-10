@@ -14,6 +14,7 @@ const TemplateController = {
     const template = await templateService.createTemplate({
       name,
       file: req.file,
+      workspaceId: req.workspaceId,
     });
 
     // Log audit trail
@@ -21,6 +22,7 @@ const TemplateController = {
       entity_type: "template",
       entity_id: template._id,
       user_id: userId,
+      workspace: req.workspaceId,
       action: "template_created",
       action_details: {
         template_id: template._id,
@@ -46,6 +48,7 @@ const TemplateController = {
       page,
       limit,
       sort,
+      workspaceId: req.workspaceId,
     });
 
     return R2XX(res, "Templates fetched", 200, {
@@ -56,7 +59,7 @@ const TemplateController = {
 
   getTemplate: catchAsync(async (req, res) => {
     const { id } = req.params;
-    const template = await templateService.getTemplateById(id);
+    const template = await templateService.getTemplateById(id, req.workspaceId);
     if (!template) return R4XX(res, 404, "Template not found");
     return R2XX(res, "Template fetched", 200, { template });
   }),
@@ -69,7 +72,7 @@ const TemplateController = {
     if (!Array.isArray(placements))
       return R4XX(res, 400, "placements must be an array");
 
-    const updated = await templateService.savePlacements(id, placements);
+    const updated = await templateService.savePlacements(id, placements, req.workspaceId);
     if (!updated) return R4XX(res, 404, "Template not found");
 
     // Log audit trail
@@ -77,6 +80,7 @@ const TemplateController = {
       entity_type: "template",
       entity_id: id,
       user_id: userId,
+      workspace: req.workspaceId,
       action: "template_updated",
       action_details: {
         template_id: id,
@@ -101,6 +105,7 @@ const TemplateController = {
         valuesByKey,
         submissionId: submissionId || null,
         userId: userId || null,
+        workspaceId: req.workspaceId,
       });
       return R2XX(res, "Rendered", 200, { result });
     } catch (e) {

@@ -9,7 +9,7 @@ const DashboardController = {
    */
   getSummary: catchAsync(async (req, res) => {
     const { range, startDate, endDate } = req.query;
-    const summary = await DashboardService.getSummary(range, startDate, endDate);
+    const summary = await DashboardService.getSummary(range, startDate, endDate, req.workspaceId);
     return R2XX(res, "Summary fetched successfully", 200, { data: summary });
   }),
 
@@ -19,7 +19,7 @@ const DashboardController = {
    */
   getTrends: catchAsync(async (req, res) => {
     const { range, startDate, endDate } = req.query;
-    const trends = await DashboardService.getTrends(range, startDate, endDate);
+    const trends = await DashboardService.getTrends(range, startDate, endDate, req.workspaceId);
     return R2XX(res, "Trends fetched successfully", 200, { data: trends });
   }),
 
@@ -32,7 +32,8 @@ const DashboardController = {
     const failures = await DashboardService.getValidationFailures(
       range,
       startDate,
-      endDate
+      endDate,
+      req.workspaceId
     );
     return R2XX(res, "Validation failures fetched successfully", 200, {
       data: failures,
@@ -48,7 +49,8 @@ const DashboardController = {
     const workload = await DashboardService.getWorkload(
       range,
       startDate,
-      endDate
+      endDate,
+      req.workspaceId
     );
     return R2XX(res, "Workload fetched successfully", 200, { data: workload });
   }),

@@ -10,11 +10,11 @@ const MasterFieldService = {
 
   // Get all MasterFields
   getAllMasterFields: async (opts = {}) => {
-    const { page = 1, limit = 10, sort = { createdAt: -1 } } = opts;
+    const { page = 1, limit = 10, sort = { createdAt: -1 }, workspaceId } = opts;
 
     return mongoosePaginate({
       model: MasterField,
-      filter: {}, // no user filter here (admin only route)
+      filter: { workspace: workspaceId },
       sort,
       page,
       limit,
@@ -23,27 +23,27 @@ const MasterFieldService = {
   },
 
   // Get a MasterField by its key
-  getMasterFieldByKey: async (key) => {
-    const field = await MasterField.findOne({ key });
+  getMasterFieldByKey: async (key, workspaceId) => {
+    const field = await MasterField.findOne({ key, workspace: workspaceId });
     return field;
   },
 
   // Update a MasterField by its key
-  updateMasterField: async (key, data) => {
-    const updatedField = await MasterField.findOneAndUpdate({ key }, data, {
+  updateMasterField: async (key, data, workspaceId) => {
+    const updatedField = await MasterField.findOneAndUpdate({ key, workspace: workspaceId }, data, {
       new: true,
     });
     return updatedField;
   },
 
   // Delete a MasterField by its key
-  deleteMasterField: async (key) => {
-    await MasterField.findOneAndDelete({ key });
+  deleteMasterField: async (key, workspaceId) => {
+    await MasterField.findOneAndDelete({ key, workspace: workspaceId });
   },
 
   // Delete multiple MasterFields
-  deleteMultipleMasterFields: async (keys) => {
-    await MasterField.deleteMany({ key: { $in: keys } });
+  deleteMultipleMasterFields: async (keys, workspaceId) => {
+    await MasterField.deleteMany({ key: { $in: keys }, workspace: workspaceId });
   },
 };
 

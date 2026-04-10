@@ -102,7 +102,7 @@ Ensure MongoDB is running:
 - **Local MongoDB**: Start your local MongoDB service
 - **MongoDB Atlas**: Use your connection string in `MONGO_URI`
 
-The application will automatically connect to MongoDB on startup. Master fields and admin user are automatically seeded on first run.
+The application connects to MongoDB on startup. Workspace, users, and data are created through normal app flows (no global admin seeding).
 
 ### 4. Run Development Server
 
@@ -210,10 +210,8 @@ server/
 │   │   └── response.sanitizer.js
 │   ├── Responses/              # Standardized response helpers
 │   ├── email-templates/         # Email templates (EJS)
-│   ├── seeders/                 # Database seeders
-│   │   ├── adminUser.seeder.js
-│   │   ├── masterFields.seeder.js
-│   │   └── verifyAdmin.js
+│   ├── seeders/                 # Optional seed scripts (not auto-run)
+│   │   └── masterFields.seeder.js
 │   ├── secrets/                 # JWT secret files
 │   │   ├── JWT/
 │   │   └── Refresh-Token/
@@ -328,7 +326,7 @@ The system supports three user roles:
 - File uploads are handled using Multer (memory storage)
 - Temporary files are stored in `src/tmp/` directory
 - Permanent uploads are stored in `uploads/` directory or Firebase Storage
-- Master fields and admin user are automatically seeded on server startup
+- No global admin or master-schema auto-seeding is performed on startup
 - Audit logs track all important user actions (template CRUD, master field CRUD, document operations, field edits, etc.)
 - Profile picture changes are excluded from document audit logs
 

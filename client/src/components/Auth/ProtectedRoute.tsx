@@ -1,17 +1,15 @@
 import { Navigate, useLocation, Outlet } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 
-// ---- Types ----
 interface ProtectedRouteProps {
   roles?: string[];
 }
 
 export default function ProtectedRoute({ roles = [] }: ProtectedRouteProps) {
-  const { user, loading, role } = useAuth();
+  const { user, loading, role, workspaces, workspacesLoaded, activeWorkspaceId } = useAuth();
   const location = useLocation();
 
-  // Still loading auth state
-  if (loading) {
+  if (loading || (user && !workspacesLoaded)) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
         <div className="text-sm text-slate-500">Loading…</div>
@@ -19,16 +17,36 @@ export default function ProtectedRoute({ roles = [] }: ProtectedRouteProps) {
     );
   }
 
-  // Not authenticated → redirect to login
   if (!user) {
     return <Navigate to="/" replace state={{ from: location }} />;
   }
 
-  // Authenticated but role not allowed → unauthorized route
-  if (roles.length > 0 && !roles.includes(role!)) {
-    return <Navigate to="/unauthorized" replace state={{ from: location }} />;
+  const isOnboarding = location.pathname.includes("/workspace/onboarding");
+
+  if (!isOnboarding && workspacesLoaded && workspaces.length === 0) {
+    return <Navigate to="/workspace/onboarding" replace state={{ from: location }} />;
   }
 
-  // Auth OK → render nested routes
+  if (!isOnboarding && workspaces.length > 0 && !activeWorkspaceId) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <div className="text-sm text-slate-500">Loading workspace…</div>
+      </div>
+    );
+  }
+
+  if (!isOnboarding && roles.length > 0) {
+    if (!role) {
+      return (
+        <div className="min-h-[50vh] flex items-center justify-center">
+          <div className="text-sm text-slate-500">Loading workspace…</div>
+        </div>
+      );
+    }
+    if (!roles.includes(role)) {
+      return <Navigate to="/unauthorized" replace state={{ from: location }} />;
+    }
+  }
+
   return <Outlet />;
 }

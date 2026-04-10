@@ -17,7 +17,10 @@ const AuditTrailController = {
     if (entityType) filter.entity_type = entityType;
     if (action) filter.action = action;
 
-    const auditLogs = await AuditTrailService.getRecentAuditLogs(filter, { limit });
+    const auditLogs = await AuditTrailService.getRecentAuditLogs(filter, {
+      limit,
+      workspaceId: req.workspaceId,
+    });
 
     return R2XX(res, "Recent audit logs fetched successfully", 200, {
       audit_logs: auditLogs,
@@ -32,7 +35,10 @@ const AuditTrailController = {
     const submissionId = req.params.id;
     const limit = parseInt(req.query.limit || "100", 10);
 
-    const auditLogs = await AuditTrailService.getSubmissionAuditTrail(submissionId, { limit });
+    const auditLogs = await AuditTrailService.getSubmissionAuditTrail(submissionId, {
+      limit,
+      workspaceId: req.workspaceId,
+    });
 
     return R2XX(res, "Submission audit trail fetched successfully", 200, {
       audit_logs: auditLogs,

@@ -29,6 +29,12 @@ const placementSchema = new mongoose.Schema(
 
 const templateSchema = new mongoose.Schema(
   {
+    workspace: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "workspaces",
+      required: true,
+      index: true,
+    },
     name: { type: String, required: true, trim: true },
 
     file: {

@@ -5,3 +5,6 @@ module.exports.Submission = require("./submission.model");
 module.exports.File = require("./file.model");
 module.exports.Template = require("./template.model");
 module.exports.AuditTrail = require("./auditTrail.model");
+module.exports.Lead = require("./lead.model");
+module.exports.Workspace = require("./workspace.model");
+module.exports.WorkspaceMember = require("./workspaceMember.model");

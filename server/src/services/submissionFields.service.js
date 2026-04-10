@@ -85,9 +85,10 @@ function mergeDistinctConflicts(allCands, chosen) {
 }
 
 /* -------------------- core builder -------------------- */
-async function recomputeSubmissionFields(submissionId, userId) {
+async function recomputeSubmissionFields(submissionId, userId, workspaceId = null) {
   const submission = await Submission.findOne({
     _id: submissionId,
+    ...(workspaceId ? { workspace: workspaceId } : {}),
   })
     .populate({
       path: "documents.document",
@@ -102,7 +103,7 @@ async function recomputeSubmissionFields(submissionId, userId) {
     });
   if (!submission) return null;
 
-  const masterFields = await MasterField.find({}).lean();
+  const masterFields = await MasterField.find({ ...(workspaceId ? { workspace: workspaceId } : {}) }).lean();
   const masterByKey = new Map(masterFields.map((m) => [String(m.key), m]));
 
   // keep manual overrides pinned
@@ -349,7 +350,7 @@ async function recomputeSubmissionFields(submissionId, userId) {
 
   // ✅ Atomic write (no VersionError)
   const updated = await Submission.findOneAndUpdate(
-    { _id: submissionId },
+    { _id: submissionId, ...(workspaceId ? { workspace: workspaceId } : {}) },
     { $set: update },
     { new: true, runValidators: true }
   )

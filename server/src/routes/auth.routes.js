@@ -86,7 +86,7 @@ router.delete("/logout", isAuth, getDeviceId, authController.logout);
 
 router.get("/refresh", getDeviceId, authController.refresh);
 
-router.get("/profile", isAuth, isMember, authController.getProfile);
+router.get("/profile", isAuth, authController.getProfile);
 
 router.post("/update-profile", isAuth, upload.single("profilePicture"), authController.updateProfile);
 

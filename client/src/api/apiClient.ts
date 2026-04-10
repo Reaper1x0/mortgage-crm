@@ -63,11 +63,17 @@ const refreshToken = async () => {
   }
 };
 
-// Request interceptor to add access token
+const ACTIVE_WORKSPACE_KEY = "activeWorkspaceId";
+
+// Request interceptor to add access token and active workspace (tenant) context
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
   if (token) {
     config.headers.Authorization = token;
+  }
+  const workspaceId = localStorage.getItem(ACTIVE_WORKSPACE_KEY);
+  if (workspaceId) {
+    config.headers["X-Workspace-Id"] = workspaceId;
   }
   return config;
 });

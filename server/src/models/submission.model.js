@@ -141,6 +141,12 @@ const SubmissionFieldSchema = new mongoose.Schema(
 
 const SubmissionSchema = new mongoose.Schema(
   {
+    workspace: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "workspaces",
+      required: true,
+      index: true,
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,

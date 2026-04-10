@@ -6,7 +6,8 @@ const { sanitizers } = require("../sanitizers");
 
 const UserController = {
   listUsers: catchAsync(async (req, res) => {
-    const { page, limit, sort } = parsePagination(req.query, {
+    const workspaceId = req.workspaceId;
+    const { page, limit, sortBy, sortOrder } = parsePagination(req.query, {
       defaultPage: 1,
       defaultLimit: 10,
       maxLimit: 100,
@@ -15,24 +16,14 @@ const UserController = {
       allowedSortBy: ["createdAt", "updatedAt", "fullName", "email", "username", "role"],
     });
 
-    // Build filter object
-    const filter = {};
-    if (req.query.role) {
-      filter.role = req.query.role;
-    }
-    if (req.query.search) {
-      filter.$or = [
-        { fullName: { $regex: req.query.search, $options: "i" } },
-        { email: { $regex: req.query.search, $options: "i" } },
-        { username: { $regex: req.query.search, $options: "i" } },
-      ];
-    }
-
     const { items, pagination } = await userService.listUsers({
+      workspaceId,
       page,
       limit,
-      sort,
-      filter,
+      sortBy,
+      sortOrder,
+      role: req.query.role,
+      search: req.query.search,
     });
 
     return R2XX(res, "Users fetched successfully", 200, {
@@ -43,39 +34,45 @@ const UserController = {
 
   getUser: catchAsync(async (req, res) => {
     const { id } = req.params;
-    const user = await userService.getUserById(id);
-    if (!user) return R4XX(res, 404, "User not found");
+    const bundle = await userService.getUserInWorkspace(id, req.workspaceId);
+    if (!bundle) return R4XX(res, 404, "User not found");
+
+    const u = bundle.user.toObject ? bundle.user.toObject() : bundle.user;
+    u.role = bundle.workspaceRole;
 
     return R2XX(res, "User fetched successfully", 200, {
-      user: sanitizers.userSanitizer(user),
+      user: sanitizers.userSanitizer(u),
     });
   }),
 
   createUser: catchAsync(async (req, res) => {
     const { fullName, username, email, password, role } = req.body;
 
-    // Check if email already exists
-    const existingEmail = await userService.getUserByEmail(email);
-    if (existingEmail) {
-      return R4XX(res, 409, "Email already exists");
-    }
-
-    // Check if username already exists
-    const existingUsername = await userService.getUserByUserName(username);
-    if (existingUsername) {
-      return R4XX(res, 409, "Username already exists");
-    }
-
-    const newUser = await userService.createUser({
+    const result = await userService.createUserInWorkspace({
       fullName,
       username,
       email,
       password,
       role: role || "Viewer",
+      workspaceId: req.workspaceId,
     });
 
+    if (!result.ok) {
+      if (result.code === "ALREADY_IN_WORKSPACE") {
+        return R4XX(res, 409, "This user is already a member of this workspace.");
+      }
+      if (result.code === "USERNAME_TAKEN") {
+        return R4XX(res, 409, "Username already exists.");
+      }
+      return R4XX(res, 400, "Unable to create user.");
+    }
+
+    const bundle = await userService.getUserInWorkspace(result.user._id, req.workspaceId);
+    const u = bundle.user.toObject ? bundle.user.toObject() : bundle.user;
+    u.role = bundle.workspaceRole;
+
     return R2XX(res, "User created successfully", 201, {
-      user: sanitizers.userSanitizer(newUser),
+      user: sanitizers.userSanitizer(u),
     });
   }),
 
@@ -83,10 +80,10 @@ const UserController = {
     const { id } = req.params;
     const updateData = { ...req.body };
 
-    const user = await userService.getUserById(id);
-    if (!user) return R4XX(res, 404, "User not found");
+    const bundle = await userService.getUserInWorkspace(id, req.workspaceId);
+    if (!bundle) return R4XX(res, 404, "User not found");
+    const user = bundle.user;
 
-    // Check email uniqueness if email is being updated
     if (updateData.email && updateData.email !== user.email) {
       const existingEmail = await userService.getUserByEmail(updateData.email);
       if (existingEmail) {
@@ -94,7 +91,6 @@ const UserController = {
       }
     }
 
-    // Check username uniqueness if username is being updated
     if (updateData.username && updateData.username !== user.username) {
       const existingUsername = await userService.getUserByUserName(updateData.username);
       if (existingUsername) {
@@ -102,12 +98,11 @@ const UserController = {
       }
     }
 
-    // Remove password from updateData if it's not provided or empty
     if (!updateData.password) {
       delete updateData.password;
     }
 
-    const updatedUser = await userService.updateUserById(id, updateData);
+    const updatedUser = await userService.updateUserById(id, updateData, req.workspaceId);
     if (!updatedUser) return R4XX(res, 404, "User not found");
 
     return R2XX(res, "User updated successfully", 200, {
@@ -118,15 +113,14 @@ const UserController = {
   deleteUser: catchAsync(async (req, res) => {
     const { id } = req.params;
 
-    const user = await userService.getUserById(id);
-    if (!user) return R4XX(res, 404, "User not found");
+    const bundle = await userService.getUserInWorkspace(id, req.workspaceId);
+    if (!bundle) return R4XX(res, 404, "User not found");
 
-    // Prevent deleting yourself
-    if (id === req.user) {
+    if (String(id) === String(req.user)) {
       return R4XX(res, 400, "You cannot delete your own account");
     }
 
-    const deleted = await userService.deleteUserById(id);
+    const deleted = await userService.deleteUserById(id, req.workspaceId);
     if (!deleted) return R4XX(res, 404, "User not found");
 
     return R2XX(res, "User deleted successfully", 200);
@@ -134,4 +128,3 @@ const UserController = {
 };
 
 module.exports = UserController;
-

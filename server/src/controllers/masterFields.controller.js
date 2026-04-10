@@ -7,7 +7,7 @@ const AuditTrailService = require("../services/auditTrail.service");
 const MasterFieldController = {
   // Create a new MasterField
   createMasterField: catchAsync(async (req, res) => {
-    const data = req.body;
+    const data = { ...req.body, workspace: req.workspaceId };
     const userId = req.user;
     const field = await MasterFieldService.createMasterField(data);
     
@@ -16,6 +16,7 @@ const MasterFieldController = {
       entity_type: "field",
       entity_id: field.key,
       user_id: userId,
+      workspace: req.workspaceId,
       action: "master_field_created",
       action_details: {
         field_key: field.key,
@@ -45,6 +46,7 @@ const MasterFieldController = {
       page,
       limit,
       sort,
+      workspaceId: req.workspaceId,
     });
 
     return R2XX(res, "Fields fetched successfully", 200, {
@@ -56,7 +58,7 @@ const MasterFieldController = {
   // Get a MasterField by its key
   getMasterFieldByKey: catchAsync(async (req, res) => {
     const { key } = req.params;
-    const field = await MasterFieldService.getMasterFieldByKey(key);
+    const field = await MasterFieldService.getMasterFieldByKey(key, req.workspaceId);
 
     if (!field) {
       return R4XX(res, 404, "Field not found");
@@ -70,7 +72,7 @@ const MasterFieldController = {
     const { key } = req.params;
     const data = req.body;
     const userId = req.user;
-    const updatedField = await MasterFieldService.updateMasterField(key, data);
+    const updatedField = await MasterFieldService.updateMasterField(key, data, req.workspaceId);
 
     if (!updatedField) {
       return R4XX(res, 404, "Field not found");
@@ -81,6 +83,7 @@ const MasterFieldController = {
       entity_type: "field",
       entity_id: key,
       user_id: userId,
+      workspace: req.workspaceId,
       action: "master_field_updated",
       action_details: {
         field_key: key,
@@ -99,9 +102,9 @@ const MasterFieldController = {
     const userId = req.user;
     
     // Get field info before deletion for audit trail
-    const field = await MasterFieldService.getMasterFieldByKey(key);
+    const field = await MasterFieldService.getMasterFieldByKey(key, req.workspaceId);
     
-    await MasterFieldService.deleteMasterField(key);
+    await MasterFieldService.deleteMasterField(key, req.workspaceId);
     
     // Log audit trail for master field deletion
     if (field) {
@@ -109,6 +112,7 @@ const MasterFieldController = {
         entity_type: "field",
         entity_id: key,
         user_id: userId,
+        workspace: req.workspaceId,
         action: "master_field_deleted",
         action_details: {
           field_key: key,
@@ -131,9 +135,9 @@ const MasterFieldController = {
 
     // Get field info before deletion for audit trail
     const { MasterField } = require("../models");
-    const fields = await MasterField.find({ key: { $in: keys } }).lean();
+    const fields = await MasterField.find({ key: { $in: keys }, workspace: req.workspaceId }).lean();
 
-    await MasterFieldService.deleteMultipleMasterFields(keys);
+    await MasterFieldService.deleteMultipleMasterFields(keys, req.workspaceId);
     
     // Log audit trail for each deleted field
     for (const field of fields) {
@@ -141,6 +145,7 @@ const MasterFieldController = {
         entity_type: "field",
         entity_id: field.key,
         user_id: userId,
+        workspace: req.workspaceId,
         action: "master_field_deleted",
         action_details: {
           field_key: field.key,

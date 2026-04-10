@@ -10,8 +10,9 @@ const SubmissionFieldsController = {
   getFieldStatus: catchAsync(async (req, res) => {
     const userId = req.user;
     const id = req.params.id;
+    const workspaceId = req.workspaceId;
 
-    const submission = await Submission.findOne({ _id: id })
+    const submission = await Submission.findOne({ _id: id, workspace: workspaceId })
       .populate("documents.document")
       .populate({
         path: "documents.document.uploaded_by",
@@ -26,9 +27,11 @@ const SubmissionFieldsController = {
     // recompute if requested or if missing snapshot
     const doRecompute = String(req.query.recompute || "") === "1";
     const fresh =
-      doRecompute || !submission.eligibility?.updatedAt ? await recomputeSubmissionFields(id, userId) : submission;
+      doRecompute || !submission.eligibility?.updatedAt
+        ? await recomputeSubmissionFields(id, userId, workspaceId)
+        : submission;
 
-    const masterFields = await MasterField.find({}).lean();
+    const masterFields = await MasterField.find({ workspace: workspaceId }).lean();
 
     // Get filter and search parameters
     const filter = req.query.filter || "focus";
@@ -44,7 +47,9 @@ const SubmissionFieldsController = {
     );
 
     // Get audit trail for all fields
-    const fieldsAuditTrail = await AuditTrailService.getSubmissionFieldsAuditTrail(id);
+    const fieldsAuditTrail = await AuditTrailService.getSubmissionFieldsAuditTrail(id, {
+      workspaceId,
+    });
 
     return R2XX(res, "Field status fetched.", 200, {
       submission: fresh,
@@ -71,8 +76,9 @@ const SubmissionFieldsController = {
   patchFieldStatus: catchAsync(async (req, res) => {
     const userId = req.user;
     const id = req.params.id;
+    const workspaceId = req.workspaceId;
 
-    const submission = await Submission.findOne({ _id: id })
+    const submission = await Submission.findOne({ _id: id, workspace: workspaceId })
       .populate("documents.document")
       .populate({
         path: "documents.document.uploaded_by",
@@ -84,7 +90,7 @@ const SubmissionFieldsController = {
       });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
-    const masterFields = await MasterField.find({}).lean();
+    const masterFields = await MasterField.find({ workspace: workspaceId }).lean();
     const allowedKeys = new Set(masterFields.map((m) => String(m.key)));
 
     submission.submission_fields = Array.isArray(submission.submission_fields)
@@ -106,6 +112,7 @@ const SubmissionFieldsController = {
             entity_type: "field",
             entity_id: `${id}_${key}`, // Composite key
             user_id: userId,
+            workspace: req.workspaceId,
             action: "field_edited",
             action_details: {
               field_key: key,
@@ -154,6 +161,7 @@ const SubmissionFieldsController = {
           entity_type: "field",
           entity_id: `${id}_${key}`, // Composite key
           user_id: userId,
+          workspace: req.workspaceId,
           action: existing ? "field_edited" : "field_extracted",
           action_details: {
             field_key: key,
@@ -185,6 +193,7 @@ const SubmissionFieldsController = {
             entity_type: "field",
             entity_id: `${id}_${key}`, // Composite key
             user_id: userId,
+            workspace: req.workspaceId,
             action: "field_reviewed",
             action_details: {
               field_key: key,
@@ -203,7 +212,7 @@ const SubmissionFieldsController = {
     await submission.save();
 
     // recompute (keeps manual pinned)
-    const updated = await recomputeSubmissionFields(id, userId);
+    const updated = await recomputeSubmissionFields(id, userId, workspaceId);
 
     return R2XX(res, "Fields updated.", 200, {
       submission: updated,
@@ -216,8 +225,9 @@ const SubmissionFieldsController = {
   recompute: catchAsync(async (req, res) => {
     const userId = req.user;
     const id = req.params.id;
+    const workspaceId = req.workspaceId;
 
-    const updated = await recomputeSubmissionFields(id, userId);
+    const updated = await recomputeSubmissionFields(id, userId, workspaceId);
     if (!updated) return R4XX(res, 404, "Submission not found.");
 
     return R2XX(res, "Recomputed submission fields.", 200, {

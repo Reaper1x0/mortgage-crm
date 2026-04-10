@@ -18,10 +18,11 @@ async function getPdfPageCount(filePath) {
 }
 
 const TemplateService = {
-  createTemplate: async ({ name, file }) => {
+  createTemplate: async ({ name, file, workspaceId }) => {
     const pageCount = await getPdfPageCount(file.path);
 
     const doc = await Template.create({
+      workspace: workspaceId,
       name,
       file: {
         originalName: file.originalname,
@@ -37,11 +38,11 @@ const TemplateService = {
   },
 
   listTemplates: async (opts = {}) => {
-    const { page = 1, limit = 10, sort = { createdAt: -1 } } = opts;
+    const { page = 1, limit = 10, sort = { createdAt: -1 }, workspaceId } = opts;
 
     return mongoosePaginate({
       model: Template,
-      filter: {},
+      filter: { workspace: workspaceId },
       sort,
       page,
       limit,
@@ -49,11 +50,11 @@ const TemplateService = {
     });
   },
 
-  getTemplateById: async (id) => {
-    return Template.findById(id);
+  getTemplateById: async (id, workspaceId) => {
+    return Template.findOne({ _id: id, workspace: workspaceId });
   },
 
-  savePlacements: async (templateId, placements) => {
+  savePlacements: async (templateId, placements, workspaceId) => {
     // Optional: validate duplicates placementId
     const ids = new Set();
     for (const p of placements) {
@@ -63,19 +64,19 @@ const TemplateService = {
       ids.add(p.placementId);
     }
 
-    return Template.findByIdAndUpdate(
-      templateId,
+    return Template.findOneAndUpdate(
+      { _id: templateId, workspace: workspaceId },
       { placements },
       { new: true }
     );
   },
 
-  renderTemplate: async ({ templateId, valuesByKey, submissionId = null, userId = null }) => {
-    const tpl = await Template.findById(templateId);
+  renderTemplate: async ({ templateId, valuesByKey, submissionId = null, userId = null, workspaceId }) => {
+    const tpl = await Template.findOne({ _id: templateId, workspace: workspaceId });
     if (!tpl) throw new Error("Template not found");
 
     const keys = [...new Set(tpl.placements.map((p) => p.fieldKey))];
-    const masterFields = await MasterField.find({ key: { $in: keys } });
+    const masterFields = await MasterField.find({ key: { $in: keys }, workspace: workspaceId });
 
     const masterFieldsByKey = {};
     for (const f of masterFields) masterFieldsByKey[f.key] = f;
@@ -122,7 +123,7 @@ const TemplateService = {
       });
 
       // Add to submission's generated_documents array
-      await Submission.findByIdAndUpdate(submissionId, {
+      await Submission.findOneAndUpdate({ _id: submissionId, workspace: workspaceId }, {
         $push: {
           generated_documents: {
             template_id: templateId,
@@ -140,6 +141,7 @@ const TemplateService = {
         entity_type: "generated_document",
         entity_id: savedFile._id,
         user_id: userId,
+        workspace: workspaceId,
         action: "document_generated",
         action_details: {
           template_id: String(templateId),

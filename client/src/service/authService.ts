@@ -58,6 +58,7 @@ export const AuthService = {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("user");
+    localStorage.removeItem("activeWorkspaceId");
     window.location.href = "/";
   },
 

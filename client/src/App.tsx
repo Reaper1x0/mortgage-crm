@@ -16,6 +16,8 @@ import TemplateMaker from "./components/TemplateMaker/TemplatesPage";
 import TemplateDesignerPage from "./components/TemplateMaker/TemplateDesignerPage";
 import UsersPage from "./components/Users/UsersPage";
 import DashboardAnalytics from "./components/Dashboard/DashboardAnalytics";
+import LeadsPage from "./components/Leads/LeadsPage";
+import WorkspaceOnboarding from "./components/Workspace/WorkspaceOnboarding";
 import { AuthProvider } from "./context/AuthContext";
 
 function App() {
@@ -40,6 +42,7 @@ function App() {
         </Route>
 
         <Route path="/workspace" element={<AdminLayout />}>
+          <Route path="onboarding" element={<WorkspaceOnboarding />} />
           <Route element={<ProtectedRoute roles={["Admin", "Agent", "Viewer"]} />}>
             <Route path="submissions" element={<SubmissionsPage />}></Route>
             <Route
@@ -50,6 +53,7 @@ function App() {
             <Route path="template-maker" element={<TemplateMaker />}></Route>
             <Route path="template-maker/:templateId/manage" element={<TemplateDesignerPage />}></Route>
             <Route path="users" element={<UsersPage />}></Route>
+            <Route path="leads" element={<LeadsPage />}></Route>
             <Route path="dashboard/analytics" element={<DashboardAnalytics />}></Route>
             <Route path="profile" element={<Profile />} />
           </Route>

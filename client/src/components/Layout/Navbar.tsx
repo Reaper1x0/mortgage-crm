@@ -11,15 +11,27 @@ import { BACKEND_URL } from "../../constants/env.constants";
 import { cn } from "../../utils/cn";
 import { FiSun, FiMoon } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
+import { WorkspaceService } from "../../service/workspaceService";
 
 const Navbar = () => {
   const { t } = useLanguage();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
-  const { user, logout: handleLogout, isAuthenticated } = useAuth();
+  const {
+    user,
+    logout: handleLogout,
+    isAuthenticated,
+    workspaces,
+    activeWorkspaceId,
+    setActiveWorkspaceId,
+    refreshWorkspaces,
+  } = useAuth();
 
   const [isLogoutModalOpen, setLogoutModalOpen] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [createWsOpen, setCreateWsOpen] = useState(false);
+  const [newWsName, setNewWsName] = useState("");
+  const [createWsLoading, setCreateWsLoading] = useState(false);
 
   const userInfo = normalizeUserForAvatar(user, BACKEND_URL);
 
@@ -27,6 +39,35 @@ const Navbar = () => {
 
   const toggleTheme = () => {
     setTheme(mode === "dark" ? "light" : "dark");
+  };
+
+  const handleWorkspaceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = e.target.value;
+    if (id) {
+      setActiveWorkspaceId(id);
+      navigate("/workspace/dashboard/analytics");
+    }
+  };
+
+  const handleCreateWorkspace = async () => {
+    const trimmed = newWsName.trim();
+    if (trimmed.length < 2) return;
+    setCreateWsLoading(true);
+    try {
+      const res = await WorkspaceService.create(trimmed);
+      const wid = res.data?.workspace?._id;
+      await refreshWorkspaces();
+      if (wid) {
+        setActiveWorkspaceId(String(wid));
+      }
+      setNewWsName("");
+      setCreateWsOpen(false);
+      navigate("/workspace/dashboard/analytics");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCreateWsLoading(false);
+    }
   };
 
   const handleLogoutClick = async () => {
@@ -63,6 +104,31 @@ const Navbar = () => {
               </Button>
             ) : (
               <>
+                {workspaces.length > 0 && (
+                  <div className="hidden sm:flex items-center gap-2 mr-1">
+                    <label htmlFor="workspace-select" className="sr-only">
+                      Workspace
+                    </label>
+                    <select
+                      id="workspace-select"
+                      value={activeWorkspaceId ?? ""}
+                      onChange={handleWorkspaceChange}
+                      className={cn(
+                        "max-w-[200px] rounded-lg border border-card-border bg-background px-2 py-1.5 text-sm font-medium text-text",
+                        "focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      )}
+                    >
+                      {workspaces.map((w) => (
+                        <option key={w.workspaceId} value={w.workspaceId}>
+                          {w.name} ({w.role})
+                        </option>
+                      ))}
+                    </select>
+                    <Button type="button" variant="secondary" className="!py-1.5 !px-2 text-xs" onClick={() => setCreateWsOpen(true)}>
+                      New workspace
+                    </Button>
+                  </div>
+                )}
                 {/* Theme Toggle (icon-only, replaces dropdown) */}
                 <button
                   type="button"
@@ -177,6 +243,29 @@ const Navbar = () => {
           </div>
         </div>
       </header>
+
+      <Modal isOpen={createWsOpen} onClose={() => setCreateWsOpen(false)}>
+        <h2 className="text-lg font-semibold mb-2 text-text">New workspace</h2>
+        <p className="text-sm text-card-text mb-4">Create another workspace. You will be switched to it after creation.</p>
+        <input
+          type="text"
+          value={newWsName}
+          onChange={(e) => setNewWsName(e.target.value)}
+          placeholder="Workspace name"
+          className={cn(
+            "w-full rounded-xl border border-card-border bg-background px-3 py-2 text-sm text-text mb-4",
+            "placeholder:text-card-text/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          )}
+        />
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => setCreateWsOpen(false)}>
+            {t("cancel")}
+          </Button>
+          <Button variant="primary" onClick={handleCreateWorkspace} isLoading={createWsLoading} disabled={createWsLoading}>
+            Create
+          </Button>
+        </div>
+      </Modal>
 
       <Modal isOpen={isLogoutModalOpen} onClose={() => setLogoutModalOpen(false)}>
         <h2 className="text-lg font-semibold mb-2 text-text">{t("confirm_logout")}</h2>

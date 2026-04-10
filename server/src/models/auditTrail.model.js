@@ -17,6 +17,7 @@ const auditTrailSchema = new mongoose.Schema(
 
     // Who performed the action
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: "users", required: true },
+    workspace: { type: mongoose.Schema.Types.ObjectId, ref: "workspaces", index: true, default: null },
     user_email: { type: String }, // Denormalized for quick access
     user_name: { type: String }, // Denormalized for quick access
 

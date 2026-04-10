@@ -4,7 +4,7 @@ import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { LuBraces, LuInbox } from "react-icons/lu";
 import { RiFileEditFill } from "react-icons/ri";
-import { FiUsers, FiUser } from "react-icons/fi";
+import { FiUsers, FiUser, FiUserPlus } from "react-icons/fi";
 import { GrDashboard } from "react-icons/gr";
 
 export default function Layout() {
@@ -19,6 +19,7 @@ export default function Layout() {
     { to: "/workspace/submissions", label: "Submissions", icon: LuInbox },
     { to: "/workspace/master-fields", label: "Master Fields Schema", icon: LuBraces },
     { to: "/workspace/template-maker", label: "Templates", icon: RiFileEditFill },
+    { to: "/workspace/leads", label: "Leads", icon: FiUserPlus },
     { to: "/workspace/profile", label: "Profile", icon: FiUser },
   ];
 

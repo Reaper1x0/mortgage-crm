@@ -1,7 +1,7 @@
 const { Router } = require("express");
 const { userValidation } = require("../validations");
 const { userController } = require("../controllers");
-const { validate, isAuth, hasRole } = require("../middlewares");
+const { validate, isAuth, requireWorkspace, hasRole } = require("../middlewares");
 
 const router = Router();
 
@@ -9,6 +9,7 @@ const router = Router();
 router.get(
   "/",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin"]),
   validate(userValidation.listUsers),
   userController.listUsers
@@ -17,6 +18,7 @@ router.get(
 router.get(
   "/:id",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin"]),
   validate(userValidation.getUser),
   userController.getUser
@@ -25,6 +27,7 @@ router.get(
 router.post(
   "/",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin"]),
   validate(userValidation.createUser),
   userController.createUser
@@ -33,6 +36,7 @@ router.post(
 router.put(
   "/:id",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin"]),
   validate(userValidation.updateUser),
   userController.updateUser
@@ -41,6 +45,7 @@ router.put(
 router.delete(
   "/:id",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin"]),
   validate(userValidation.deleteUser),
   userController.deleteUser

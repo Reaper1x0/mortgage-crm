@@ -586,7 +586,11 @@ const ExtractionController = {
       });
     }
 
-    const updated = await SubmissionService.updateSubmission(submissionId, { legal_name: legalName }, req.user);
+    const updated = await SubmissionService.updateSubmission(
+      submissionId,
+      { legal_name: legalName },
+      req.workspaceId
+    );
     if (!updated) return R4XX(res, 404, "Submission not found.");
 
     return R2XX(res, "CNIC processed successfully.", 200, {
@@ -611,14 +615,17 @@ const ExtractionController = {
 
     const personName = req.body?.personName || null;
 
-    const submission = await Submission.findOne({ _id: submissionId });
+    const submission = await Submission.findOne({ _id: submissionId, workspace: req.workspaceId });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     const results = [];
     const documentEntries = [];
 
     // Load schema once per request (saves time + avoids subtle differences per file)
-    const masterSchemaFields = await MasterFieldService.getAllMasterFields({ limit: -1 });
+    const masterSchemaFields = await MasterFieldService.getAllMasterFields({
+      limit: -1,
+      workspaceId: req.workspaceId,
+    });
     const masterItems = masterSchemaFields?.items || [];
 
     for (const file of files) {
@@ -628,7 +635,7 @@ const ExtractionController = {
             file,
             displayName: file.originalname,
             folder: `uploads/submissions/${submissionId}`,
-            meta: { submissionId },
+            meta: { submissionId, workspaceId: req.workspaceId },
           },
           userId,
           userId // uploaded_by
@@ -680,6 +687,7 @@ const ExtractionController = {
             entity_type: "field",
             entity_id: `${submissionId}_${field.key}`, // Composite key for field tracking
             user_id: userId,
+            workspace: req.workspaceId,
             action: "field_extracted",
             action_details: {
               field_key: field.key,
@@ -725,7 +733,7 @@ const ExtractionController = {
 
     await submission.save();
 
-    const updatedSubmission = await recomputeSubmissionFields(submission._id, userId);
+    const updatedSubmission = await recomputeSubmissionFields(submission._id, userId, req.workspaceId);
 
     return R2XX(res, "Documents processed successfully.", 200, {
       personName: personName || updatedSubmission.legal_name || null,
@@ -741,7 +749,7 @@ const ExtractionController = {
     const userId = req.user;
     const submissionId = req.params.id;
 
-    const submission = await Submission.findOne({ _id: submissionId })
+    const submission = await Submission.findOne({ _id: submissionId, workspace: req.workspaceId })
       .populate({
         path: "documents.document",
         populate: {
@@ -772,7 +780,7 @@ const ExtractionController = {
 
     if (!file) return R4XX(res, 400, "file is required.");
 
-    const submission = await Submission.findOne({ _id: submissionId });
+    const submission = await Submission.findOne({ _id: submissionId, workspace: req.workspaceId });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     const docEntry = submission.documents.id(docEntryId);
@@ -787,6 +795,7 @@ const ExtractionController = {
         folder: `uploads/submissions/${submissionId}`,
         meta: {
           submissionId,
+          workspaceId: req.workspaceId,
           replaced_docEntryId: docEntryId,
           replaced_oldFileId: String(oldFileId),
         },
@@ -806,7 +815,10 @@ const ExtractionController = {
       return R4XX(res, 400, "No readable text extracted from replacement document.");
     }
 
-    const masterSchemaFields = await MasterFieldService.getAllMasterFields({ limit: -1 });
+    const masterSchemaFields = await MasterFieldService.getAllMasterFields({
+      limit: -1,
+      workspaceId: req.workspaceId,
+    });
 
     let extracted_fields;
     try {
@@ -822,7 +834,7 @@ const ExtractionController = {
     }
 
     await Submission.updateOne(
-      { _id: submissionId, "documents._id": docEntryId },
+      { _id: submissionId, workspace: req.workspaceId, "documents._id": docEntryId },
       {
         $set: {
           "documents.$.document": savedFile._id,
@@ -838,6 +850,7 @@ const ExtractionController = {
         entity_type: "field",
         entity_id: `${submissionId}_${field.key}`, // Composite key
         user_id: userId,
+        workspace: req.workspaceId,
         action: "field_extracted",
         action_details: {
           field_key: field.key,
@@ -854,7 +867,7 @@ const ExtractionController = {
       });
     }
 
-    const updatedSubmission = await recomputeSubmissionFields(submissionId, userId);
+    const updatedSubmission = await recomputeSubmissionFields(submissionId, userId, req.workspaceId);
 
     const warnings = [];
     try {
@@ -886,7 +899,7 @@ const ExtractionController = {
     const submissionId = req.params.id;
     const docEntryId = req.params.docEntryId;
 
-    const submission = await Submission.findOne({ _id: submissionId });
+    const submission = await Submission.findOne({ _id: submissionId, workspace: req.workspaceId });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
     const docEntry = submission.documents.id(docEntryId);
@@ -894,9 +907,12 @@ const ExtractionController = {
 
     const fileId = docEntry.document;
 
-    await Submission.updateOne({ _id: submissionId }, { $pull: { documents: { _id: docEntryId } } });
+    await Submission.updateOne(
+      { _id: submissionId, workspace: req.workspaceId },
+      { $pull: { documents: { _id: docEntryId } } }
+    );
 
-    const updatedSubmission = await recomputeSubmissionFields(submissionId, userId);
+    const updatedSubmission = await recomputeSubmissionFields(submissionId, userId, req.workspaceId);
 
     const warnings = [];
     try {

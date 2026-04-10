@@ -1,5 +1,5 @@
 const express = require("express");
-const { isAuth, hasRole } = require("../middlewares");
+const { isAuth, requireWorkspace, hasRole } = require("../middlewares");
 const DashboardController = require("../controllers/dashboard.controller");
 const { validate } = require("../middlewares");
 const { dashboardValidation } = require("../validations");
@@ -11,6 +11,7 @@ const router = express.Router();
 router.get(
   "/summary",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin", "Agent", "Viewer"]),
   validate(dashboardValidation.dashboardQuery),
   DashboardController.getSummary
@@ -19,6 +20,7 @@ router.get(
 router.get(
   "/trends",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin", "Agent", "Viewer"]),
   validate(dashboardValidation.dashboardQuery),
   DashboardController.getTrends
@@ -27,6 +29,7 @@ router.get(
 router.get(
   "/validation-failures",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin", "Agent", "Viewer"]),
   validate(dashboardValidation.dashboardQuery),
   DashboardController.getValidationFailures
@@ -35,6 +38,7 @@ router.get(
 router.get(
   "/workload",
   isAuth,
+  requireWorkspace,
   hasRole(["Admin", "Agent", "Viewer"]),
   validate(dashboardValidation.dashboardQuery),
   DashboardController.getWorkload

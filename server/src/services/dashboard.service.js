@@ -83,11 +83,12 @@ const DashboardService = {
    * - pendingReviewsCount: submissions with status "review"
    * - completedCasesCount: submissions with status "completed"
    */
-  getSummary: async (range, startDate, endDate) => {
+  getSummary: async (range, startDate, endDate, workspaceId) => {
     const { start, end } = getDateRange(range, startDate, endDate);
 
     // Get all submissions in the date range
     const submissions = await Submission.find({
+      workspace: workspaceId,
       createdAt: { $gte: start, $lte: end },
     }).lean();
 
@@ -151,7 +152,7 @@ const DashboardService = {
    * Get trends data: time-series counts of processed cases
    * Returns buckets grouped by range (daily/weekly/monthly)
    */
-  getTrends: async (range, startDate, endDate) => {
+  getTrends: async (range, startDate, endDate, workspaceId) => {
     const { start, end } = getDateRange(range, startDate, endDate);
     const dateBucketFormat = getDateBucketFormat(range);
 
@@ -160,6 +161,7 @@ const DashboardService = {
     const pipeline = [
       {
         $match: {
+          workspace: new mongoose.Types.ObjectId(workspaceId),
           createdAt: { $gte: start, $lte: end },
           status: { $in: ["review", "completed"] },
         },
@@ -192,12 +194,13 @@ const DashboardService = {
    * Counts actual validation rule failures from the validation.errors array
    * Returns enhanced data with severity breakdown, sample messages, and affected fields
    */
-  getValidationFailures: async (range, startDate, endDate) => {
+  getValidationFailures: async (range, startDate, endDate, workspaceId) => {
     const { start, end } = getDateRange(range, startDate, endDate);
 
     // Get all submissions in range with submission_fields
     // We need submission_fields to access validation.errors
     const submissions = await Submission.find({
+      workspace: workspaceId,
       createdAt: { $gte: start, $lte: end },
       "submission_fields": { $exists: true, $ne: [] },
     })
@@ -278,7 +281,7 @@ const DashboardService = {
    * Get workload metrics
    * Returns pending and completed counts grouped by date buckets
    */
-  getWorkload: async (range, startDate, endDate) => {
+  getWorkload: async (range, startDate, endDate, workspaceId) => {
     const { start, end } = getDateRange(range, startDate, endDate);
     const dateBucketFormat = getDateBucketFormat(range);
 
@@ -286,6 +289,7 @@ const DashboardService = {
     const pipeline = [
       {
         $match: {
+          workspace: new mongoose.Types.ObjectId(workspaceId),
           createdAt: { $gte: start, $lte: end },
         },
       },
@@ -325,6 +329,7 @@ const DashboardService = {
 
     // Calculate totals
     const allSubmissions = await Submission.find({
+      workspace: workspaceId,
       createdAt: { $gte: start, $lte: end },
     }).lean();
 

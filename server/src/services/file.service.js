@@ -86,6 +86,7 @@ class FileService {
         entity_type: "document",
         entity_id: doc._id,
         user_id: uploaderId,
+        workspace: meta.workspaceId || null,
         action: "document_uploaded",
         action_details: {
           file_name: originalName,
@@ -191,6 +192,7 @@ class FileService {
         entity_type: "document",
         entity_id: fileId,
         user_id: deleterId,
+        workspace: file.meta?.workspaceId || null,
         action: "document_deleted",
         action_details: {
           file_name: file.original_name,
@@ -236,6 +238,7 @@ class FileService {
         entity_type: "document",
         entity_id: fileId,
         user_id: deleterId,
+        workspace: file.meta?.workspaceId || null,
         action: "document_deleted",
         action_details: {
           file_name: file.original_name,
@@ -299,6 +302,7 @@ class FileService {
         entity_type: "document",
         entity_id: fileId,
         user_id: replacerId,
+        workspace: meta.workspaceId || oldFile.meta?.workspaceId || null,
         action: "document_replaced",
         action_details: {
           old_file_name: oldFile.original_name,

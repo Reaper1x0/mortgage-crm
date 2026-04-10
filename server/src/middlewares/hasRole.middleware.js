@@ -1,5 +1,4 @@
 const { R4XX } = require("../Responses");
-const { userService } = require("../services");
 
 // roles = array of allowed roles
 const hasRole = (roles = []) => {
@@ -10,14 +9,9 @@ const hasRole = (roles = []) => {
         return R4XX(res, 401, "Unauthorized: user not found in request.");
       }
 
-      const user = await userService.getUserById(req.user);
-      if (!user) {
-        return R4XX(res, 401, "Unauthorized: user not found in request.");
-      }
-
       // Normalize roles to array
       const allowedRoles = Array.isArray(roles) ? roles : [roles];
-      const userRole = user.role;
+      const userRole = req.userRole;
 
       // Check if user's role is in the allowed roles array
       const hasPermission = allowedRoles.includes(userRole);
