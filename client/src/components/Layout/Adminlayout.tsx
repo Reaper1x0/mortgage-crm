@@ -16,7 +16,7 @@ export default function Layout() {
 
   const defaultLinks: SidebarLink[] = [
     { to: "/workspace/dashboard/analytics", label: "Dashboard", icon: GrDashboard },
-    { to: "/workspace/submissions", label: "Submissions", icon: LuInbox },
+    { to: "/workspace/submissions", label: "Clients", icon: LuInbox },
     { to: "/workspace/master-fields", label: "Master Fields Schema", icon: LuBraces },
     { to: "/workspace/template-maker", label: "Templates", icon: RiFileEditFill },
     { to: "/workspace/leads", label: "Leads", icon: FiUserPlus },

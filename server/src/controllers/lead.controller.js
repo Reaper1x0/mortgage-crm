@@ -151,6 +151,31 @@ const LeadController = {
     });
   }),
 
+  moveLeadToClient: catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const result = await leadService.moveLeadsToClients([id], req.workspaceId, req.user);
+    if (!result.movedCount) {
+      const reason = result.skipped?.[0]?.reason || "Lead could not be moved";
+      const status = reason === "Lead not found" ? 404 : 409;
+      return R4XX(res, status, reason);
+    }
+    return R2XX(res, "Lead moved to client successfully", 200, {
+      movedCount: result.movedCount,
+      skippedCount: result.skippedCount,
+      skipped: result.skipped,
+    });
+  }),
+
+  bulkMoveLeadsToClients: catchAsync(async (req, res) => {
+    const { ids = [] } = req.body;
+    const result = await leadService.moveLeadsToClients(ids, req.workspaceId, req.user);
+    return R2XX(res, "Leads moved to clients", 200, {
+      movedCount: result.movedCount,
+      skippedCount: result.skippedCount,
+      skipped: result.skipped,
+    });
+  }),
+
   bulkPreviewLeads: catchAsync(async (req, res) => {
     const file = req.file;
     if (!file) return R4XX(res, 400, "Upload a CSV or XLSX file");

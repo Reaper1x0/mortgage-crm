@@ -35,6 +35,15 @@ router.post(
 );
 
 router.post(
+  "/bulk/move-to-clients",
+  isAuth,
+  requireWorkspace,
+  hasRole(["Admin", "Agent"]),
+  validate(leadValidation.bulkMoveLeadsToClients),
+  leadController.bulkMoveLeadsToClients
+);
+
+router.post(
   "/bulk/preview",
   isAuth,
   requireWorkspace,
@@ -68,6 +77,15 @@ router.delete(
   hasRole(["Admin", "Agent"]),
   validate(leadValidation.deleteLead),
   leadController.deleteLead
+);
+
+router.post(
+  "/:id/move-to-client",
+  isAuth,
+  requireWorkspace,
+  hasRole(["Admin", "Agent"]),
+  validate(leadValidation.moveLeadToClient),
+  leadController.moveLeadToClient
 );
 
 module.exports = router;

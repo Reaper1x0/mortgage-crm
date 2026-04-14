@@ -298,7 +298,7 @@ const SubmissionManagementPage = () => {
     }
   };
 
-  const submissionName = submission?.submission_name || "Submission";
+  const submissionName = submission?.submission_name || "Client";
   const submissionStatus = submission?.status || "In Progress";
 
   return (

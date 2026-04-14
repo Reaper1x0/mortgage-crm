@@ -105,6 +105,14 @@ export type Submission = {
   status: SubmissionStatus;
   submission_name: string;
   legal_name?: string | null;
+  sourceLead?: {
+    _id: string;
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    company?: string;
+    source?: string;
+  } | null;
 
   documents: SubmissionDocument[];
   generated_documents?: GeneratedDocument[];

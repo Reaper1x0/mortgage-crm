@@ -9,7 +9,15 @@ const SubmissionController = {
   createSubmission: catchAsync(async (req, res) => {
     const user = req.user;
     const data = req.body;
-    const submission = await SubmissionService.createSubmission(data, user, req.workspaceId);
+    let submission;
+    try {
+      submission = await SubmissionService.createSubmission(data, user, req.workspaceId);
+    } catch (err) {
+      if (err?.message === "Lead not found in this workspace") {
+        return R4XX(res, 404, "Selected lead not found");
+      }
+      throw err;
+    }
     
     // Log audit trail
     await AuditTrailService.log({

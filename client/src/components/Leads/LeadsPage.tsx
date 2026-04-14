@@ -165,6 +165,36 @@ export default function LeadsPage() {
     }
   };
 
+  const handleMoveSingleLead = async (lead: Lead) => {
+    setLoading(true);
+    try {
+      const res = await LeadService.moveLeadToClient(lead._id);
+      showSuccessToast(`${lead.fullName} moved to client`);
+      if (res.skippedCount > 0) {
+        showWarningToast(`${res.skippedCount} lead(s) skipped`);
+      }
+      await fetchLeads(page, pageSize);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkMoveToClients = async () => {
+    if (!selectedLeadIds.length) return;
+    setLoading(true);
+    try {
+      const res = await LeadService.bulkMoveLeadsToClients(selectedLeadIds);
+      showSuccessToast(`${res.movedCount} lead(s) moved to client`);
+      if (res.skippedCount > 0) {
+        showWarningToast(`${res.skippedCount} lead(s) skipped`);
+      }
+      setSelectedLeadIds([]);
+      await fetchLeads(page, pageSize);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const columns = useMemo(
     () => [
       {
@@ -189,6 +219,11 @@ export default function LeadsPage() {
       { title: "Phone", dataIndex: "phone", render: (v: string) => v || "-" },
       { title: "Company", dataIndex: "company", render: (v: string) => v || "-" },
       { title: "Source", dataIndex: "source", render: (v: string) => v || "-" },
+      {
+        title: "Used As Client",
+        dataIndex: "usedAsClient",
+        render: (_: unknown, row: Lead) => (row.usedAsClient ? `Yes (${row.clientCount || 0})` : "No"),
+      },
       {
         title: "Created At",
         dataIndex: "createdAt",
@@ -223,6 +258,13 @@ export default function LeadsPage() {
                 setDeleteConfirmOpen(true);
               }}
             />
+            <Button
+              variant="secondary"
+              onClick={() => handleMoveSingleLead(row)}
+              disabled={loading}
+            >
+              Make Client
+            </Button>
           </div>
         ),
       },
@@ -327,9 +369,14 @@ export default function LeadsPage() {
             <p className="text-sm text-card-text">
               <span className="font-semibold text-text">{selectedLeadIds.length}</span> lead(s) selected
             </p>
-            <Button variant="danger" onClick={() => setBulkDeleteConfirmOpen(true)} disabled={loading}>
-              Delete Selected
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={handleBulkMoveToClients} disabled={loading}>
+                Make Clients
+              </Button>
+              <Button variant="danger" onClick={() => setBulkDeleteConfirmOpen(true)} disabled={loading}>
+                Delete Selected
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -163,6 +163,12 @@ const SubmissionSchema = new mongoose.Schema(
     submission_name: { type: String, required: true },
 
     legal_name: { type: String },
+    sourceLead: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "leads",
+      default: null,
+      index: true,
+    },
 
     documents: { type: [DocumentSchema], default: [] },
 

@@ -1,6 +1,6 @@
 // services/submission.service.js
 const mongoose = require("mongoose");
-const { Submission } = require("../models");
+const { Submission, Lead } = require("../models");
 const { mongoosePaginate } = require("../utils/mongoosePaginate.utils");
 
 function isObjectId(v) {
@@ -11,6 +11,22 @@ const SubmissionService = {
   // ✅ Create a new Submission (always bind to this userId)
   createSubmission: async (data, userId, workspaceId) => {
     const payload = { ...data, userId, workspace: workspaceId }; // force owner + workspace
+    const sourceLeadId = data?.sourceLead ? String(data.sourceLead) : null;
+
+    if (sourceLeadId) {
+      const lead = await Lead.findOne({ _id: sourceLeadId, workspace: workspaceId }).lean();
+      if (!lead) {
+        throw new Error("Lead not found in this workspace");
+      }
+      payload.sourceLead = lead._id;
+      if (!payload.submission_name || !String(payload.submission_name).trim()) {
+        payload.submission_name = lead.fullName;
+      }
+      if (!payload.legal_name || !String(payload.legal_name).trim()) {
+        payload.legal_name = lead.fullName;
+      }
+    }
+
     const doc = await Submission.create(payload);
     return doc;
   },
@@ -31,6 +47,10 @@ const SubmissionService = {
       page,
       limit,
       lean: true,
+      populate: {
+        path: "sourceLead",
+        select: "fullName email phone company source",
+      },
     });
   },
 
@@ -44,6 +64,10 @@ const SubmissionService = {
    */
   getSubmissionByKey: async (key, workspaceId) => {
     return Submission.findOne({ _id: key, workspace: workspaceId })
+      .populate({
+        path: "sourceLead",
+        select: "fullName email phone company source",
+      })
       .populate({
         path: "documents.document",
         populate: {
@@ -75,6 +99,10 @@ const SubmissionService = {
       { $set: payload },
       { new: true }
     )
+      .populate({
+        path: "sourceLead",
+        select: "fullName email phone company source",
+      })
       .populate({
         path: "documents.document",
         populate: {

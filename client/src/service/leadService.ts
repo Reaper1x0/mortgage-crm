@@ -8,6 +8,8 @@ export interface Lead {
   company?: string;
   source?: string;
   notes?: string;
+  usedAsClient?: boolean;
+  clientCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -45,6 +47,14 @@ export interface BulkImportResponse {
   importedRows: number;
   skippedRows: number;
   skippedReasons: Array<{ row: number; reason: string }>;
+}
+
+export interface MoveToClientsResponse {
+  success: boolean;
+  message: string;
+  movedCount: number;
+  skippedCount: number;
+  skipped: Array<{ id: string; reason: string }>;
 }
 
 export const LeadService = {
@@ -100,6 +110,16 @@ export const LeadService = {
       "/leads/bulk/delete",
       { ids }
     );
+    return response.data;
+  },
+
+  moveLeadToClient: async (id: string) => {
+    const response = await apiClient.post<MoveToClientsResponse>(`/leads/${id}/move-to-client`);
+    return response.data;
+  },
+
+  bulkMoveLeadsToClients: async (ids: string[]) => {
+    const response = await apiClient.post<MoveToClientsResponse>("/leads/bulk/move-to-clients", { ids });
     return response.data;
   },
 

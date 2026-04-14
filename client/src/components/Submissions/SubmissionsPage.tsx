@@ -11,6 +11,7 @@ import { Submission } from "../../types/extraction.types";
 import PageHeader from "../Reusable/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
+import { Lead, LeadService } from "../../service/leadService";
 
 const getRowId = (row: Submission) => row._id || "";
 
@@ -27,6 +28,9 @@ const SubmissionsPage: React.FC = () => {
   // create modal
   const [createOpen, setCreateOpen] = useState<boolean>(false);
   const [submissionName, setSubmissionName] = useState<string>("");
+  const [createMode, setCreateMode] = useState<"manual" | "lead">("manual");
+  const [availableLeads, setAvailableLeads] = useState<Lead[]>([]);
+  const [selectedLeadId, setSelectedLeadId] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
 
   // edit modal (name only)
@@ -80,6 +84,8 @@ const SubmissionsPage: React.FC = () => {
   /* -------------------- Create -------------------- */
   const openCreate = () => {
     setSubmissionName("");
+    setCreateMode("manual");
+    setSelectedLeadId("");
     setCreateOpen(true);
   };
 
@@ -89,23 +95,37 @@ const SubmissionsPage: React.FC = () => {
   };
 
   const handleCreate = async () => {
-    const name = submissionName.trim();
-    if (!name) {
-      showWarningToast("Submission name is required.");
-      return;
+    const payload: Record<string, any> = {};
+    if (createMode === "lead") {
+      if (!selectedLeadId) {
+        showWarningToast("Select a lead to create a client.");
+        return;
+      }
+      payload.sourceLead = selectedLeadId;
+      const lead = availableLeads.find((item) => item._id === selectedLeadId);
+      if (lead?.fullName) payload.submission_name = lead.fullName;
+    } else {
+      const name = submissionName.trim();
+      if (!name) {
+        showWarningToast("Client name is required.");
+        return;
+      }
+      payload.submission_name = name;
     }
 
     setSaving(true);
 
     try {
-      await SubmissionService.createSubmission({ submission_name: name });
-      showSuccessToast("Submission created successfully");
+      await SubmissionService.createSubmission(payload);
+      showSuccessToast("Client created successfully");
 
       // ✅ refresh current page (or go back to page 1 if you prefer)
       await fetchSubmissions(page, pageSize);
 
       setCreateOpen(false);
       setSubmissionName("");
+      setCreateMode("manual");
+      setSelectedLeadId("");
     } catch (e: any) {
       // Error toast is handled automatically by centralized error handler
       console.error("Create submission error:", e);
@@ -113,6 +133,24 @@ const SubmissionsPage: React.FC = () => {
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    const fetchLeadsForCreate = async () => {
+      if (!createOpen) return;
+      try {
+        const data = await LeadService.listLeads({
+          page: 1,
+          limit: 100,
+          sortBy: "createdAt",
+          sortOrder: "desc",
+        });
+        setAvailableLeads(data?.leads || []);
+      } catch {
+        setAvailableLeads([]);
+      }
+    };
+    fetchLeadsForCreate();
+  }, [createOpen]);
 
   /* -------------------- Edit (name only) -------------------- */
   const openEdit = useCallback((row: Submission) => {
@@ -137,7 +175,7 @@ const SubmissionsPage: React.FC = () => {
       return;
     }
     if (!name) {
-      showWarningToast("Submission name is required.");
+      showWarningToast("Client name is required.");
       return;
     }
 
@@ -145,7 +183,7 @@ const SubmissionsPage: React.FC = () => {
 
     try {
       await SubmissionService.updateSubmission(id, { submission_name: name });
-      showSuccessToast("Submission updated successfully");
+      showSuccessToast("Client updated successfully");
       await fetchSubmissions(page, pageSize);
       closeEdit();
     } catch (e: any) {
@@ -159,7 +197,7 @@ const SubmissionsPage: React.FC = () => {
   const columns = useMemo(
     () => [
       {
-        title: "Submission Name",
+        title: "Client Name",
         dataIndex: "submission_name",
         key: "submission_name",
         render: (value: any) => value || "-",
@@ -169,6 +207,12 @@ const SubmissionsPage: React.FC = () => {
         dataIndex: "legal_name",
         key: "legal_name",
         render: (value: any) => value || "-",
+      },
+      {
+        title: "Lead Source",
+        dataIndex: "sourceLead",
+        key: "sourceLead",
+        render: (_: any, row: Submission) => row?.sourceLead?.fullName || "-",
       },
       {
         title: "Documents",
@@ -210,12 +254,12 @@ const SubmissionsPage: React.FC = () => {
   return (
     <div className="space-y-4 p-2 md:p-6">
       <PageHeader
-        title="Submissions"
-        description="Manage submissions and view uploaded document sets."
+        title="Clients"
+        description="Manage clients and continue extraction/document workflows."
         right={
           canCreate ? (
             <Button variant="primary" onClick={openCreate}>
-              + Create Submission
+              + New Client
             </Button>
           ) : null
         }
@@ -240,23 +284,60 @@ const SubmissionsPage: React.FC = () => {
       <Modal isOpen={createOpen} onClose={closeCreate}>
         <div className="space-y-4">
           <div>
-            <h3 className="text-lg font-semibold text-text">
-              Create Submission
-            </h3>
+            <h3 className="text-lg font-semibold text-text">Create Client</h3>
             <p className="text-sm text-text/70">
-              Enter a submission name to create a new record.
+              Create a client manually or from an existing lead.
             </p>
           </div>
 
-          <Input
-            name="submission_name"
-            label="Submission Name"
-            placeholder="e.g. Vendor Batch - January"
-            value={submissionName}
-            onChange={(e) => setSubmissionName(e.target.value)}
-            disabled={saving}
-            required
-          />
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-text">Client Creation Mode</label>
+            <div className="flex gap-2">
+              <Button
+                variant={createMode === "manual" ? "primary" : "secondary"}
+                onClick={() => setCreateMode("manual")}
+                disabled={saving}
+              >
+                Manual
+              </Button>
+              <Button
+                variant={createMode === "lead" ? "primary" : "secondary"}
+                onClick={() => setCreateMode("lead")}
+                disabled={saving}
+              >
+                From Lead
+              </Button>
+            </div>
+          </div>
+
+          {createMode === "manual" ? (
+            <Input
+              name="submission_name"
+              label="Client Name"
+              placeholder="e.g. John Smith"
+              value={submissionName}
+              onChange={(e) => setSubmissionName(e.target.value)}
+              disabled={saving}
+              required
+            />
+          ) : (
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-text">Select Lead</label>
+              <select
+                className="w-full rounded-md border border-card-border bg-background px-3 py-2 text-sm text-text"
+                value={selectedLeadId}
+                onChange={(e) => setSelectedLeadId(e.target.value)}
+                disabled={saving}
+              >
+                <option value="">Choose a lead</option>
+                {availableLeads.map((lead) => (
+                  <option key={lead._id} value={lead._id}>
+                    {lead.fullName}{lead.usedAsClient ? " (already used)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={closeCreate} disabled={saving}>
@@ -273,16 +354,16 @@ const SubmissionsPage: React.FC = () => {
       <Modal isOpen={editOpen} onClose={closeEdit}>
         <div className="space-y-4">
           <div>
-            <h3 className="text-lg font-semibold text-text">Edit Submission</h3>
+            <h3 className="text-lg font-semibold text-text">Edit Client</h3>
             <p className="text-sm text-text/70">
-              Update only the submission name.
+              Update only the client name.
             </p>
           </div>
 
           <Input
             name="edit_submission_name"
-            label="Submission Name"
-            placeholder="e.g. Vendor Batch - January"
+            label="Client Name"
+            placeholder="e.g. John Smith"
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
             disabled={editSaving}

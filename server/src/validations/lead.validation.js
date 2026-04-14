@@ -56,6 +56,18 @@ const bulkDeleteLeads = {
   }),
 };
 
+const moveLeadToClient = {
+  params: Joi.object().keys({
+    id: Joi.string().required().custom(objectId),
+  }),
+};
+
+const bulkMoveLeadsToClients = {
+  body: Joi.object().keys({
+    ids: Joi.array().items(Joi.string().required().custom(objectId)).min(1).required(),
+  }),
+};
+
 const bulkPreviewLeads = {
   body: Joi.object().keys({}),
 };
@@ -80,6 +92,8 @@ module.exports = {
   deleteLead,
   listLeads,
   bulkDeleteLeads,
+  moveLeadToClient,
+  bulkMoveLeadsToClients,
   bulkPreviewLeads,
   bulkImportLeads,
 };
