@@ -248,7 +248,7 @@ function buildCompactSchema(masterFieldsItems) {
   // Compact schema: includes key, label, description, and type for better matching
   return (masterFieldsItems || []).map((m) => ({
     key: m.key,
-    label: m.label_on_form || m.label || "",
+    label: m.label || m.label_on_form || "",
     description: m.description || "",
     type: m.type,
   }));

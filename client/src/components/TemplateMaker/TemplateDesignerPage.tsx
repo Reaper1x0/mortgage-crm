@@ -55,6 +55,11 @@ export default function TemplateDesignerPage() {
     [placements, selectedPlacementId],
   );
 
+  const masterFieldLabelByKey = useMemo(
+    () => new Map(masterFields.map((field) => [field.key, field.label || ""])),
+    [masterFields],
+  );
+
   // Load template and master fields
   useEffect(() => {
     if (!templateId) return;
@@ -128,13 +133,13 @@ export default function TemplateDesignerPage() {
         pageIndex,
         rect,
         style: { fontSize: 12, align: "left", multiline: false, lineHeight: 14 },
-        label: "",
+        label: masterFieldLabelByKey.get(fieldKey) || "",
       };
 
       setPlacements((prev) => [...prev, p]);
       setSelectedPlacementId(p.placementId);
     },
-    [placements, pageIndex, pagePx],
+    [placements, pageIndex, pagePx, masterFieldLabelByKey],
   );
 
   // Copy/Paste handlers

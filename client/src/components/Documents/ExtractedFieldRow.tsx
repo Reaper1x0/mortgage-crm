@@ -8,6 +8,7 @@ import AvatarGroup, { AvatarAction } from "../Reusable/AvatarGroup";
 type MasterField = {
   _id: string;
   key: string;
+  label?: string;
   type: "string" | "number" | "date" | "boolean" | "array" | "object";
   required: boolean;
   description: string;
@@ -191,7 +192,8 @@ const ExtractedFieldRow: React.FC<ExtractedFieldRowProps> = ({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap mb-1">
-                <div className="text-sm font-bold text-text break-words">{masterField.key}</div>
+                <div className="text-sm font-bold text-text break-words">{masterField.label || masterField.key}</div>
+                <div className="text-xs text-card-text break-words">{masterField.key}</div>
                 {hasEvidence && (
                   <button
                     type="button"

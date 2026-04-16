@@ -9,6 +9,7 @@ import ExtractedFieldRow from "./ExtractedFieldRow";
 type MasterField = {
   _id: string;
   key: string;
+  label?: string;
   type: "string" | "number" | "date" | "boolean" | "array" | "object";
   required: boolean;
   description: string;
@@ -256,7 +257,7 @@ export default function MasterFieldsPanel({
           <div className="w-full sm:max-w-sm">
             <input
               className="w-full rounded-lg border border-card-border bg-background px-3 py-1.5 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-shadow"
-              placeholder="Search by key or description…"
+              placeholder="Search by key, label, or description…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />

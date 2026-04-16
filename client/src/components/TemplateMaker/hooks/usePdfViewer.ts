@@ -55,8 +55,13 @@ export function usePdfViewer({
     const r = pageEl.getBoundingClientRect();
     if (r.width > 50 && r.height > 50) {
       const newSize = { w: r.width, h: r.height };
-      setPagePx(newSize);
-      onPageSizeChange?.(newSize);
+      setPagePx((prev) => {
+        const sameWidth = Math.abs(prev.w - newSize.w) < 0.5;
+        const sameHeight = Math.abs(prev.h - newSize.h) < 0.5;
+        if (sameWidth && sameHeight) return prev;
+        onPageSizeChange?.(newSize);
+        return newSize;
+      });
     }
   }, [pageWrapRef, onPageSizeChange]);
 

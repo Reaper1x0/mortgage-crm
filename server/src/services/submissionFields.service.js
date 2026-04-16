@@ -445,8 +445,9 @@ function filterAndCountFields(masterFields, submissionFields, eligibility, filte
     ? base
     : base.filter((x) => {
         const k = String(x.masterField.key || "").toLowerCase();
+        const l = String(x.masterField.label || "").toLowerCase();
         const d = String(x.masterField.description || "").toLowerCase();
-        return k.includes(s) || d.includes(s);
+        return k.includes(s) || l.includes(s) || d.includes(s);
       });
 
   // Apply filter type

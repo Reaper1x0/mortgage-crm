@@ -23,6 +23,7 @@ import PageHeader from "../Reusable/PageHeader";
 
 interface MasterField {
   key: string;
+  label: string;
   type: "string" | "number" | "date" | "boolean" | "array" | "object";
   required: boolean;
   description: string;
@@ -31,6 +32,7 @@ interface MasterField {
 
 const emptyField: MasterField = {
   key: "",
+  label: "",
   type: "string",
   required: false,
   description: "",
@@ -302,6 +304,14 @@ const MasterFieldTable: React.FC = () => {
           <span className="truncate block max-w-xs">{value}</span>
         ),
       },
+      {
+        title: "Label",
+        dataIndex: "label",
+        key: "label",
+        render: (value: any, row: MasterField) => (
+          <span className="truncate block max-w-xs">{value || row.key}</span>
+        ),
+      },
       { title: "Type", dataIndex: "type" },
       {
         title: "Required",
@@ -449,6 +459,7 @@ const MasterFieldTable: React.FC = () => {
               const payload: MasterField = {
                 ...selectedField,
                 key: selectedField.key.trim(),
+                label: selectedField.label.trim(),
                 description: selectedField.description.trim(),
                 validation_rules: (selectedField.validation_rules || [])
                   .map((x) => x.trim())
@@ -472,6 +483,19 @@ const MasterFieldTable: React.FC = () => {
                 }
                 required
                 disabled={isEditModalOpen}
+              />
+
+              <Input
+                label="Label"
+                name="label"
+                value={selectedField?.label || ""}
+                onChange={(e: any) =>
+                  setSelectedField({
+                    ...(selectedField || emptyField),
+                    label: e.target.value,
+                  })
+                }
+                required
               />
 
               <Select

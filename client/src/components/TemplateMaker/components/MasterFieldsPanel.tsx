@@ -23,7 +23,10 @@ export default function MasterFieldsPanel({
     const q = fieldSearch.trim().toLowerCase();
     if (!q) return masterFields;
     return masterFields.filter(
-      (f) => f.key.toLowerCase().includes(q) || f.description.toLowerCase().includes(q),
+      (f) =>
+        f.key.toLowerCase().includes(q) ||
+        (f.label || "").toLowerCase().includes(q) ||
+        f.description.toLowerCase().includes(q),
     );
   }, [masterFields, fieldSearch]);
 
@@ -54,11 +57,12 @@ export default function MasterFieldsPanel({
                   className="w-full text-left rounded-md border border-card-border bg-background px-3 py-2 hover:bg-card-hover transition-colors active:scale-[0.98]"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm text-text truncate font-medium">{f.key}</div>
+                    <div className="text-sm text-text truncate font-medium">{f.label || f.key}</div>
                     <div className="text-xs text-card-text shrink-0 px-2 py-0.5 rounded bg-card border border-card-border">
                       {f.type}
                     </div>
                   </div>
+                  <div className="text-xs text-card-text opacity-75 mt-0.5 truncate">{f.key}</div>
                   {f.description && (
                     <div className="text-xs text-card-text opacity-80 line-clamp-2 mt-1">
                       {f.description}
@@ -104,11 +108,12 @@ export default function MasterFieldsPanel({
                 className="w-full text-left rounded-md border border-card-border bg-background px-3 py-2 hover:bg-card-hover hover:border-primary-border transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary-border"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm text-text truncate font-medium">{f.key}</div>
+                  <div className="text-sm text-text truncate font-medium">{f.label || f.key}</div>
                   <div className="text-xs text-card-text shrink-0 px-2 py-0.5 rounded bg-card border border-card-border">
                     {f.type}
                   </div>
                 </div>
+                <div className="text-xs text-card-text opacity-75 mt-0.5 truncate">{f.key}</div>
                 {f.description && (
                   <div className="text-xs text-card-text opacity-80 line-clamp-2 mt-1">
                     {f.description}

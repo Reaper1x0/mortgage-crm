@@ -11,6 +11,7 @@ export type Placement = {
 
 export type MasterField = {
   key: string;
+  label?: string;
   type: string;
   required: boolean;
   description: string;

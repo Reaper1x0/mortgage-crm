@@ -22,7 +22,7 @@ export default function PlacementBox({
   }) => void;
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
-
+  console.log(placement)
   const startRef = useRef<null | {
     mode: "move" | "resize";
     dir?: ResizeDir;

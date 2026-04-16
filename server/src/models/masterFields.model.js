@@ -13,6 +13,11 @@ const masterFieldSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    label: {
+      type: String,
+      required: false,
+      trim: true,
+    },
     type: {
       type: String,
       required: true,
