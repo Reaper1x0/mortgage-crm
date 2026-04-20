@@ -61,6 +61,7 @@ export default function PdfViewer({
               file={templateUrl}
               onLoadSuccess={(d) => onPageLoad(d.numPages)}
               loading={<div className="text-card-text p-3">Loading PDF...</div>}
+              error={<div className="text-danger-text p-3">Failed to load PDF file.</div>}
             >
               <Page
                 pageNumber={pageIndex + 1}

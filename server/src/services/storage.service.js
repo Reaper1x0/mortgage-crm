@@ -1,31 +1,15 @@
-// Unified File Storage Service
-// This service handles all file uploads, deletions, and storage operations
-// Currently uses local filesystem (uploads folder)
-// Future: Can be switched to Firebase Storage by uncommenting Firebase code
-
+// Unified File Storage Service (S3-only)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const mime = require("mime-types");
-const mongoose = require("mongoose");
-
-// Firebase Storage (commented out for now - uncomment when ready)
-// const { FirebaseStorageService } = require("./firebaseStorgae.service");
-// const { getBucket } = require("../config/firebaseAdmin");
-
-const UPLOADS_DIR = path.join(process.cwd(), "uploads");
-const RENDERED_DIR = path.join(UPLOADS_DIR, "rendered");
-
-// Ensure directories exist
-[UPLOADS_DIR, RENDERED_DIR].forEach((dir) => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-});
-
-function isObjectId(v) {
-  return mongoose.Types.ObjectId.isValid(v);
-}
+const {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 function safeName(name = "") {
   return String(name)
@@ -50,10 +34,34 @@ function generateStoragePath({ folder = "uploads", originalName, prefix = "" }) 
   return path.join(folder, fileName);
 }
 
-/**
- * Local filesystem storage implementation
- */
-class LocalStorageService {
+function getRequiredEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing required env var: ${name}`);
+  return value;
+}
+
+async function streamToBuffer(stream) {
+  const chunks = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+class S3StorageService {
+  constructor() {
+    this.region = getRequiredEnv("AWS_REGION");
+    this.bucket = getRequiredEnv("S3_BUCKET_NAME");
+
+    this.client = new S3Client({
+      region: this.region,
+      credentials: {
+        accessKeyId: getRequiredEnv("AWS_ACCESS_KEY_ID"),
+        secretAccessKey: getRequiredEnv("AWS_SECRET_ACCESS_KEY"),
+      },
+    });
+  }
+
   async uploadBuffer({ buffer, originalName, displayName, folder = "uploads", contentType, customMetadata = {} }) {
     if (!buffer || !Buffer.isBuffer(buffer)) {
       throw new Error("uploadBuffer: buffer is required");
@@ -62,32 +70,33 @@ class LocalStorageService {
       throw new Error("uploadBuffer: originalName is required");
     }
 
-    const detectedType = contentType || mime.lookup(originalName) || "application/octet-stream";
+    const detectedType = inferContentType({ mimetype: contentType, originalname: originalName });
     const storagePath = generateStoragePath({ folder, originalName });
-    const fullPath = path.join(UPLOADS_DIR, storagePath);
+    const normalizedStoragePath = storagePath.replace(/\\/g, "/");
 
-    // Ensure folder exists
-    const folderPath = path.dirname(fullPath);
-    if (!fs.existsSync(folderPath)) {
-      fs.mkdirSync(folderPath, { recursive: true });
-    }
-
-    // Write file to disk
-    fs.writeFileSync(fullPath, buffer);
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: normalizedStoragePath,
+        Body: buffer,
+        ContentType: detectedType,
+        Metadata: Object.fromEntries(
+          Object.entries(customMetadata || {}).map(([k, v]) => [String(k), String(v)])
+        ),
+      })
+    );
 
     const md5Hash = crypto.createHash("md5").update(buffer).digest("hex");
     const ext = path.extname(originalName) || "";
     const type = detectedType ? String(detectedType).split("/")[0] : "";
 
-    // Generate URL (served by express static middleware)
-    const url = `/uploads/${storagePath.replace(/\\/g, "/")}`;
-
     return {
       display_name: displayName || originalName || "",
       original_name: originalName || displayName || "",
-      storage_path: storagePath,
-      bucket: null, // Not used for local storage
-      url,
+      storage_path: normalizedStoragePath,
+      bucket: this.bucket,
+      // URL is always generated via signed URL on read, not stored at write-time.
+      url: null,
       type,
       content_type: detectedType,
       extension: ext || "",
@@ -112,12 +121,15 @@ class LocalStorageService {
       throw new Error("deleteByPath: storagePath is required");
     }
 
-    const fullPath = path.join(UPLOADS_DIR, storagePath);
-    if (fs.existsSync(fullPath)) {
-      fs.unlinkSync(fullPath);
-    }
+    const normalizedStoragePath = String(storagePath).replace(/\\/g, "/");
+    await this.client.send(
+      new DeleteObjectCommand({
+        Bucket: this.bucket,
+        Key: normalizedStoragePath,
+      })
+    );
 
-    return { deleted: true, storagePath };
+    return { deleted: true, storagePath: normalizedStoragePath };
   }
 
   async replaceFile({ oldStoragePath, buffer, originalName, displayName, folder = "uploads", contentType, customMetadata = {} }) {
@@ -135,47 +147,34 @@ class LocalStorageService {
   }
 
   async getSignedUrl(storagePath, expiresInMinutes = 60) {
-    // For local storage, return the public URL
-    const url = `/uploads/${storagePath.replace(/\\/g, "/")}`;
-    const expires = Date.now() + expiresInMinutes * 60 * 1000;
+    const normalizedStoragePath = String(storagePath).replace(/\\/g, "/");
+    const expiresIn = Math.max(60, Math.floor(expiresInMinutes * 60));
+    const url = await getSignedUrl(
+      this.client,
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: normalizedStoragePath,
+      }),
+      { expiresIn }
+    );
+    const expires = Date.now() + expiresIn * 1000;
     return { storagePath, url, expiresAt: new Date(expires).toISOString() };
+  }
+
+  async getObjectBuffer(storagePath) {
+    if (!storagePath) throw new Error("getObjectBuffer: storagePath is required");
+    const normalizedStoragePath = String(storagePath).replace(/\\/g, "/");
+    const response = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: normalizedStoragePath,
+      })
+    );
+    return streamToBuffer(response.Body);
   }
 }
 
-/**
- * Firebase Storage implementation (commented out - uncomment when ready)
- */
-// class FirebaseStorageService {
-//   async uploadBuffer({ buffer, originalName, displayName, folder = "uploads", contentType, customMetadata = {} }) {
-//     const firebaseService = new (require("./firebaseStorgae.service").FirebaseStorageService)();
-//     return firebaseService.uploadBuffer({ buffer, originalName, displayName, folder, contentType, customMetadata });
-//   }
-
-//   async uploadFromPath({ filePath, originalName, displayName, folder = "uploads", contentType, customMetadata = {} }) {
-//     const firebaseService = new (require("./firebaseStorgae.service").FirebaseStorageService)();
-//     return firebaseService.uploadFromPath({ filePath, originalName, displayName, folder, contentType, customMetadata });
-//   }
-
-//   async deleteByPath(storagePath) {
-//     const firebaseService = new (require("./firebaseStorgae.service").FirebaseStorageService)();
-//     return firebaseService.deleteByPath(storagePath);
-//   }
-
-//   async replaceFile({ oldStoragePath, buffer, originalName, displayName, folder = "uploads", contentType, customMetadata = {} }) {
-//     const firebaseService = new (require("./firebaseStorgae.service").FirebaseStorageService)();
-//     return firebaseService.replaceFile({ oldStoragePath, buffer, originalName, displayName, folder, contentType, customMetadata });
-//   }
-
-//   async getSignedUrl(storagePath, expiresInMinutes = 60) {
-//     const firebaseService = new (require("./firebaseStorgae.service").FirebaseStorageService)();
-//     return firebaseService.getSignedUrl(storagePath, expiresInMinutes);
-//   }
-// }
-
-// Choose storage implementation
-// Change this to use FirebaseStorageService when ready
-const StorageService = new LocalStorageService();
-// const StorageService = new FirebaseStorageService();
+const StorageService = new S3StorageService();
 
 class UnifiedStorageService {
   /**
@@ -218,6 +217,10 @@ class UnifiedStorageService {
    */
   async getSignedUrl(storagePath, expiresInMinutes = 60) {
     return StorageService.getSignedUrl(storagePath, expiresInMinutes);
+  }
+
+  async getObjectBuffer(storagePath) {
+    return StorageService.getObjectBuffer(storagePath);
   }
 }
 

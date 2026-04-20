@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "../../context/LanguageContext";
 import { AuthService } from "../../service/authService";
 import { ButtonProps } from "../Reusable/Button";
@@ -11,7 +11,6 @@ import { FiCamera, FiLock, FiUser, FiMail } from "react-icons/fi";
 import Modal from "../Reusable/Modal";
 import { getUserDisplayName, normalizeUserForAvatar, getAvatarSource, getUserInitials } from "../../utils/userUtils";
 import { useAuth } from "../../context/AuthContext";
-import { BACKEND_URL } from "../../constants/env.constants";
 import StatusBadge from "../Reusable/StatusBadge";
 
 const Profile = () => {
@@ -19,6 +18,7 @@ const Profile = () => {
   const { user, refreshProfile } = useAuth();
   const [usernameError, setUserNameError] = useState<string | undefined>(undefined);
   const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [profileImageFailed, setProfileImageFailed] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
@@ -87,7 +87,12 @@ const Profile = () => {
     }
   };
 
-  const userInfo = normalizeUserForAvatar(user, BACKEND_URL);
+  const userInfo = normalizeUserForAvatar(user);
+  const avatarSource = getAvatarSource(userInfo);
+
+  useEffect(() => {
+    setProfileImageFailed(false);
+  }, [avatarSource.type, avatarSource.value]);
 
   const fields: FormSection["fields"] = [
     { fieldtype: "input", name: "fullName", label: t("full_name"), placeholder: t("full_name"), type: "text", required: true },
@@ -152,25 +157,14 @@ const Profile = () => {
                 >
                   <div className="relative h-32 w-32 rounded-full overflow-hidden ring-4 ring-background shadow-lg">
                     {userInfo && (() => {
-                      const avatarSource = getAvatarSource(userInfo, BACKEND_URL);
                       const displayName = getUserDisplayName(userInfo);
-                      
-                      return avatarSource.type === "url" ? (
+
+                      return avatarSource.type === "url" && !profileImageFailed ? (
                         <img
                           src={avatarSource.value}
                           alt={displayName}
                           className="h-full w-full rounded-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            const parent = target.parentElement;
-                            if (parent) {
-                              target.style.display = "none";
-                              const fallbackSpan = document.createElement("span");
-                              fallbackSpan.className = "select-none h-full w-full flex items-center justify-center text-4xl font-bold text-background bg-text rounded-full";
-                              fallbackSpan.textContent = getUserInitials(userInfo);
-                              parent.appendChild(fallbackSpan);
-                            }
-                          }}
+                          onError={() => setProfileImageFailed(true)}
                         />
                       ) : (
                         <div className="h-full w-full flex items-center justify-center text-4xl font-bold text-background bg-text rounded-full">

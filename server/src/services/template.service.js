@@ -1,32 +1,43 @@
-const fs = require("fs");
-const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 const { PDFDocument } = require("pdf-lib");
 const { Template, MasterField, Submission, File } = require("../models");
-const { renderPdfToFile } = require("./pdfRender.service");
+const { renderPdfBuffer } = require("./pdfRender.service");
 const { mongoosePaginate } = require("../utils/mongoosePaginate.utils");
 const storageService = require("./storage.service");
 const AuditTrailService = require("./auditTrail.service");
+const { getSignedFileUrl } = require("../utils/fileUrl.utils");
 
-const RENDER_DIR = path.join(process.cwd(), "uploads", "rendered");
-fs.mkdirSync(RENDER_DIR, { recursive: true });
-
-async function getPdfPageCount(filePath) {
-  const bytes = fs.readFileSync(filePath);
+async function getPdfPageCount(fileBuffer) {
+  const bytes = Buffer.isBuffer(fileBuffer) ? fileBuffer : Buffer.from(fileBuffer);
   const pdf = await PDFDocument.load(bytes);
   return pdf.getPages().length;
 }
 
 const TemplateService = {
   createTemplate: async ({ name, file, workspaceId }) => {
-    const pageCount = await getPdfPageCount(file.path);
+    if (!file?.buffer) throw new Error("Template PDF buffer is missing");
+
+    const pageCount = await getPdfPageCount(file.buffer);
+
+    const storageInfo = await storageService.uploadBuffer({
+      buffer: file.buffer,
+      originalName: file.originalname,
+      displayName: file.originalname,
+      folder: `uploads/templates/${workspaceId}`,
+      contentType: file.mimetype || "application/pdf",
+      customMetadata: {
+        workspaceId: String(workspaceId),
+        type: "template_pdf",
+      },
+    });
 
     const doc = await Template.create({
       workspace: workspaceId,
       name,
       file: {
         originalName: file.originalname,
-        storagePath: file.path,
+        storagePath: storageInfo.storage_path,
+        url: storageInfo.url,
         mimeType: file.mimetype,
         size: file.size,
       },
@@ -81,19 +92,15 @@ const TemplateService = {
     const masterFieldsByKey = {};
     for (const f of masterFields) masterFieldsByKey[f.key] = f;
 
-    const outputName = `${templateId}-${uuidv4()}.pdf`;
-    const outputPath = path.join(RENDER_DIR, outputName);
+    const templateBuffer = await storageService.getObjectBuffer(tpl.file.storagePath);
 
-    await renderPdfToFile({
-      templatePdfPath: tpl.file.storagePath,
-      outputPdfPath: outputPath,
+    const pdfBuffer = await renderPdfBuffer({
+      templatePdfBytes: templateBuffer,
       placements: tpl.placements,
       masterFieldsByKey,
       valuesByKey,
     });
-
-    // Read the generated PDF buffer
-    const pdfBuffer = fs.readFileSync(outputPath);
+    const outputName = `${templateId}-${uuidv4()}.pdf`;
 
     // Store in database using unified storage service
     let savedFile = null;
@@ -155,13 +162,17 @@ const TemplateService = {
       });
     }
 
-    // return a public URL served by express static
+    const signedUrl = savedFile?.storage_path
+      ? await getSignedFileUrl(savedFile.storage_path, 60)
+      : null;
+
+    // Always return S3 URL shape (prefer signed URL over stored convenience URL)
     return {
       outputFileName: outputName,
-      outputStoragePath: outputPath,
-      outputUrl: `/uploads/rendered/${outputName}`,
+      outputStoragePath: savedFile ? savedFile.storage_path : null,
+      outputUrl: signedUrl || (savedFile ? savedFile.url : null),
       fileId: savedFile ? String(savedFile._id) : null,
-      fileUrl: savedFile ? savedFile.url : null,
+      fileUrl: signedUrl || (savedFile ? savedFile.url : null),
     };
   },
 };

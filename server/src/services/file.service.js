@@ -1,8 +1,5 @@
 // backend/services/fileService.js
 // Uses unified storage service for all file operations
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
 const mongoose = require("mongoose");
 const { File } = require("../models");
 const storageService = require("./storage.service");
@@ -10,20 +7,6 @@ const AuditTrailService = require("./auditTrail.service");
 
 function isObjectId(v) {
   return mongoose.Types.ObjectId.isValid(v);
-}
-
-/**
- * TEMP / Vercel-safe temp file helper (if you ever need it)
- */
-function writeTempFile(buffer, ext = "") {
-  const tempDir = path.join(os.tmpdir(), "tmp");
-  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-  const filepath = path.join(
-    tempDir,
-    `tmp-${Date.now()}-${require("crypto").randomBytes(6).toString("hex")}${ext}`
-  );
-  fs.writeFileSync(filepath, buffer);
-  return filepath;
 }
 
 class FileService {
@@ -53,10 +36,7 @@ class FileService {
     const originalName = file.originalname || file.name || "file";
     const contentType = file.mimetype || require("mime-types").lookup(originalName) || "application/octet-stream";
 
-    let buffer = file.buffer;
-    if (!buffer && file.path) {
-      buffer = fs.readFileSync(file.path);
-    }
+    const buffer = file.buffer;
     if (!buffer || !Buffer.isBuffer(buffer))
       throw new Error("createFromUpload: file buffer is missing");
 

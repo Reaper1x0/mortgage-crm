@@ -23,7 +23,7 @@ export type TemplateDoc = {
   name: string;
   pageCount: number;
   placements: Placement[];
-  file: { storagePath: string; originalName: string };
+  file: { storagePath: string; originalName: string; url?: string };
   createdAt?: string;
   updatedAt?: string;
 };

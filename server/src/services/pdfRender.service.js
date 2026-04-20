@@ -1,4 +1,3 @@
-const fs = require("fs");
 const { PDFDocument, StandardFonts } = require("pdf-lib");
 
 function toDisplayString(value, type) {
@@ -57,14 +56,15 @@ function xByAlign(font, text, fontSize, xLeft, boxWidth, align) {
   return xLeft;
 }
 
-async function renderPdfToFile({
-  templatePdfPath,
-  outputPdfPath,
+async function renderPdfBuffer({
+  templatePdfBytes,
   placements,
   masterFieldsByKey,
   valuesByKey,
 }) {
-  const bytes = fs.readFileSync(templatePdfPath);
+  const bytes = Buffer.isBuffer(templatePdfBytes)
+    ? templatePdfBytes
+    : Buffer.from(templatePdfBytes);
   const pdfDoc = await PDFDocument.load(bytes);
 
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -137,7 +137,7 @@ async function renderPdfToFile({
   }
 
   const out = await pdfDoc.save();
-  fs.writeFileSync(outputPdfPath, out);
+  return Buffer.from(out);
 }
 
-module.exports = { renderPdfToFile };
+module.exports = { renderPdfBuffer };

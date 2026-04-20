@@ -14,6 +14,7 @@ const { Submission } = require("../models");
 const MasterFieldService = require("../services/masterFields.service");
 const { recomputeSubmissionFields } = require("../services/submissionFields.service");
 const AuditTrailService = require("../services/auditTrail.service");
+const { attachSignedUrlsDeep, getSignedFileUrl } = require("../utils/fileUrl.utils");
 
 /**
  * Small helper to call OpenAI for CNIC name extraction
@@ -563,7 +564,6 @@ const ExtractionController = {
       text = await extractTextFromFile({
         ...file,
         buffer: file.buffer,
-        path: file.path,
       });
     } catch (err) {
       console.error("Text extraction failed for CNIC:", err);
@@ -644,7 +644,6 @@ const ExtractionController = {
         const text = await extractTextFromFile({
           ...file,
           buffer: file.buffer,
-          path: file.path,
         });
 
         if (!text || !text.trim()) {
@@ -708,7 +707,7 @@ const ExtractionController = {
           ok: true,
           file: {
             id: savedFile._id,
-            url: savedFile.url,
+            url: await getSignedFileUrl(savedFile.storage_path, 60),
             storage_path: savedFile.storage_path,
           },
           extracted_fields_count: extracted_fields.length,
@@ -733,12 +732,17 @@ const ExtractionController = {
 
     await submission.save();
 
-    const updatedSubmission = await recomputeSubmissionFields(submission._id, userId, req.workspaceId);
-
+    await recomputeSubmissionFields(submission._id, userId, req.workspaceId);
+    const hydratedSubmission = await SubmissionService.getSubmissionByKey(
+      submission._id,
+      req.workspaceId
+    );
+    const signedUpdatedSubmission = await attachSignedUrlsDeep(hydratedSubmission);
+    const signedResults = await attachSignedUrlsDeep(results);
     return R2XX(res, "Documents processed successfully.", 200, {
-      personName: personName || updatedSubmission.legal_name || null,
-      submission: updatedSubmission,
-      results,
+      personName: personName || signedUpdatedSubmission.legal_name || null,
+      submission: signedUpdatedSubmission,
+      results: signedResults,
     });
   }),
 
@@ -763,9 +767,10 @@ const ExtractionController = {
       });
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
+    const signedDocuments = await attachSignedUrlsDeep(submission.documents || []);
     return R2XX(res, "Documents fetched successfully.", 200, {
       submissionId: submission._id,
-      documents: submission.documents || [],
+      documents: signedDocuments,
     });
   }),
 
@@ -807,7 +812,6 @@ const ExtractionController = {
     const text = await extractTextFromFile({
       ...file,
       buffer: file.buffer,
-      path: file.path,
     });
 
     if (!text || !text.trim()) {
@@ -867,7 +871,7 @@ const ExtractionController = {
       });
     }
 
-    const updatedSubmission = await recomputeSubmissionFields(submissionId, userId, req.workspaceId);
+    await recomputeSubmissionFields(submissionId, userId, req.workspaceId);
 
     const warnings = [];
     try {
@@ -880,8 +884,13 @@ const ExtractionController = {
       });
     }
 
+    const hydratedSubmission = await SubmissionService.getSubmissionByKey(
+      submissionId,
+      req.workspaceId
+    );
+    const signedUpdatedSubmission = await attachSignedUrlsDeep(hydratedSubmission);
     return R2XX(res, "Document replaced successfully.", 200, {
-      submission: updatedSubmission,
+      submission: signedUpdatedSubmission,
       replaced: {
         docEntryId,
         oldFileId: String(oldFileId),
@@ -912,7 +921,7 @@ const ExtractionController = {
       { $pull: { documents: { _id: docEntryId } } }
     );
 
-    const updatedSubmission = await recomputeSubmissionFields(submissionId, userId, req.workspaceId);
+    await recomputeSubmissionFields(submissionId, userId, req.workspaceId);
 
     const warnings = [];
     try {
@@ -925,8 +934,13 @@ const ExtractionController = {
       });
     }
 
+    const hydratedSubmission = await SubmissionService.getSubmissionByKey(
+      submissionId,
+      req.workspaceId
+    );
+    const signedUpdatedSubmission = await attachSignedUrlsDeep(hydratedSubmission);
     return R2XX(res, "Document deleted successfully.", 200, {
-      submission: updatedSubmission,
+      submission: signedUpdatedSubmission,
       deleted: { docEntryId, fileId: String(fileId) },
       warnings,
     });

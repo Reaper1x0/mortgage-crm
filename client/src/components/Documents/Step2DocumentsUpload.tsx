@@ -12,7 +12,7 @@ import StatusBadge from "../Reusable/StatusBadge";
 import Avatar from "../Reusable/Avatar";
 import { timeAgo } from "../../utils/date";
 import { getUserDisplayName, normalizeUserForAvatar } from "../../utils/userUtils";
-import { BACKEND_URL } from "../../constants/env.constants";
+import { resolveFileUrl } from "../../utils/fileUrl";
 
 import Button from "../Reusable/Button";
 import IconButton from "../Reusable/IconButton";
@@ -38,7 +38,7 @@ const getFileName = (fileRef: FileRef): string => {
 
 const getFileUrl = (fileRef: FileRef): string | null => {
   if (!fileRef || typeof fileRef === "string") return null;
-  return fileRef.url || null;
+  return resolveFileUrl(fileRef.url || null);
 };
 
 const Step2DocumentsUpload: React.FC<Step2Props> = ({
@@ -201,6 +201,7 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
             {sortedDocs.map((d: any) => {
               const id = d?._id as string;
               const name = getFileName(d.document);
+              console.log(d)
               const url = getFileUrl(d.document);
               const extractedCount = Array.isArray(d.extracted_fields) ? d.extracted_fields.length : 0;
               
@@ -208,6 +209,10 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
               const uploaderInfo = d.document?.uploaded_by;
               const uploaderName = uploaderInfo ? getUserDisplayName(uploaderInfo) : null;
               const uploadedAtTimeAgo = d.document?.uploaded_at ? timeAgo(d.document.uploaded_at) : null;
+              const createdAtRaw = d.document?.uploaded_at || d.uploadDate || d.document?.createdAt;
+              const createdAtLabel = createdAtRaw
+                ? new Date(createdAtRaw).toLocaleString()
+                : "Unknown";
 
               const isBusy = actionLoadingId === id;
 
@@ -226,7 +231,7 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
                           <div className="mt-1 flex items-center gap-2 text-xs text-card-text">
                             {uploaderInfo ? (
                               <Avatar
-                                user={normalizeUserForAvatar(uploaderInfo, BACKEND_URL)}
+                                user={normalizeUserForAvatar(uploaderInfo)}
                                 size="xs"
                                 showTooltip={true}
                                 tooltipText={`Uploaded by ${uploaderName || "Unknown"}${uploadedAtTimeAgo ? ` ${uploadedAtTimeAgo}` : ""}`}
@@ -235,6 +240,9 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
                               <span className="text-card-text">by Unknown</span>
                             )}
                           </div>
+                          <div className="mt-1 text-xs text-card-text">
+                            Created: {createdAtLabel}
+                          </div>
                         </div>
                       </div>
 
@@ -242,24 +250,37 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
                         <StatusBadge tone={extractedCount > 0 ? "success" : "warning"}>
                           Fields: {extractedCount}
                         </StatusBadge>
-
-                        {url ? (
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sm font-semibold text-text underline"
-                          >
-                            Open
-                          </a>
-                        ) : null}
                       </div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      {url ? (
+                        <a href={url} target="_blank" rel="noreferrer">
+                          <IconButton
+                            icon={FiEye as any}
+                            size="md"
+                            outline
+                            fillBg
+                            hoverable
+                            title="View document"
+                            disabled={isBusy}
+                          />
+                        </a>
+                      ) : (
+                        <IconButton
+                          icon={FiEye as any}
+                          size="md"
+                          outline
+                          fillBg
+                          hoverable
+                          title="Document URL unavailable"
+                          disabled
+                        />
+                      )}
+
                       <IconButton
-                        icon={FiEye as any}
+                        icon={FiFileText as any}
                         size="md"
                         outline
                         fillBg

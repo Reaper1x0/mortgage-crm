@@ -39,7 +39,8 @@ const templateSchema = new mongoose.Schema(
 
     file: {
       originalName: { type: String, required: true },
-      storagePath: { type: String, required: true }, // local disk path
+      storagePath: { type: String, required: true },
+      url: { type: String },
       mimeType: { type: String, required: true },
       size: { type: Number, required: true },
     },

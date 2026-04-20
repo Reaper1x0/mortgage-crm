@@ -17,6 +17,13 @@ export const TemplateService = {
     return res.data;
   },
 
+  getTemplateFile: async (id: string) => {
+    const res = await apiClient.get(`/templates/${id}/file`, {
+      responseType: "arraybuffer",
+    });
+    return res.data as ArrayBuffer;
+  },
+
   savePlacements: async (id: string, placements: any[]) => {
     const res = await apiClient.put(`/templates/${id}/placements`, {
       placements,

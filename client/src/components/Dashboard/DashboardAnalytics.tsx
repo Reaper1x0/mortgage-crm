@@ -21,7 +21,6 @@ import {
 } from "react-icons/fi";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { timeAgo } from "../../utils/date";
-import { BACKEND_URL } from "../../constants/env.constants";
 
 const DashboardAnalytics: React.FC = () => {
   const [range, setRange] = useState<DashboardRange>("daily");
@@ -470,7 +469,7 @@ const DashboardAnalytics: React.FC = () => {
                       {/* Avatar */}
                       <div className="flex-shrink-0">
                         <Avatar
-                          user={normalizeUserForAvatar(user, BACKEND_URL)}
+                          user={normalizeUserForAvatar(user)}
                           size="sm"
                         />
                       </div>

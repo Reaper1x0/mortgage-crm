@@ -3,6 +3,7 @@ const SubmissionService = require("../services/submission.service");
 const { catchAsync } = require("../utils");
 const { parsePagination } = require("../utils/pagination.utils");
 const AuditTrailService = require("../services/auditTrail.service");
+const { attachSignedUrlsDeep } = require("../utils/fileUrl.utils");
 
 const SubmissionController = {
   // Create a new Submission
@@ -87,8 +88,9 @@ const SubmissionController = {
       workspaceId: req.workspaceId,
     });
 
+    const signedItems = await attachSignedUrlsDeep(items);
     return R2XX(res, "Submissions fetched successfully", 200, {
-      submissions: items,
+      submissions: signedItems,
       pagination,
     });
   }),
@@ -102,7 +104,10 @@ const SubmissionController = {
       return R4XX(res, 404, "Submission not found");
     }
 
-    return R2XX(res, "Submission fetched successfully", 200, { submission });
+    const signedSubmission = await attachSignedUrlsDeep(submission);
+    return R2XX(res, "Submission fetched successfully", 200, {
+      submission: signedSubmission,
+    });
   }),
 };
 

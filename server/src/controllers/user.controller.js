@@ -3,6 +3,7 @@ const { userService } = require("../services");
 const { catchAsync } = require("../utils");
 const { parsePagination } = require("../utils/pagination.utils");
 const { sanitizers } = require("../sanitizers");
+const { attachSignedUrlsDeep } = require("../utils/fileUrl.utils");
 
 const UserController = {
   listUsers: catchAsync(async (req, res) => {
@@ -26,8 +27,11 @@ const UserController = {
       search: req.query.search,
     });
 
+    const users = items.map((user) => sanitizers.userSanitizer(user));
+    await attachSignedUrlsDeep(users);
+
     return R2XX(res, "Users fetched successfully", 200, {
-      users: items.map((user) => sanitizers.userSanitizer(user)),
+      users,
       pagination,
     });
   }),
@@ -40,9 +44,9 @@ const UserController = {
     const u = bundle.user.toObject ? bundle.user.toObject() : bundle.user;
     u.role = bundle.workspaceRole;
 
-    return R2XX(res, "User fetched successfully", 200, {
-      user: sanitizers.userSanitizer(u),
-    });
+    const sanitizedUser = sanitizers.userSanitizer(u);
+    await attachSignedUrlsDeep(sanitizedUser);
+    return R2XX(res, "User fetched successfully", 200, { user: sanitizedUser });
   }),
 
   createUser: catchAsync(async (req, res) => {
@@ -71,9 +75,9 @@ const UserController = {
     const u = bundle.user.toObject ? bundle.user.toObject() : bundle.user;
     u.role = bundle.workspaceRole;
 
-    return R2XX(res, "User created successfully", 201, {
-      user: sanitizers.userSanitizer(u),
-    });
+    const sanitizedUser = sanitizers.userSanitizer(u);
+    await attachSignedUrlsDeep(sanitizedUser);
+    return R2XX(res, "User created successfully", 201, { user: sanitizedUser });
   }),
 
   updateUser: catchAsync(async (req, res) => {
@@ -105,9 +109,9 @@ const UserController = {
     const updatedUser = await userService.updateUserById(id, updateData, req.workspaceId);
     if (!updatedUser) return R4XX(res, 404, "User not found");
 
-    return R2XX(res, "User updated successfully", 200, {
-      user: sanitizers.userSanitizer(updatedUser),
-    });
+    const sanitizedUser = sanitizers.userSanitizer(updatedUser);
+    await attachSignedUrlsDeep(sanitizedUser);
+    return R2XX(res, "User updated successfully", 200, { user: sanitizedUser });
   }),
 
   deleteUser: catchAsync(async (req, res) => {

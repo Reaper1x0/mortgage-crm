@@ -4,7 +4,6 @@ import { pdfjs } from "react-pdf";
 import Button from "../../components/Reusable/Button";
 import { TemplateService } from "../../service/templateService";
 import { MasterFieldService } from "../../service/masterFieldService";
-import { BACKEND_URL } from "../../constants/env.constants";
 import { MasterField, Placement, TemplateDoc } from "../../types/template.types";
 import InspectorPanel from "./InspectorPanel";
 import { addToast } from "../../redux/slices/toasterSlice";
@@ -63,6 +62,7 @@ export default function TemplateDesignerPage() {
   // Load template and master fields
   useEffect(() => {
     if (!templateId) return;
+    let activeBlobUrl: string | null = null;
     (async () => {
       const [tplRes, mfRes] = await Promise.all([
         TemplateService.getTemplate(templateId),
@@ -75,11 +75,28 @@ export default function TemplateDesignerPage() {
       setPdfNumPages(tpl.pageCount || 1);
       setPageIndex(0);
 
-      const fileName = String(tpl.file.storagePath).split(/[/\\]/).pop();
-      setTemplateUrl(`${BACKEND_URL}/uploads/templates/${fileName}`);
+      try {
+        const fileBytes = await TemplateService.getTemplateFile(templateId);
+        const header = new TextDecoder("ascii")
+          .decode(new Uint8Array(fileBytes).slice(0, 5))
+          .trim();
+        if (!header.startsWith("%PDF")) {
+          throw new Error("Template file response is not a PDF");
+        }
+        const blob = new Blob([fileBytes], { type: "application/pdf" });
+        activeBlobUrl = URL.createObjectURL(blob);
+        setTemplateUrl(activeBlobUrl);
+      } catch (err) {
+        // Fallback to URL-based loading if binary fetch fails
+        setTemplateUrl(tpl.file?.url || "");
+      }
 
       setMasterFields(mfRes.fields || []);
     })();
+
+    return () => {
+      if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+    };
   }, [templateId]);
 
   // Sync page size when PDF renders

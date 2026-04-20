@@ -60,7 +60,7 @@ export function getUserInitials(user: UserInfo | null | undefined): string {
  * Get profile picture URL from user object
  * Handles both FileRef objects and string URLs
  */
-export function getProfilePictureUrl(user: UserInfo | null | undefined, baseUrl?: string): string | null {
+export function getProfilePictureUrl(user: UserInfo | null | undefined): string | null {
   if (!user) return null;
 
   // Check if profile_picture is a FileRef object
@@ -76,33 +76,26 @@ export function getProfilePictureUrl(user: UserInfo | null | undefined, baseUrl?
         if (url.startsWith("http://") || url.startsWith("https://")) {
           return url;
         }
-        // Otherwise, construct full URL if baseUrl is provided
-        if (baseUrl) {
-          // Remove trailing slash from baseUrl if present
-          const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-          // Ensure url starts with /
-          const cleanUrl = url.startsWith("/") ? url : `/${url}`;
-          return `${cleanBaseUrl}${cleanUrl}`;
-        }
-        // Return relative URL if no baseUrl
-        return url.startsWith("/") ? url : `/${url}`;
+        // Relative object keys/paths should never be rendered directly on frontend.
+        return null;
       }
       
-      // If FileRef exists but no url, try to construct from storage_path
-      if (fileRef.storage_path && baseUrl) {
-        const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-        const cleanPath = fileRef.storage_path.startsWith("/") ? fileRef.storage_path : `/${fileRef.storage_path}`;
-        return `${cleanBaseUrl}${cleanPath}`;
+      // S3 mode: if no url and storage_path is already absolute, use it directly.
+      if (fileRef.storage_path) {
+        if (
+          fileRef.storage_path.startsWith("http://") ||
+          fileRef.storage_path.startsWith("https://")
+        ) {
+          return fileRef.storage_path;
+        }
+        // Relative storage paths are object keys; frontend can't resolve them safely.
+        return null;
       }
     }
     // If profile_picture is a string (URL or ObjectId), handle it
     if (typeof user.profile_picture === "string") {
       // If it looks like a URL, return it
-      if (user.profile_picture.startsWith("http://") || user.profile_picture.startsWith("https://") || user.profile_picture.startsWith("/")) {
-        if (baseUrl && user.profile_picture.startsWith("/")) {
-          const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-          return `${cleanBaseUrl}${user.profile_picture}`;
-        }
+      if (user.profile_picture.startsWith("http://") || user.profile_picture.startsWith("https://")) {
         return user.profile_picture;
       }
       // If it's an ObjectId string, we can't use it directly - return null
@@ -141,11 +134,11 @@ export function generateAvatarUrl(user: UserInfo | null | undefined): string | n
  * Get the best available avatar source
  * Priority: profilePicture > generatedAvatar > null (use initials)
  */
-export function getAvatarSource(user: UserInfo | null | undefined, baseUrl?: string): {
+export function getAvatarSource(user: UserInfo | null | undefined): {
   type: "url" | "initials";
   value: string;
 } {
-  const profilePic = getProfilePictureUrl(user, baseUrl);
+  const profilePic = getProfilePictureUrl(user);
   if (profilePic) {
     return { type: "url", value: profilePic };
   }
@@ -162,7 +155,7 @@ export function getAvatarSource(user: UserInfo | null | undefined, baseUrl?: str
  * Convert user object to UserInfo format for Avatar components
  * Handles profile_picture FileRef objects and constructs proper URLs
  */
-export function normalizeUserForAvatar(user: any, baseUrl?: string): UserInfo | null {
+export function normalizeUserForAvatar(user: any): UserInfo | null {
   if (!user) return null;
 
   return {

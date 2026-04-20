@@ -12,7 +12,6 @@ import IconButton from "../Reusable/IconButton";
 import Avatar from "../Reusable/Avatar";
 import { FiEdit, FiTrash } from "react-icons/fi";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
-import { BACKEND_URL } from "../../constants/env.constants";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -97,7 +96,7 @@ export default function UsersPage() {
         render: (_: any, row: User) => (
           <div className="flex items-center gap-3">
             <Avatar
-              user={normalizeUserForAvatar(row, BACKEND_URL)}
+              user={normalizeUserForAvatar(row)}
               size="sm"
             />
             <div>

@@ -18,6 +18,7 @@ router.post(
 // Admin, Agent, Viewer: Read-only access to templates
 router.get("/", isAuth, requireWorkspace, hasRole(["Admin", "Agent", "Viewer"]), TemplateController.listTemplates);
 router.get("/:id", isAuth, requireWorkspace, hasRole(["Admin", "Agent", "Viewer"]), TemplateController.getTemplate);
+router.get("/:id/file", isAuth, requireWorkspace, hasRole(["Admin", "Agent", "Viewer"]), TemplateController.getTemplateFile);
 
 // Admin: Save placements
 router.put("/:id/placements", isAuth, requireWorkspace, hasRole(["Admin"]), TemplateController.savePlacements);

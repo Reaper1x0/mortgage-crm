@@ -1,6 +1,6 @@
 import { getUserDisplayName, getAvatarSource, getUserInitials, UserInfo } from "../../utils/userUtils";
 import { cn } from "../../utils/cn";
-import { BACKEND_URL } from "../../constants/env.constants";
+import { useEffect, useState } from "react";
 
 export interface AvatarProps {
   user: UserInfo | null | undefined;
@@ -20,19 +20,12 @@ const sizeClasses = {
 
 export default function Avatar({ user, size = "md", className, showTooltip = false, tooltipText }: AvatarProps) {
   const displayName = getUserDisplayName(user);
-  const avatarSource = getAvatarSource(user, BACKEND_URL);
-  
-  // Debug: Log when profile_picture exists but URL is not found
-  if (import.meta.env.DEV && user?.profile_picture && avatarSource.type === "initials") {
-    console.log('[Avatar Debug] Profile picture exists but not showing:', {
-      hasProfilePicture: !!user.profile_picture,
-      profilePictureType: typeof user.profile_picture,
-      profilePicture: user.profile_picture,
-      profilePictureKeys: typeof user.profile_picture === 'object' ? Object.keys(user.profile_picture) : null,
-      avatarSource,
-      BACKEND_URL
-    });
-  }
+  const avatarSource = getAvatarSource(user);
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
+
+  useEffect(() => {
+    setImageLoadFailed(false);
+  }, [avatarSource.type, avatarSource.value]);
 
   const baseClasses = cn(
     "inline-flex items-center justify-center rounded-full font-semibold text-background bg-text border border-background",
@@ -42,27 +35,15 @@ export default function Avatar({ user, size = "md", className, showTooltip = fal
 
   const avatarContent = (
     <>
-      {avatarSource.type === "url" ? (
+      {avatarSource.type === "url" && !imageLoadFailed ? (
         <img
           src={avatarSource.value}
           alt={displayName}
           className="h-full w-full rounded-full object-cover"
-          onError={(e) => {
-            // Fallback to initials if image fails to load
-            const target = e.target as HTMLImageElement;
-            const parent = target.parentElement;
-            if (parent) {
-              target.style.display = "none";
-              // Create a span with initials as fallback
-              const fallbackSpan = document.createElement("span");
-              fallbackSpan.className = "select-none";
-              fallbackSpan.textContent = getUserInitials(user);
-              parent.appendChild(fallbackSpan);
-            }
-          }}
+          onError={() => setImageLoadFailed(true)}
         />
       ) : (
-        <span className="select-none">{avatarSource.value}</span>
+        <span className="select-none">{getUserInitials(user)}</span>
       )}
     </>
   );

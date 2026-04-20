@@ -12,12 +12,15 @@ const { FileService } = require("../services/file.service");
 const { OTP_TYPES, TOKENS } = require("../constants");
 const { sanitizers } = require("../sanitizers");
 const { bcryptUtils } = require("../utils");
+const { attachSignedUrlsDeep } = require("../utils/fileUrl.utils");
 
 const AuthController = {
   register: catchAsync(async (req, res) => {
     const newUser = await authService.register(req.body);
+    const sanitizedUser = sanitizers.userSanitizer(newUser);
+    await attachSignedUrlsDeep(sanitizedUser);
     R2XX(res, "User registered successfully. Now you can login.", 201, {
-      user: sanitizers.userSanitizer(newUser),
+      user: sanitizedUser,
     });
   }),
 
@@ -60,6 +63,9 @@ const AuthController = {
 
     await user.save();
 
+    const sanitizedUser = sanitizers.userSanitizer(user);
+    await attachSignedUrlsDeep(sanitizedUser);
+
     R2XX(
       res,
       `User logged in successfully. ${
@@ -67,7 +73,7 @@ const AuthController = {
       }`,
       200,
       {
-        user: sanitizers.userSanitizer(user),
+        user: sanitizedUser,
         accessToken,
         refreshToken,
       }
@@ -126,9 +132,9 @@ const AuthController = {
 
     if (!updatedUser) return R4XX(res, 404, "User not found");
 
-    R2XX(res, "Email verified successfully", 200, {
-      user: sanitizers.userSanitizer(updatedUser),
-    });
+    const sanitizedUser = sanitizers.userSanitizer(updatedUser);
+    await attachSignedUrlsDeep(sanitizedUser);
+    R2XX(res, "Email verified successfully", 200, { user: sanitizedUser });
   }),
   //Used to get email from the request body and send OTP to that email if it is member of the system.
   forgotPassword: catchAsync(async (req, res) => {
@@ -253,9 +259,11 @@ const AuthController = {
   getProfile: catchAsync(async (req, res) => {
     const user = await userService.getUserById(req.user);
     if (!user) return R4XX(res, 404, "User not found");
+    const sanitizedUser = sanitizers.userSanitizer(user);
+    await attachSignedUrlsDeep(sanitizedUser);
 
     R2XX(res, "User profile fetched successfully.", 200, {
-      user: sanitizers.userSanitizer(user),
+      user: sanitizedUser,
     });
   }),
 
@@ -307,9 +315,9 @@ const AuthController = {
     const updatedUser = await user.save();
     await updatedUser.populate("profile_picture");
 
-    R2XX(res, "Profile updated successfully.", 200, {
-      user: sanitizers.userSanitizer(updatedUser),
-    });
+    const sanitizedUser = sanitizers.userSanitizer(updatedUser);
+    await attachSignedUrlsDeep(sanitizedUser);
+    R2XX(res, "Profile updated successfully.", 200, { user: sanitizedUser });
   }),
 
   changePassword: catchAsync(async (req, res) => {

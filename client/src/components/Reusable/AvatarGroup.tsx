@@ -2,7 +2,6 @@ import Avatar from "./Avatar";
 import { UserInfo, normalizeUserForAvatar } from "../../utils/userUtils";
 import { cn } from "../../utils/cn";
 import { timeAgo } from "../../utils/date";
-import { BACKEND_URL } from "../../constants/env.constants";
 
 export interface AvatarAction {
   user: UserInfo | null | undefined;
@@ -52,7 +51,7 @@ export default function AvatarGroup({
           )}
         >
           <Avatar
-            user={normalizeUserForAvatar(action.user, BACKEND_URL)}
+            user={normalizeUserForAvatar(action.user)}
             size={size}
             showTooltip={true}
             tooltipText={formatTooltip(action)}

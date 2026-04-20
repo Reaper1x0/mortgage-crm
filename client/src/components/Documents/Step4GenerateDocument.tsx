@@ -3,9 +3,10 @@ import Button from "../Reusable/Button";
 import { TemplateService } from "../../service/templateService";
 import { SubmissionFieldStatusService } from "../../service/submissionFieldsStatusService";
 import { SubmissionService } from "../../service/submissionService";
-import { BACKEND_URL } from "../../constants/env.constants";
 import { useDispatch } from "react-redux";
 import { FiFileText, FiDownload, FiCalendar } from "react-icons/fi";
+import { addToast } from "../../redux/slices/toasterSlice";
+import { resolveFileUrl } from "../../utils/fileUrl";
 
 type TemplateCatalogItem = {
   _id: string;
@@ -31,7 +32,7 @@ export default function Step4GenerateDocument({
   const [templates, setTemplates] = useState<TemplateCatalogItem[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
 
-  const dispatch = useDispatch()
+  const dispatch = useDispatch();
 
   const [submissionFields, setSubmissionFields] = useState<SubmissionField[]>([]);
 
@@ -105,6 +106,8 @@ export default function Step4GenerateDocument({
     setGenerating(true);
     setError(null);
     setGeneratedUrl(null);
+    // Open a tab synchronously from the click event to reduce popup blocking.
+    const previewTab = window.open("", "_blank", "noopener,noreferrer");
 
     try {
       // only send values used by this template (clean + faster)
@@ -117,22 +120,41 @@ export default function Step4GenerateDocument({
       const url = res?.result?.outputUrl || res?.result?.fileUrl;
       if (!url) throw new Error("Render did not return outputUrl");
 
-      const full = url.startsWith("http") ? url : `${BACKEND_URL}${url}`;
+      const full = resolveFileUrl(url);
+      if (!full) throw new Error("Failed to build document URL");
       setGeneratedUrl(full);
-      window.open(full, "_blank");
-      
-      // Refresh generated documents list
-      if (res?.result?.fileId) {
-        try {
-          const submissionRes = await SubmissionService.getSubmissionById(submissionId);
-          setGeneratedDocuments(submissionRes?.submission?.generated_documents || []);
-        } catch (err) {
-          console.error("Failed to refresh generated documents:", err);
-        }
+      if (previewTab) {
+        previewTab.location.href = full;
+      } else {
+        window.open(full, "_blank");
       }
+
+      // Always refresh generated documents list.
+      try {
+        const submissionRes = await SubmissionService.getSubmissionById(submissionId);
+        setGeneratedDocuments(submissionRes?.submission?.generated_documents || []);
+      } catch (err) {
+        // Fallback: keep UX responsive even when refresh fails.
+        const fallbackDoc = {
+          _id: `tmp-${Date.now()}`,
+          template_id: selectedId,
+          template_name: selected?.name || "Generated Template",
+          generated_at: new Date().toISOString(),
+          file_id: {
+            _id: res?.result?.fileId || `tmp-file-${Date.now()}`,
+            url: full,
+            display_name: `Generated_${selected?.name || "Document"}.pdf`,
+            original_name: res?.result?.outputFileName || "Generated Document",
+          },
+        };
+        setGeneratedDocuments((prev) => [fallbackDoc, ...(prev || [])]);
+      }
+      dispatch(addToast({ message: "PDF generated successfully", type: "success" }));
     } catch (e: any) {
       console.error("Error generating document:", e);
-      // Error toast is handled automatically by centralized error handler
+      setError(e?.message || "Failed to generate PDF");
+      if (previewTab && !previewTab.closed) previewTab.close();
+      dispatch(addToast({ message: e?.message || "Failed to generate PDF", type: "error" }));
     } finally {
       setGenerating(false);
     }
@@ -295,7 +317,7 @@ export default function Step4GenerateDocument({
                 {generatedDocuments.map((doc: any) => {
                   const fileUrl = doc.file_id?.url || (typeof doc.file_id === "object" ? doc.file_id?.url : null);
                   const fileName = doc.file_id?.display_name || doc.file_id?.original_name || "Generated Document";
-                  const fullUrl = fileUrl ? (fileUrl.startsWith("http") ? fileUrl : `${BACKEND_URL}${fileUrl}`) : null;
+                  const fullUrl = resolveFileUrl(fileUrl);
                   
                   return (
                     <div

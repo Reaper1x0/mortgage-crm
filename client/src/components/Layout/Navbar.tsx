@@ -7,7 +7,6 @@ import Modal from "../Reusable/Modal";
 import Button from "../Reusable/Button";
 import Avatar from "../Reusable/Avatar";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
-import { BACKEND_URL } from "../../constants/env.constants";
 import { cn } from "../../utils/cn";
 import { FiSun, FiMoon } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
@@ -33,7 +32,7 @@ const Navbar = () => {
   const [newWsName, setNewWsName] = useState("");
   const [createWsLoading, setCreateWsLoading] = useState(false);
 
-  const userInfo = normalizeUserForAvatar(user, BACKEND_URL);
+  const userInfo = normalizeUserForAvatar(user);
 
   const mode: "light" | "dark" = theme === "dark" ? "dark" : "light";
 

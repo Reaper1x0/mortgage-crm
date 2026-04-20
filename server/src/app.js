@@ -1,0 +1,47 @@
+const cors = require("cors");
+const morgan = require("morgan");
+const express = require("express");
+const routes = require("./routes");
+const { R5XX, R4XX } = require("./Responses");
+const { envConfig } = require("./config");
+
+const app = express();
+
+app.set("view engine", "ejs");
+app.set("trust proxy", true);
+
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true }));
+app.use(cors());
+app.use(morgan(envConfig.NODE_ENV === "production" ? "combined" : "tiny"));
+
+app.get("/healthz", (req, res) => {
+  res.status(200).json({
+    success: true,
+    status: "ok",
+    uptime: process.uptime(),
+    env: envConfig.NODE_ENV,
+  });
+});
+
+app.use("/backend/api", routes);
+app.use(express.static(`${__dirname}/public`));
+
+app.use((req, res) => {
+  R4XX(res, 404, "Route not found");
+});
+
+app.use((error, req, res, next) => {
+  if (envConfig.NODE_ENV !== "production") {
+    console.error(error);
+  }
+
+  R5XX(res, {
+    error:
+      envConfig.NODE_ENV === "production"
+        ? undefined
+        : error?.message || "Unknown error",
+  });
+});
+
+module.exports = app;
