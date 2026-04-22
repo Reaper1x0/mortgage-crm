@@ -644,6 +644,8 @@ const ExtractionController = {
         const text = await extractTextFromFile({
           ...file,
           buffer: file.buffer,
+        }, {
+          storagePath: savedFile.storage_path,
         });
 
         if (!text || !text.trim()) {
@@ -812,6 +814,8 @@ const ExtractionController = {
     const text = await extractTextFromFile({
       ...file,
       buffer: file.buffer,
+    }, {
+      storagePath: savedFile.storage_path,
     });
 
     if (!text || !text.trim()) {

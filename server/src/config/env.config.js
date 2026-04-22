@@ -18,6 +18,16 @@ const envVarsSchema = Joi.object({
   AWS_SECRET_ACCESS_KEY: Joi.string().required().label("AWS_SECRET_ACCESS_KEY"),
   S3_BUCKET_NAME: Joi.string().required().label("S3_BUCKET_NAME"),
   S3_SIGNED_URL_EXPIRES: Joi.number().optional().default(3600).label("S3_SIGNED_URL_EXPIRES"),
+  TEXTRACT_POLL_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(500)
+    .default(2000)
+    .label("TEXTRACT_POLL_INTERVAL_MS"),
+  TEXTRACT_MAX_POLLS: Joi.number()
+    .integer()
+    .min(10)
+    .default(120)
+    .label("TEXTRACT_MAX_POLLS"),
 })
   .unknown()
   .prefs({ errors: { label: "key" } });
@@ -48,4 +58,6 @@ module.exports = {
   AWS_SECRET_ACCESS_KEY: envVars.AWS_SECRET_ACCESS_KEY,
   S3_BUCKET_NAME: envVars.S3_BUCKET_NAME,
   S3_SIGNED_URL_EXPIRES: Number(envVars.S3_SIGNED_URL_EXPIRES || 3600),
+  TEXTRACT_POLL_INTERVAL_MS: Number(envVars.TEXTRACT_POLL_INTERVAL_MS || 2000),
+  TEXTRACT_MAX_POLLS: Number(envVars.TEXTRACT_MAX_POLLS || 120),
 };

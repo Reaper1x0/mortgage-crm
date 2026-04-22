@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const app = require("../app");
 const { envConfig, mongoConfig } = require("../config");
-const { setupRuntimeBinaryPaths } = require("../bootstrap/runtime-paths");
 const {
   registerUnexpectedErrorHandlers,
   registerShutdownSignals,
@@ -66,7 +65,6 @@ function createHttpServer() {
 }
 
 async function startServer() {
-  setupRuntimeBinaryPaths();
   await mongoose.connect(mongoConfig.url, mongoConfig.options);
   server = await createHttpServer();
   console.log(

@@ -339,7 +339,7 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
             <input
               type="file"
               multiple
-              accept=".pdf,.doc,.docx,image/*"
+              accept=".pdf,.docx,image/*"
               onChange={onFileChange}
               className="text-sm text-card-text"
             />
@@ -368,7 +368,7 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
           <Surface variant="soft" className="p-4 space-y-3">
             <input
               type="file"
-              accept=".pdf,.doc,.docx,image/*"
+              accept=".pdf,.docx,image/*"
               onChange={(e) => setReplaceFile(e.target.files?.[0] || null)}
               className="text-sm text-card-text"
             />
