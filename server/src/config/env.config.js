@@ -18,6 +18,36 @@ const envVarsSchema = Joi.object({
   AWS_SECRET_ACCESS_KEY: Joi.string().required().label("AWS_SECRET_ACCESS_KEY"),
   S3_BUCKET_NAME: Joi.string().required().label("S3_BUCKET_NAME"),
   S3_SIGNED_URL_EXPIRES: Joi.number().optional().default(3600).label("S3_SIGNED_URL_EXPIRES"),
+  LLM_PROVIDER: Joi.string()
+    .valid("openai", "bedrock")
+    .default("openai")
+    .label("LLM_PROVIDER"),
+  LLM_FALLBACK_PROVIDER: Joi.string()
+    .valid("openai", "bedrock")
+    .optional()
+    .allow("")
+    .label("LLM_FALLBACK_PROVIDER"),
+  LLM_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(60000)
+    .label("LLM_TIMEOUT_MS"),
+  LLM_MAX_RETRIES: Joi.number()
+    .integer()
+    .min(0)
+    .default(2)
+    .label("LLM_MAX_RETRIES"),
+  OPENAI_API_KEY: Joi.string().allow("").optional().label("OPENAI_API_KEY"),
+  OPENAI_MODEL: Joi.string().allow("").optional().label("OPENAI_MODEL"),
+  OPENAI_MAX_TOKENS: Joi.number().integer().min(1).optional().label("OPENAI_MAX_TOKENS"),
+  OPENAI_TEMPERATURE: Joi.number().min(0).max(2).optional().label("OPENAI_TEMPERATURE"),
+  OPENAI_TIMEOUT_MS: Joi.number().integer().min(1000).optional().label("OPENAI_TIMEOUT_MS"),
+  OPENAI_MAX_RETRIES: Joi.number().integer().min(0).optional().label("OPENAI_MAX_RETRIES"),
+  BEDROCK_MODEL_ID: Joi.string().allow("").optional().label("BEDROCK_MODEL_ID"),
+  BEDROCK_MAX_TOKENS: Joi.number().integer().min(1).optional().label("BEDROCK_MAX_TOKENS"),
+  BEDROCK_TEMPERATURE: Joi.number().min(0).max(2).optional().label("BEDROCK_TEMPERATURE"),
+  BEDROCK_TIMEOUT_MS: Joi.number().integer().min(1000).optional().label("BEDROCK_TIMEOUT_MS"),
+  BEDROCK_MAX_RETRIES: Joi.number().integer().min(0).optional().label("BEDROCK_MAX_RETRIES"),
   TEXTRACT_POLL_INTERVAL_MS: Joi.number()
     .integer()
     .min(500)
@@ -47,6 +77,20 @@ module.exports = {
   PORT: envVars.PORT,
   GPT_MODEL: envVars.GPT_MODEL,
   OPENAI_API_KEY: envVars.OPENAI_API_KEY,
+  OPENAI_MODEL: envVars.OPENAI_MODEL,
+  OPENAI_MAX_TOKENS: envVars.OPENAI_MAX_TOKENS,
+  OPENAI_TEMPERATURE: envVars.OPENAI_TEMPERATURE,
+  OPENAI_TIMEOUT_MS: envVars.OPENAI_TIMEOUT_MS,
+  OPENAI_MAX_RETRIES: envVars.OPENAI_MAX_RETRIES,
+  BEDROCK_MODEL_ID: envVars.BEDROCK_MODEL_ID,
+  BEDROCK_MAX_TOKENS: envVars.BEDROCK_MAX_TOKENS,
+  BEDROCK_TEMPERATURE: envVars.BEDROCK_TEMPERATURE,
+  BEDROCK_TIMEOUT_MS: envVars.BEDROCK_TIMEOUT_MS,
+  BEDROCK_MAX_RETRIES: envVars.BEDROCK_MAX_RETRIES,
+  LLM_PROVIDER: envVars.LLM_PROVIDER,
+  LLM_FALLBACK_PROVIDER: envVars.LLM_FALLBACK_PROVIDER || null,
+  LLM_TIMEOUT_MS: Number(envVars.LLM_TIMEOUT_MS || 60000),
+  LLM_MAX_RETRIES: Number(envVars.LLM_MAX_RETRIES || 2),
   MONGO_URI: envVars.MONGO_URI,
   SMTP_HOST: envVars.SMTP_HOST,
   SMTP_PORT: envVars.SMTP_PORT,

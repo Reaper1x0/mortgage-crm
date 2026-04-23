@@ -161,7 +161,7 @@ async function recomputeSubmissionFields(submissionId, userId, workspaceId = nul
           document_id: docEntry._id || null,
           file_id: fileId || null,
           extracted_at: new Date(),
-          extraction_method: "openai",
+          extraction_method: "llm",
         },
         source: {
           type: "extraction",

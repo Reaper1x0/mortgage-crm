@@ -45,7 +45,11 @@ const ExtractedFieldSchema = new mongoose.Schema({
     document_id: { type: mongoose.Schema.Types.ObjectId, default: null },
     file_id: { type: mongoose.Schema.Types.ObjectId, default: null },
     extracted_at: { type: Date, default: Date.now },
-    extraction_method: { type: String, enum: ["openai", "manual"], default: "openai" },
+    extraction_method: {
+      type: String,
+      enum: ["openai", "bedrock", "llm", "manual"],
+      default: "llm",
+    },
   },
 });
 

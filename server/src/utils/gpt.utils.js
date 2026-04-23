@@ -1,11 +1,24 @@
-const { openai, envConfig } = require("../config");
+const llmService = require("../services/llm/llm.service");
 
 const queryGPT = async (messages) => {
-  const GPTOutput = await openai.chat.completions.create({
-    model: envConfig.GPT_MODEL,
-    messages,
+  const systemPrompt = Array.isArray(messages)
+    ? messages
+        .filter((m) => m?.role === "system")
+        .map((m) => m.content)
+        .join("\n")
+    : "";
+  const userPrompt = Array.isArray(messages)
+    ? messages
+        .filter((m) => m?.role !== "system")
+        .map((m) => m.content)
+        .join("\n")
+    : "";
+
+  const result = await llmService.extractJson({
+    systemPrompt: systemPrompt || "Return strict JSON output only.",
+    userPrompt,
   });
-  return JSON.parse(GPTOutput.choices[0].message.content);
+  return result.parsed;
 };
 
 module.exports = queryGPT;

@@ -4,7 +4,6 @@
 // ✅ Minimizes token usage by NOT sending full schema descriptions
 // ✅ Adds safe logs to compare token usage before/after
 
-const openai = require("../config/openai.config");
 const { extractTextFromFile } = require("../services/textextraction.service");
 const { R2XX, R4XX, R5XX } = require("../Responses");
 const { catchAsync } = require("../utils");
@@ -15,6 +14,7 @@ const MasterFieldService = require("../services/masterFields.service");
 const { recomputeSubmissionFields } = require("../services/submissionFields.service");
 const AuditTrailService = require("../services/auditTrail.service");
 const { attachSignedUrlsDeep, getSignedFileUrl } = require("../utils/fileUrl.utils");
+const llmService = require("../services/llm/llm.service");
 
 /**
  * Small helper to call OpenAI for CNIC name extraction
@@ -37,22 +37,13 @@ ${text}
 >>>
 `;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "system", content: systemPrompt }],
-    response_format: { type: "json_object" },
+  const result = await llmService.extractJson({
+    systemPrompt,
+    userPrompt: "Extract legal_name as strict JSON.",
     temperature: 0,
+    maxTokens: 512,
   });
-
-  const content = completion.choices?.[0]?.message?.content || "{}";
-
-  try {
-    const parsed = JSON.parse(content);
-    return parsed?.legal_name || null;
-  } catch (err) {
-    console.error("Failed to parse CNIC OpenAI response JSON:", err, content);
-    return null;
-  }
+  return result?.parsed?.legal_name || null;
 }
 
 /**
@@ -147,7 +138,7 @@ OUTPUT JSON SHAPE
       },
       "traceability": {
         "document_name": "<file name>",
-        "extraction_method": "openai",
+        "extraction_method": "llm",
         "extracted_at": "<ISO timestamp>"
       }
     }
@@ -165,7 +156,7 @@ VALIDATION RULES:
 
 TRACEABILITY REQUIREMENTS:
 - document_name: Use the FILE_NAME provided
-- extraction_method: Always "openai"
+- extraction_method: Always "llm"
 - extracted_at: Current timestamp in ISO format
 - For occurrences: Provide the most specific location information available
   - snippet: Include enough context to identify where the value was found (at least 50 chars before and after)
@@ -238,7 +229,7 @@ function sanitizeExtractedFields(fieldsArray, allowedKeysSet, fileName, fileId) 
         document_id: traceability.document_id || fileId || null,
         file_id: fileId || null,
         extracted_at: traceability.extracted_at ? new Date(traceability.extracted_at) : extractedAt,
-        extraction_method: traceability.extraction_method || "openai",
+        extraction_method: traceability.extraction_method || "llm",
       },
     });
   }
@@ -287,11 +278,6 @@ INSTRUCTIONS:
 6. Use ONLY the exact key strings from the schema above
 `;
 
-  const messages = [
-    { role: "system", content: FIELD_KEYS_DETECTOR_SYSTEM_PROMPT },
-    { role: "user", content: userPrompt },
-  ];
-
   // logs for token comparison
   console.log("[LLM-A] file:", fileName);
   console.log("[LLM-A] extractedTextLen:", text.length);
@@ -299,27 +285,17 @@ INSTRUCTIONS:
   console.log("[LLM-A] schemaJSONStringLen:", JSON.stringify(compactSchema).length);
   console.log("[LLM-A] userPromptLen:", userPrompt.length);
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages,
-    response_format: { type: "json_object" },
-    temperature: 0,
-  });
-
-  const content = completion.choices?.[0]?.message?.content || "{}";
-  const finishReason = completion.choices?.[0]?.finish_reason;
-  console.log("[LLM-A] usage:", completion.usage);
-  console.log("[LLM-A] model:", completion.model);
-  console.log("[LLM-A] finish_reason:", finishReason);
-  console.log("[LLM-A] outputLen:", (content || "").length);
-  console.log("[LLM-A] outputContent:", content); // Log actual content for debugging
-
   let payload;
   try {
-    payload = JSON.parse(content);
+    const result = await llmService.extractJson({
+      systemPrompt: FIELD_KEYS_DETECTOR_SYSTEM_PROMPT,
+      userPrompt,
+      temperature: 0,
+      maxTokens: 4096,
+    });
+    payload = result.parsed || {};
   } catch (e) {
     console.error("[LLM-A] invalid JSON:", e);
-    console.error("[LLM-A] raw content that failed to parse:", content);
     return { presentKeys: [], allowedKeys };
   }
 
@@ -372,7 +348,7 @@ INSTRUCTIONS:
    - Include page numbers if available in the document
    - Include line hints or section identifiers
    - Set document_name to: "${fileName}"
-   - Set extraction_method to: "openai"
+   - Set extraction_method to: "llm"
    - Set extracted_at to current ISO timestamp
 4. For validation:
    - Test each validation rule against the extracted value
@@ -381,46 +357,21 @@ INSTRUCTIONS:
    - Set "validated": true and "passed": true if all rules pass
 `;
 
-  const messages = [
-    { role: "system", content: FIELD_EXTRACTION_SYSTEM_PROMPT },
-    { role: "user", content: userPrompt },
-  ];
-
   console.log("[LLM-B] chunk size:", schemaChunk.length);
   console.log("[LLM-B] chunkSchemaJSONStringLen:", JSON.stringify(schemaChunk).length);
   console.log("[LLM-B] userPromptLen:", userPrompt.length);
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages,
-    response_format: { type: "json_object" },
-    temperature: 0,
-    max_tokens: 16384, // Explicitly set max tokens for gpt-4o
-  });
-
-  const content = completion.choices?.[0]?.message?.content || "{}";
-  const finishReason = completion.choices?.[0]?.finish_reason;
-  
-  console.log("[LLM-B] usage:", completion.usage);
-  console.log("[LLM-B] finish_reason:", finishReason);
-
-  // Check if response was truncated
-  if (finishReason === "length") {
-    console.error("[LLM-B] WARNING: Response was truncated even with chunking!");
-    throw new Error(
-      `Model response was truncated due to token limit even with chunk size ${schemaChunk.length}. ` +
-      `Consider reducing chunk size further.`
-    );
-  }
-
   let payload;
   try {
-    payload = JSON.parse(content);
+    const result = await llmService.extractJson({
+      systemPrompt: FIELD_EXTRACTION_SYSTEM_PROMPT,
+      userPrompt,
+      temperature: 0,
+      maxTokens: 16384,
+    });
+    payload = result.parsed || {};
   } catch (e) {
-    // Log the actual error and partial content for debugging
     console.error("[LLM-B] JSON parse error:", e.message);
-    console.error("[LLM-B] Content preview (first 500 chars):", content.substring(0, 500));
-    console.error("[LLM-B] Content preview (last 500 chars):", content.substring(Math.max(0, content.length - 500)));
     throw new Error(`Model returned invalid JSON: ${e.message}`);
   }
 
