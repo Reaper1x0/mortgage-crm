@@ -15,6 +15,9 @@ export default function PublicRoute() {
 
   // Authenticated → redirect to dashboard
   if (user) {
+    if (user.role === "superAdmin") {
+      return <Navigate to="/super-admin/dashboard" replace />;
+    }
     return <Navigate to="/workspace/dashboard/analytics" replace />;
   }
 

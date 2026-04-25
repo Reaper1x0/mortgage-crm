@@ -27,7 +27,7 @@ export interface User {
     fullName: string;
     email: string;
     username?: string;
-    role?: "Admin" | "Agent" | "Viewer";
+    role?: "superAdmin" | "user";
     isEmailVerified: boolean;
     profile_picture?: FileRef | string | null;
   }

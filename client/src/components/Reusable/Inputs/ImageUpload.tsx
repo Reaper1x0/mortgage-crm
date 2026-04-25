@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
 import { ImCross } from "react-icons/im";
-import ImageContainer from "../ImageContainer";
 import IconButton from "../IconButton";
 
 interface ImageUploadProps {
@@ -64,11 +63,10 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
       >
         {preview ? (
           <>
-            <ImageContainer
+            <img
               src={preview}
               alt="Preview"
-              height={height}
-              width={width}
+              className={`${width} ${height} object-contain rounded-lg`}
             />
             <div className="absolute top-2 right-2">
               <IconButton

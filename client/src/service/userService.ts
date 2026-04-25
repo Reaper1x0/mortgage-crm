@@ -17,11 +17,14 @@ export interface User {
   fullName: string;
   username: string;
   email: string;
-  role: "Admin" | "Agent" | "Viewer";
+  role: "superAdmin" | "user" | "Admin" | "Agent" | "Viewer";
   isEmailVerified: boolean;
   profile_picture?: FileRef | null;
   createdAt: string;
   updatedAt: string;
+  workspaceCount?: number;
+  organizationCount?: number;
+  primaryOrganizationRole?: "Owner" | "Admin" | "Member" | "Viewer" | null;
 }
 
 export interface UserListResponse {
@@ -71,6 +74,19 @@ export const UserService = {
     search?: string;
   }) => {
     const response = await apiClient.get<UserListResponse>("/users", { params });
+    return response.data;
+  },
+
+  listSystemUsers: async (params?: {
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+    role?: "superAdmin" | "user";
+    orgRole?: "Owner" | "Admin" | "Member" | "Viewer";
+    search?: string;
+  }) => {
+    const response = await apiClient.get<UserListResponse>("/super-admin/users", { params });
     return response.data;
   },
 

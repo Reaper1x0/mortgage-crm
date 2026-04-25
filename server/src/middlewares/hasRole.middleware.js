@@ -1,20 +1,35 @@
 const { R4XX } = require("../Responses");
 
-// roles = array of allowed roles
-const hasRole = (roles = []) => {
+const normalize = (config) => {
+  if (Array.isArray(config) || typeof config === "string") {
+    return { scope: "workspace", roles: Array.isArray(config) ? config : [config] };
+  }
+  return {
+    scope: config?.scope || "workspace",
+    roles: Array.isArray(config?.roles) ? config.roles : [],
+  };
+};
+
+const hasRole = (config = []) => {
+  const { roles, scope } = normalize(config);
   return async (req, res, next) => {
     try {
-      // isAuth middleware must run before this, so req.user is already populated
       if (!req.user) {
         return R4XX(res, 401, "Unauthorized: user not found in request.");
       }
 
-      // Normalize roles to array
-      const allowedRoles = Array.isArray(roles) ? roles : [roles];
-      const userRole = req.userRole;
+      const userRole = scope === "organization" ? req.orgRole : req.workspaceRole || req.userRole;
+      const requiresContextRole = scope === "organization" ? !req.orgRole : !req.workspaceRole;
 
-      // Check if user's role is in the allowed roles array
-      const hasPermission = allowedRoles.includes(userRole);
+      if (requiresContextRole) {
+        return R4XX(
+          res,
+          403,
+          `Forbidden: ${scope} context role is missing. Ensure context middleware runs before hasRole.`
+        );
+      }
+
+      const hasPermission = roles.includes(userRole);
 
       if (!hasPermission) {
         return R4XX(res, 403, "Forbidden: insufficient permissions.");

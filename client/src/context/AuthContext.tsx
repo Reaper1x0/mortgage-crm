@@ -12,8 +12,10 @@ import { User } from "../types/auth.types";
 import { UserService } from "../service/userService";
 import { AuthService } from "../service/authService";
 import { WorkspaceService, WorkspaceSummary } from "../service/workspaceService";
+import { useTheme } from "./ThemeContext";
 
 const ACTIVE_WORKSPACE_KEY = "activeWorkspaceId";
+const ACTIVE_ORGANIZATION_KEY = "activeOrganizationId";
 
 interface AuthContextType {
   user: User | null;
@@ -23,7 +25,9 @@ interface AuthContextType {
   isAuthenticated: boolean;
   workspaces: WorkspaceSummary[];
   workspacesLoaded: boolean;
+  activeOrganizationId: string | null;
   activeWorkspaceId: string | null;
+  setActiveOrganizationId: (id: string | null) => void;
   setActiveWorkspaceId: (id: string | null) => void;
   refreshWorkspaces: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -42,6 +46,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
+  const { applyBranding, setTheme } = useTheme();
+  const [activeOrganizationId, setActiveOrganizationIdState] = useState<string | null>(() =>
+    typeof localStorage !== "undefined" ? localStorage.getItem(ACTIVE_ORGANIZATION_KEY) : null
+  );
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string | null>(() =>
     typeof localStorage !== "undefined" ? localStorage.getItem(ACTIVE_WORKSPACE_KEY) : null
   );
@@ -61,6 +69,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error("Failed to parse user from localStorage:", error);
     }
     return null;
+  }, []);
+
+  const setActiveOrganizationId = useCallback((id: string | null) => {
+    setActiveOrganizationIdState(id);
+    if (id) localStorage.setItem(ACTIVE_ORGANIZATION_KEY, id);
+    else localStorage.removeItem(ACTIVE_ORGANIZATION_KEY);
   }, []);
 
   const setActiveWorkspaceId = useCallback((id: string | null) => {
@@ -84,6 +98,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await WorkspaceService.list();
       const list = response.data?.workspaces ?? [];
       setWorkspaces(list);
+      const orgFromActiveWorkspace =
+        list.find((w) => w.workspaceId === activeWorkspaceId)?.organization?.organizationId ?? null;
+      if (orgFromActiveWorkspace) {
+        setActiveOrganizationId(orgFromActiveWorkspace);
+      } else if (list[0]?.organization?.organizationId) {
+        setActiveOrganizationId(list[0].organization.organizationId);
+      }
 
       const stored = localStorage.getItem(ACTIVE_WORKSPACE_KEY);
       const valid = stored && list.some((w) => w.workspaceId === stored);
@@ -98,7 +119,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setWorkspacesLoaded(true);
     }
-  }, [setActiveWorkspaceId]);
+  }, [activeWorkspaceId, setActiveOrganizationId, setActiveWorkspaceId]);
 
   const fetchProfile = useCallback(async (): Promise<void> => {
     const accessToken = localStorage.getItem("accessToken");
@@ -172,11 +193,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem("user");
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
+      localStorage.removeItem(ACTIVE_ORGANIZATION_KEY);
       localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
     } finally {
       setUser(null);
       setWorkspaces([]);
       setWorkspacesLoaded(true);
+      setActiveOrganizationIdState(null);
       setActiveWorkspaceIdState(null);
       window.dispatchEvent(new CustomEvent("auth:user-logged-out"));
     }
@@ -204,7 +227,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "user" || e.key === "accessToken" || e.key === ACTIVE_WORKSPACE_KEY) {
+      if (
+        e.key === "user" ||
+        e.key === "accessToken" ||
+        e.key === ACTIVE_WORKSPACE_KEY ||
+        e.key === ACTIVE_ORGANIZATION_KEY
+      ) {
+        if (e.key === ACTIVE_ORGANIZATION_KEY && e.newValue) {
+          setActiveOrganizationIdState(e.newValue);
+        }
         if (e.key === ACTIVE_WORKSPACE_KEY && e.newValue) {
           setActiveWorkspaceIdState(e.newValue);
         }
@@ -250,6 +281,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, [loadUserFromStorage, refreshWorkspaces]);
 
+  useEffect(() => {
+    const activeWorkspace = workspaces.find((w) => w.workspaceId === activeWorkspaceId);
+    if (!activeWorkspace) {
+      document.title = "Mortgage CRM";
+      return;
+    }
+    const orgId = activeWorkspace.organization?.organizationId;
+    if (orgId && orgId !== activeOrganizationId) setActiveOrganizationId(orgId);
+    const orgBranding = activeWorkspace.branding?.organization || null;
+    applyBranding(orgBranding);
+    const orgName = activeWorkspace.organization?.name || "Mortgage CRM";
+    document.title = orgName;
+    const orgLogo = orgBranding?.logoUrl || null;
+    let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
+    if (!favicon) {
+      favicon = document.createElement("link");
+      favicon.setAttribute("rel", "icon");
+      document.head.appendChild(favicon);
+    }
+    if (orgLogo) {
+      favicon.setAttribute("href", orgLogo);
+      favicon.setAttribute("type", "image/png");
+    } else {
+      favicon.setAttribute("href", "/vite.svg");
+      favicon.setAttribute("type", "image/svg+xml");
+    }
+    if (orgBranding?.themeMode === "light" || orgBranding?.themeMode === "dark") {
+      setTheme(orgBranding.themeMode);
+    }
+  }, [activeWorkspaceId, activeOrganizationId, applyBranding, setActiveOrganizationId, setTheme, workspaces]);
+
   const value: AuthContextType = {
     user,
     role: effectiveRole,
@@ -257,7 +319,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user,
     workspaces,
     workspacesLoaded,
+    activeOrganizationId,
     activeWorkspaceId,
+    setActiveOrganizationId,
     setActiveWorkspaceId,
     refreshWorkspaces,
     refreshProfile,

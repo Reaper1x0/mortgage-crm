@@ -5,4 +5,6 @@ module.exports.otpService = require("./otp.service");
 module.exports.pdfRenderService = require("./pdfRender.service");
 module.exports.templateService = require("./template.service");
 module.exports.leadService = require("./lead.service");
+module.exports.organizationService = require("./organization.service");
 module.exports.workspaceService = require("./workspace.service");
+module.exports.superAdminService = require("./superAdmin.service");

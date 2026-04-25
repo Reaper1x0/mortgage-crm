@@ -13,7 +13,7 @@ const validate = (schema) => (req, res, next) => {
     const errorMessage = error.details
       .map((details) => details.message)
       .join(", ");
-    return R4XX(res, 403, "Some error in request validation", { errorMessage });
+    return R4XX(res, 400, "Some error in request validation", { errorMessage });
   }
   Object.assign(req, value);
   return next();

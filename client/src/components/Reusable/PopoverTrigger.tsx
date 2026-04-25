@@ -5,12 +5,14 @@ interface PopoverTriggerProps {
   children: React.ReactNode; // Button / Trigger
   content: React.ReactNode; // Popover content
   className?: string;
+  closeOnSelect?: boolean;
 }
 
 export const PopoverTrigger: React.FC<PopoverTriggerProps> = ({
   children,
   content,
   className = "",
+  closeOnSelect = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -30,7 +32,7 @@ export const PopoverTrigger: React.FC<PopoverTriggerProps> = ({
     <div className={`relative inline-block ${className}`} ref={ref}>
       <div onClick={() => setIsOpen(!isOpen)}>{children}</div>
       {isOpen && (
-        <div className="absolute z-50 mt-2">
+        <div className="absolute z-50 mt-2" onClick={() => closeOnSelect && setIsOpen(false)}>
           {content}
         </div>
       )}

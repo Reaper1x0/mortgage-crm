@@ -3,9 +3,10 @@ import { useAuth } from "../../context/AuthContext";
 
 interface ProtectedRouteProps {
   roles?: string[];
+  requireWorkspace?: boolean;
 }
 
-export default function ProtectedRoute({ roles = [] }: ProtectedRouteProps) {
+export default function ProtectedRoute({ roles = [], requireWorkspace = true }: ProtectedRouteProps) {
   const { user, loading, role, workspaces, workspacesLoaded, activeWorkspaceId } = useAuth();
   const location = useLocation();
 
@@ -23,11 +24,11 @@ export default function ProtectedRoute({ roles = [] }: ProtectedRouteProps) {
 
   const isOnboarding = location.pathname.includes("/workspace/onboarding");
 
-  if (!isOnboarding && workspacesLoaded && workspaces.length === 0) {
+  if (requireWorkspace && !isOnboarding && workspacesLoaded && workspaces.length === 0) {
     return <Navigate to="/workspace/onboarding" replace state={{ from: location }} />;
   }
 
-  if (!isOnboarding && workspaces.length > 0 && !activeWorkspaceId) {
+  if (requireWorkspace && !isOnboarding && workspaces.length > 0 && !activeWorkspaceId) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
         <div className="text-sm text-slate-500">Loading workspace…</div>
@@ -36,14 +37,16 @@ export default function ProtectedRoute({ roles = [] }: ProtectedRouteProps) {
   }
 
   if (!isOnboarding && roles.length > 0) {
-    if (!role) {
+    // System super admin route: allow even when a workspace role exists (Admin/Agent/Viewer)
+    if (roles.includes("superAdmin") && user?.role === "superAdmin") {
+      // ok
+    } else if (!role) {
       return (
         <div className="min-h-[50vh] flex items-center justify-center">
           <div className="text-sm text-slate-500">Loading workspace…</div>
         </div>
       );
-    }
-    if (!roles.includes(role)) {
+    } else if (!roles.includes(role)) {
       return <Navigate to="/unauthorized" replace state={{ from: location }} />;
     }
   }

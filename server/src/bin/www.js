@@ -5,6 +5,10 @@ const {
   registerUnexpectedErrorHandlers,
   registerShutdownSignals,
 } = require("../bootstrap/lifecycle");
+const {
+  normalizeSystemRoles,
+  ensureDefaultSuperAdmin,
+} = require("../seeders/superAdmin.seeder");
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -66,6 +70,8 @@ function createHttpServer() {
 
 async function startServer() {
   await mongoose.connect(mongoConfig.url, mongoConfig.options);
+  await normalizeSystemRoles();
+  await ensureDefaultSuperAdmin();
   server = await createHttpServer();
   console.log(
     `Server listening on port ${server.address().port} (${envConfig.NODE_ENV})`

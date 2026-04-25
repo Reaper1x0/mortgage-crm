@@ -7,12 +7,12 @@ import { RiFileEditFill } from "react-icons/ri";
 import { FiUsers, FiUser, FiUserPlus } from "react-icons/fi";
 import { GrDashboard } from "react-icons/gr";
 
-export default function Layout() {
+export default function WorkspaceLayout() {
   const { role } = useAuth();
   const location = useLocation();
-  
-  // Hide sidebar on template designer page
-  const isTemplateDesigner = location.pathname.includes("/template-maker/") && location.pathname.includes("/manage");
+  const isOnboarding = location.pathname.includes("/workspace/onboarding");
+  const isTemplateDesigner =
+    location.pathname.includes("/template-maker/") && location.pathname.includes("/manage");
 
   const defaultLinks: SidebarLink[] = [
     { to: "/workspace/dashboard/analytics", label: "Dashboard", icon: GrDashboard },
@@ -23,7 +23,6 @@ export default function Layout() {
     { to: "/workspace/profile", label: "Profile", icon: FiUser },
   ];
 
-  // Add Users link only for Admin
   const links: SidebarLink[] =
     role === "Admin"
       ? [...defaultLinks, { to: "/workspace/users", label: "Users", icon: FiUsers }]
@@ -32,15 +31,10 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-background text-text">
       <Navbar />
-
-      {/* fixed header offset */}
       <div className="pt-14">
         <div className="flex w-full gap-4 px-4">
-          {/* Sidebar - hidden on template designer page */}
-          {!isTemplateDesigner && <Sidebar links={links} />}
-
-          {/* Main */}
-          <main className="min-w-0 flex-1 py-4">
+          {!isOnboarding && !isTemplateDesigner && <Sidebar links={links} />}
+          <main className={isOnboarding ? "min-w-0 flex-1 py-10" : "min-w-0 flex-1 py-4"}>
             <Outlet />
           </main>
         </div>

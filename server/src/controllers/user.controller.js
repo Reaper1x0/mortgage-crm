@@ -62,6 +62,9 @@ const UserController = {
     });
 
     if (!result.ok) {
+      if (result.code === "WORKSPACE_NOT_FOUND") {
+        return R4XX(res, 404, "Workspace not found.");
+      }
       if (result.code === "ALREADY_IN_WORKSPACE") {
         return R4XX(res, 409, "This user is already a member of this workspace.");
       }

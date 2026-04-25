@@ -1,7 +1,25 @@
 const mongoose = require("mongoose");
 
+const brandingSchema = new mongoose.Schema(
+  {
+    logoUrl: { type: String, trim: true, default: null },
+    logoFile: { type: mongoose.Schema.Types.ObjectId, ref: "File", default: null },
+    primaryColor: { type: String, trim: true, default: null },
+    secondaryColor: { type: String, trim: true, default: null },
+    themeMode: { type: String, enum: ["light", "dark", "system"], default: null },
+    customVars: { type: mongoose.Schema.Types.Mixed, default: null },
+  },
+  { _id: false }
+);
+
 const workspaceSchema = mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "organizations",
+      required: true,
+      index: true,
+    },
     name: {
       type: mongoose.Schema.Types.String,
       required: true,
@@ -10,7 +28,6 @@ const workspaceSchema = mongoose.Schema(
     slug: {
       type: mongoose.Schema.Types.String,
       required: true,
-      unique: true,
       trim: true,
       lowercase: true,
     },
@@ -19,9 +36,15 @@ const workspaceSchema = mongoose.Schema(
       ref: "users",
       default: null,
     },
+    branding: {
+      type: brandingSchema,
+      default: null,
+    },
   },
   { timestamps: true }
 );
+
+workspaceSchema.index({ organization: 1, slug: 1 }, { unique: true });
 
 const Workspace = mongoose.model("workspaces", workspaceSchema);
 

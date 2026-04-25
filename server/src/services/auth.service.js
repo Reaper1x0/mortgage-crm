@@ -8,7 +8,7 @@ const AuthService = {
       username: user.username,
       email: user.email,
       password: user.password,
-      role: "Viewer",
+      role: "user",
     });
     await newUser.save();
     return newUser;

@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
-const { Workspace, WorkspaceMember, User } = require("../models");
+const { Workspace, WorkspaceMember, User, OrganizationMember, File } = require("../models");
 const { buildPaginationMeta } = require("../utils/pagination.utils");
+const organizationService = require("./organization.service");
+const { getSignedFileUrl } = require("../utils/fileUrl.utils");
 
 const slugify = (value = "") =>
   String(value)
@@ -12,17 +14,18 @@ const slugify = (value = "") =>
     .replace(/^-|-$/g, "");
 
 const WorkspaceService = {
-  createWorkspaceForSignup: async ({ name, createdBy = null }) => {
+  createWorkspaceForSignup: async ({ name, createdBy = null, organizationId }) => {
     const base = slugify(name) || "workspace";
     let slug = base;
     let counter = 1;
 
-    while (await Workspace.findOne({ slug })) {
+    while (await Workspace.findOne({ organization: organizationId, slug })) {
       counter += 1;
       slug = `${base}-${counter}`;
     }
 
     return Workspace.create({
+      organization: organizationId,
       name: String(name || "Workspace").trim(),
       slug,
       createdBy,
@@ -34,27 +37,93 @@ const WorkspaceService = {
    */
   listWorkspacesForUser: async (userId) => {
     const memberships = await WorkspaceMember.find({ user: userId })
-      .populate("workspace")
+      .populate({
+        path: "workspace",
+        populate: { path: "organization" },
+      })
       .lean();
-
-    return memberships
+    const rows = memberships
       .filter((m) => m.workspace)
       .map((m) => ({
         workspaceId: String(m.workspace._id),
         name: m.workspace.name,
         slug: m.workspace.slug,
         role: m.role,
+        organization: m.workspace.organization
+          ? {
+              organizationId: String(m.workspace.organization._id),
+              name: m.workspace.organization.name,
+              slug: m.workspace.organization.slug,
+            }
+          : null,
+        organizationRole: null,
+        branding: {
+          organization: m.workspace.organization?.branding || null,
+          workspace: m.workspace.branding || null,
+          effective: m.workspace.branding || m.workspace.organization?.branding || null,
+        },
       }));
+
+    const logoFileIds = new Set();
+    rows.forEach((row) => {
+      const orgLogo = row.branding?.organization?.logoFile;
+      const wsLogo = row.branding?.workspace?.logoFile;
+      if (orgLogo) logoFileIds.add(String(orgLogo));
+      if (wsLogo) logoFileIds.add(String(wsLogo));
+    });
+
+    if (logoFileIds.size > 0) {
+      const files = await File.find({ _id: { $in: Array.from(logoFileIds) } })
+        .select("_id storage_path")
+        .lean();
+      const signedById = new Map();
+      await Promise.all(
+        files.map(async (f) => {
+          const url = await getSignedFileUrl(f.storage_path, 60);
+          signedById.set(String(f._id), url);
+        })
+      );
+
+      rows.forEach((row) => {
+        const orgBranding = row.branding?.organization;
+        const wsBranding = row.branding?.workspace;
+        if (orgBranding?.logoFile) {
+          orgBranding.logoUrl = signedById.get(String(orgBranding.logoFile)) || orgBranding.logoUrl || null;
+        }
+        if (wsBranding?.logoFile) {
+          wsBranding.logoUrl = signedById.get(String(wsBranding.logoFile)) || wsBranding.logoUrl || null;
+        }
+        row.branding.effective = wsBranding || orgBranding || null;
+      });
+    }
+
+    return rows;
   },
 
-  createWorkspaceAsUser: async ({ userId, name }) => {
+  createWorkspaceAsUser: async ({ userId, name, organizationId = null, organizationName = null }) => {
+    let finalOrganizationId = organizationId;
+    if (!finalOrganizationId) {
+      const member = await OrganizationMember.findOne({ user: userId }).lean();
+      if (member) {
+        finalOrganizationId = member.organization;
+      } else {
+        const organization = await organizationService.createOrganization({
+          name: organizationName || `${name} Organization`,
+          createdBy: userId,
+        });
+        finalOrganizationId = organization._id;
+      }
+    }
+
     const workspace = await WorkspaceService.createWorkspaceForSignup({
       name,
       createdBy: userId,
+      organizationId: finalOrganizationId,
     });
 
     await WorkspaceMember.create({
       user: userId,
+      organization: finalOrganizationId,
       workspace: workspace._id,
       role: "Admin",
     });
@@ -69,10 +138,20 @@ const WorkspaceService = {
     }).lean();
   },
 
-  addMember: async ({ userId, workspaceId, role }) => {
+  getWorkspaceById: async (workspaceId) => {
+    return Workspace.findById(workspaceId).lean();
+  },
+
+  addMember: async ({ userId, workspaceId, role, organizationId = null }) => {
+    let orgId = organizationId;
+    if (!orgId) {
+      const workspace = await Workspace.findById(workspaceId).lean();
+      orgId = workspace?.organization;
+    }
     return WorkspaceMember.create({
       user: userId,
       workspace: workspaceId,
+      organization: orgId,
       role: role || "Viewer",
     });
   },
@@ -94,6 +173,33 @@ const WorkspaceService = {
       { role },
       { new: true }
     );
+  },
+
+  getOrganizationRoleMapForUser: async (userId) => {
+    const orgMemberships = await OrganizationMember.find({ user: userId }).lean();
+    return new Map(orgMemberships.map((m) => [String(m.organization), m.role]));
+  },
+
+  enrichWithOrganizationRoles: async (userId, workspaces) => {
+    const roleMap = await WorkspaceService.getOrganizationRoleMapForUser(userId);
+    return workspaces.map((w) => ({
+      ...w,
+      organizationRole: w.organization?.organizationId
+        ? roleMap.get(w.organization.organizationId) || null
+        : null,
+    }));
+  },
+
+  updateBranding: async (workspaceId, brandingPatch = {}) => {
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) return null;
+    const next = { ...(workspace.branding?.toObject ? workspace.branding.toObject() : workspace.branding || {}) };
+    for (const [key, val] of Object.entries(brandingPatch)) {
+      if (typeof val !== "undefined") next[key] = val;
+    }
+    workspace.branding = next;
+    await workspace.save();
+    return workspace;
   },
 
   /**

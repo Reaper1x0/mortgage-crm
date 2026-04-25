@@ -6,22 +6,40 @@ const { R5XX, R4XX } = require("./Responses");
 const { envConfig } = require("./config");
 
 const app = express();
+const allowedOrigins = envConfig.FRONTEND_URL.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 app.set("view engine", "ejs");
 app.set("trust proxy", true);
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("CORS policy blocked this origin"));
+    },
+    credentials: true,
+  })
+);
 app.use(morgan(envConfig.NODE_ENV === "production" ? "combined" : "tiny"));
 
 app.get("/healthz", (req, res) => {
-  res.status(200).json({
+  const payload = {
     success: true,
     status: "ok",
     uptime: process.uptime(),
-    env: envConfig.NODE_ENV,
-  });
+  };
+
+  if (envConfig.NODE_ENV !== "production") {
+    payload.env = envConfig.NODE_ENV;
+  }
+
+  res.status(200).json(payload);
 });
 
 app.use("/backend/api", routes);

@@ -11,6 +11,8 @@ const dashboardRoutes = require("./dashboard.routes");
 const auditTrailRoutes = require("./auditTrail.routes");
 const leadRoutes = require("./lead.routes");
 const workspaceRoutes = require("./workspace.routes");
+const organizationRoutes = require("./organization.routes");
+const superAdminRoutes = require("./superAdmin.routes");
 
 const defaultRoutes = [
   {
@@ -52,6 +54,14 @@ const defaultRoutes = [
   {
     path: "/workspaces",
     route: workspaceRoutes,
+  },
+  {
+    path: "/organizations",
+    route: organizationRoutes,
+  },
+  {
+    path: "/super-admin",
+    route: superAdminRoutes,
   },
 ];
 

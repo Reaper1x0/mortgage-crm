@@ -25,7 +25,7 @@ export const AuthService = {
     );
   },
   verifyEmailOtp: async (otp: string) => {
-    return await apiClient.post(`${SERVER_URL}auth/verify-email`, { otp });
+    return await apiClient.post("/auth/verify-email", { otp });
   },
   verifyPasswordOtp: async (otpData: otpResetPasswordPayload) => {
     return await axiosWithErrorHandling(() =>
@@ -47,10 +47,10 @@ export const AuthService = {
   },
   logout: async () => {
     try {
-      await axios.delete(`${SERVER_URL}auth/logout`, {
+      await apiClient.delete("/auth/logout", {
         headers: { device_id: getDeviceId() },
         skipErrorToast: true, // Don't show toast on logout errors
-      } as any);
+      });
     } catch (err) {
       console.error("Logout API failed, but clearing local data…", err);
     }

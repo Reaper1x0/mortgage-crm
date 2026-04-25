@@ -64,6 +64,7 @@ const refreshToken = async () => {
 };
 
 const ACTIVE_WORKSPACE_KEY = "activeWorkspaceId";
+const ACTIVE_ORGANIZATION_KEY = "activeOrganizationId";
 
 // Request interceptor to add access token and active workspace (tenant) context
 apiClient.interceptors.request.use((config) => {
@@ -72,6 +73,10 @@ apiClient.interceptors.request.use((config) => {
     config.headers.Authorization = token;
   }
   const workspaceId = localStorage.getItem(ACTIVE_WORKSPACE_KEY);
+  const organizationId = localStorage.getItem(ACTIVE_ORGANIZATION_KEY);
+  if (organizationId) {
+    config.headers["X-Organization-Id"] = organizationId;
+  }
   if (workspaceId) {
     config.headers["X-Workspace-Id"] = workspaceId;
   }

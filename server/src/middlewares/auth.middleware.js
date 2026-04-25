@@ -12,6 +12,7 @@ const isAuth = async (req, res, next) => {
     req.user = decoded?.sub;
     const user = await userService.getUserById(req.user);
     if (!user) return R4XX(res, 401, "Invalid auth token user.");
+    req.authUser = user;
     next();
   } catch (error) {
     R4XX(res, 401, "Invalid or expired auth token.");

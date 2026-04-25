@@ -1,4 +1,4 @@
-const { User } = require("../models");
+const { User, Workspace, OrganizationMember } = require("../models");
 const workspaceService = require("./workspace.service");
 
 const UserService = {
@@ -53,6 +53,12 @@ const UserService = {
     role,
     workspaceId,
   }) {
+    const workspace = await Workspace.findById(workspaceId).lean();
+    if (!workspace) {
+      return { ok: false, code: "WORKSPACE_NOT_FOUND" };
+    }
+    const organizationId = workspace.organization;
+
     const existingEmail = await User.findOne({ email });
     if (existingEmail) {
       const alreadyMember = await workspaceService.findMembership(
@@ -65,8 +71,20 @@ const UserService = {
       await workspaceService.addMember({
         userId: existingEmail._id,
         workspaceId,
+        organizationId,
         role: role || "Viewer",
       });
+      const orgMember = await OrganizationMember.findOne({
+        user: existingEmail._id,
+        organization: organizationId,
+      }).lean();
+      if (!orgMember) {
+        await OrganizationMember.create({
+          user: existingEmail._id,
+          organization: organizationId,
+          role: "Member",
+        });
+      }
       return { ok: true, user: existingEmail, addedExisting: true };
     }
 
@@ -80,13 +98,19 @@ const UserService = {
       username,
       email,
       password,
-      role: "Viewer",
+      role: "user",
     });
     await newUser.save();
     await workspaceService.addMember({
       userId: newUser._id,
       workspaceId,
+      organizationId,
       role: role || "Viewer",
+    });
+    await OrganizationMember.create({
+      user: newUser._id,
+      organization: organizationId,
+      role: "Member",
     });
     return { ok: true, user: newUser, addedExisting: false };
   },

@@ -81,6 +81,10 @@ const Login: React.FC = () => {
     if (isAuthenticated && user && location.pathname === "/" && !hasNavigated.current) {
       hasNavigated.current = true;
       if (user.isEmailVerified) {
+        if (user.role === "superAdmin") {
+          navigate("/super-admin/dashboard", { replace: true });
+          return;
+        }
         navigate("/workspace/dashboard/analytics", { replace: true });
       } else {
         navigate("/email-verification", { replace: true });
