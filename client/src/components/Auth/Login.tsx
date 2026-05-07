@@ -8,6 +8,7 @@ import AuthPage from "./AuthPage";
 import { useLanguage } from "../../context/LanguageContext";
 import { ButtonProps } from "../Reusable/Button";
 import { useAuth } from "../../context/AuthContext";
+import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
 
 const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -15,7 +16,7 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { loading, error } = useSelector((state: RootState) => state.auth);
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, workspaces } = useAuth();
   const hasNavigated = useRef(false);
 
   const fields: FormSection["fields"] = [
@@ -85,12 +86,23 @@ const Login: React.FC = () => {
           navigate("/super-admin/dashboard", { replace: true });
           return;
         }
-        navigate("/workspace/dashboard/analytics", { replace: true });
+        const firstWorkspace = workspaces[0];
+        const orgId = firstWorkspace?.organization?.organizationId;
+        const wsId = firstWorkspace?.workspaceId;
+        if (orgId && wsId) {
+          navigate(buildWorkspacePath(orgId, wsId, "dashboard"), { replace: true });
+          return;
+        }
+        if (orgId) {
+          navigate(buildOrganizationPath(orgId, "dashboard"), { replace: true });
+          return;
+        }
+        navigate("/onboarding", { replace: true });
       } else {
         navigate("/email-verification", { replace: true });
       }
     }
-  }, [isAuthenticated, user, navigate, location.pathname]);
+  }, [isAuthenticated, user, navigate, location.pathname, workspaces]);
 
   return (
     <AuthPage heading={t("login")} subheading={t("enter_your_credentials") || ""}>

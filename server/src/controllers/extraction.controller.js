@@ -15,6 +15,7 @@ const { recomputeSubmissionFields } = require("../services/submissionFields.serv
 const AuditTrailService = require("../services/auditTrail.service");
 const { attachSignedUrlsDeep, getSignedFileUrl } = require("../utils/fileUrl.utils");
 const llmService = require("../services/llm/llm.service");
+const { billingService } = require("../services");
 
 /**
  * Small helper to call OpenAI for CNIC name extraction
@@ -543,6 +544,10 @@ const ExtractionController = {
       req.workspaceId
     );
     if (!updated) return R4XX(res, 404, "Submission not found.");
+    await billingService.trackExtractionUsage({
+      organizationId: req.organizationId,
+      amount: 1,
+    });
 
     return R2XX(res, "CNIC processed successfully.", 200, {
       legalName,
@@ -684,6 +689,10 @@ const ExtractionController = {
     if (submission.status === "pending") submission.status = "review";
 
     await submission.save();
+    await billingService.trackExtractionUsage({
+      organizationId: req.organizationId,
+      amount: documentEntries.length,
+    });
 
     await recomputeSubmissionFields(submission._id, userId, req.workspaceId);
     const hydratedSubmission = await SubmissionService.getSubmissionByKey(

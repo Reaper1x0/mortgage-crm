@@ -3,3 +3,4 @@ module.exports.userController = require("./user.controller");
 module.exports.auditTrailController = require("./auditTrail.controller");
 module.exports.leadController = require("./lead.controller");
 module.exports.superAdminController = require("./superAdmin.controller");
+module.exports.billingController = require("./billing.controller");

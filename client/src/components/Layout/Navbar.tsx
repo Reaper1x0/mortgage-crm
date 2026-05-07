@@ -9,17 +9,19 @@ import Avatar from "../Reusable/Avatar";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { cn } from "../../utils/cn";
 import { FiSun, FiMoon, FiChevronDown, FiPlus } from "react-icons/fi";
+import { RiBuildingLine } from "react-icons/ri";
 import { useAuth } from "../../context/AuthContext";
 import { WorkspaceService } from "../../service/workspaceService";
 import { OrganizationService } from "../../service/organizationService";
 import { PopoverTrigger } from "../Reusable/PopoverTrigger";
+import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
 
 const Navbar = () => {
   const { t } = useLanguage();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const isOnboarding = location.pathname.includes("/workspace/onboarding");
+  const isOnboarding = location.pathname.includes("/onboarding");
   const {
     user,
     logout: handleLogout,
@@ -39,8 +41,13 @@ const Navbar = () => {
 
   const userInfo = normalizeUserForAvatar(user);
   const activeWorkspace = workspaces.find((w) => w.workspaceId === activeWorkspaceId) || null;
-  const organizationName = activeWorkspace?.organization?.name || "Mortgage CRM";
-  const organizationLogo = activeWorkspace?.branding?.organization?.logoUrl || null;
+  const orgReferenceWorkspace =
+    activeWorkspace ||
+    workspaces.find((w) => w.organization?.organizationId === activeOrganizationId) ||
+    workspaces[0] ||
+    null;
+  const organizationName = orgReferenceWorkspace?.organization?.name || "Mortgage CRM";
+  const organizationLogo = orgReferenceWorkspace?.branding?.organization?.logoUrl || null;
 
   const mode: "light" | "dark" = theme === "dark" ? "dark" : "light";
 
@@ -61,7 +68,11 @@ const Navbar = () => {
   const handleWorkspaceChange = (id: string) => {
     if (id) {
       setActiveWorkspaceId(id);
-      navigate("/workspace/dashboard/analytics");
+      const selected = workspaces.find((w) => w.workspaceId === id);
+      const orgId = selected?.organization?.organizationId || activeOrganizationId;
+      if (orgId) {
+        navigate(buildWorkspacePath(orgId, id, "dashboard"));
+      }
     }
   };
 
@@ -75,10 +86,16 @@ const Navbar = () => {
       await refreshWorkspaces();
       if (wid) {
         setActiveWorkspaceId(String(wid));
+        if (activeOrganizationId) {
+          navigate(buildWorkspacePath(activeOrganizationId, String(wid), "dashboard"));
+          return;
+        }
       }
       setNewWsName("");
       setCreateWsOpen(false);
-      navigate("/workspace/dashboard/analytics");
+      if (activeOrganizationId) {
+        navigate(buildOrganizationPath(activeOrganizationId, "dashboard"));
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -110,7 +127,7 @@ const Navbar = () => {
       >
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
           <Link
-            to={isAuthenticated ? "/workspace/dashboard/analytics" : "/"}
+            to={isAuthenticated && activeOrganizationId ? buildOrganizationPath(activeOrganizationId, "dashboard") : "/"}
             className="ml-10 inline-flex items-center gap-2 text-text"
           >
             {organizationLogo ? (
@@ -139,9 +156,50 @@ const Navbar = () => {
                       content={
                         <div className="w-[280px] rounded-2xl border border-card-border bg-card p-2 shadow-lg">
                           <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-card-text">
-                            Workspaces
+                            Organization
                           </div>
-                          <div className="mt-1 max-h-72 overflow-auto space-y-1">
+                          <div className="mt-1 space-y-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                activeOrganizationId &&
+                                navigate(buildOrganizationPath(activeOrganizationId, "settings/organization"))
+                              }
+                              className={cn(
+                                "w-full rounded-xl px-3 py-2 text-left text-sm",
+                                "transition-all duration-200",
+                                "inline-flex items-center gap-3",
+                                activeOrganizationId &&
+                                  location.pathname.startsWith(
+                                    buildOrganizationPath(activeOrganizationId, "settings/organization")
+                                  )
+                                  ? "bg-primary/15 text-text border border-primary/30"
+                                  : "text-text hover:bg-card-hover border border-transparent"
+                              )}
+                            >
+                              <span className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-card-border bg-background">
+                                {organizationLogo ? (
+                                  <img
+                                    src={organizationLogo}
+                                    alt={organizationName}
+                                    className="h-full w-full object-contain"
+                                  />
+                                ) : (
+                                  <RiBuildingLine className="h-4 w-4 text-card-text" />
+                                )}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block truncate font-semibold">{organizationName || "Organization"}</span>
+                                <span className="block text-xs text-card-text">Open organization</span>
+                              </span>
+                            </button>
+                          </div>
+                          <div className="mt-2 border-t border-card-border pt-2">
+                            <div className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-card-text">
+                              Workspaces
+                            </div>
+                          </div>
+                          <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
                             {workspaces.map((w) => {
                               const isActive = w.workspaceId === activeWorkspaceId;
                               return (
@@ -153,7 +211,7 @@ const Navbar = () => {
                                     "w-full rounded-xl px-3 py-2 text-left text-sm",
                                     "transition-all duration-200",
                                     isActive
-                                      ? "bg-primary/15 text-text border border-primary/30"
+                                      ? "bg-card-hover text-text border border-card"
                                       : "text-text hover:bg-card-hover border border-transparent"
                                   )}
                                 >
@@ -187,7 +245,8 @@ const Navbar = () => {
                           "focus:outline-none focus:ring-2 focus:ring-primary/30"
                         )}
                       >
-                        <span className="max-w-[180px] truncate">{activeWorkspace?.name || "Select workspace"}</span>
+                        <RiBuildingLine className="h-4 w-4 text-card-text" />
+                        <span className="max-w-[180px] truncate">{organizationName || "Organization"}</span>
                         <FiChevronDown className="h-4 w-4 text-card-text" />
                       </button>
                     </PopoverTrigger>
@@ -266,35 +325,11 @@ const Navbar = () => {
                     <div className="my-2 border-t border-card-border" />
 
                     <div className="flex flex-col gap-1">
-                      {!isOnboarding && (
                       <button
                         type="button"
-                        onClick={() => navigate("/workspace/dashboard/analytics")}
-                        className={cn(
-                          "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
-                          "transition-all duration-200 hover:bg-card-hover text-text"
-                        )}
-                      >
-                        Workspace
-                      </button>
-                      )}
-
-                      {!isOnboarding && (
-                      <button
-                        type="button"
-                        onClick={() => navigate("/workspace/settings/organization")}
-                        className={cn(
-                          "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
-                          "transition-all duration-200 hover:bg-card-hover text-text"
-                        )}
-                      >
-                        Settings
-                      </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => navigate("/workspace/profile")}
+                        onClick={() =>
+                          activeOrganizationId && navigate(buildOrganizationPath(activeOrganizationId, "profile"))
+                        }
                         className={cn(
                           "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
                           "transition-all duration-200 hover:bg-card-hover text-text"

@@ -10,3 +10,7 @@ module.exports.Organization = require("./organization.model");
 module.exports.OrganizationMember = require("./organizationMember.model");
 module.exports.Workspace = require("./workspace.model");
 module.exports.WorkspaceMember = require("./workspaceMember.model");
+module.exports.Plan = require("./plan.model");
+module.exports.OrganizationSubscription = require("./organizationSubscription.model");
+module.exports.EntitlementUsage = require("./entitlementUsage.model");
+module.exports.StripeWebhookEvent = require("./stripeWebhookEvent.model");

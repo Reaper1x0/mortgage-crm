@@ -11,7 +11,7 @@ export default function UnauthorizedPage() {
       </p>
       <div className="mt-6">
         <Link
-          to="/workspace/dashboard/analytics"
+          to="/onboarding"
           className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 transition-colors"
         >
           Go to dashboard

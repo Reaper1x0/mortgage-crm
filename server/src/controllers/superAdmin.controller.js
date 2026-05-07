@@ -39,6 +39,55 @@ const SuperAdminController = {
       pagination,
     });
   }),
+
+  listOrganizations: catchAsync(async (req, res) => {
+    const { page, limit } = parsePagination(req.query, {
+      defaultPage: 1,
+      defaultLimit: 10,
+      maxLimit: 100,
+      defaultSortBy: "updatedAt",
+      defaultSortOrder: "desc",
+      allowedSortBy: ["updatedAt"],
+    });
+
+    const { items, summary, pagination } = await superAdminService.listOrganizations({
+      page,
+      limit,
+      search: req.query.search,
+      subscriptionStatus: req.query.subscriptionStatus,
+    });
+
+    return R2XX(res, "Organizations fetched successfully", 200, {
+      organizations: items,
+      summary,
+      pagination,
+    });
+  }),
+
+  listWorkspaces: catchAsync(async (req, res) => {
+    const { page, limit } = parsePagination(req.query, {
+      defaultPage: 1,
+      defaultLimit: 10,
+      maxLimit: 100,
+      defaultSortBy: "updatedAt",
+      defaultSortOrder: "desc",
+      allowedSortBy: ["updatedAt"],
+    });
+
+    const { items, summary, pagination } = await superAdminService.listWorkspaces({
+      page,
+      limit,
+      search: req.query.search,
+      role: req.query.role,
+      subscriptionStatus: req.query.subscriptionStatus,
+    });
+
+    return R2XX(res, "Workspaces fetched successfully", 200, {
+      workspaces: items,
+      summary,
+      pagination,
+    });
+  }),
 };
 
 module.exports = SuperAdminController;

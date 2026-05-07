@@ -6,19 +6,35 @@ const { R5XX, R4XX } = require("./Responses");
 const { envConfig } = require("./config");
 
 const app = express();
+const normalizeOrigin = (value = "") =>
+  String(value || "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .replace(/\/+$/, "");
+
 const allowedOrigins = envConfig.FRONTEND_URL.split(",")
-  .map((origin) => origin.trim())
+  .map((origin) => normalizeOrigin(origin))
   .filter(Boolean);
 
 app.set("view engine", "ejs");
 app.set("trust proxy", true);
 
-app.use(express.json({ limit: "2mb" }));
+app.use(
+  express.json({
+    limit: "2mb",
+    verify(req, _res, buf) {
+      if (req.originalUrl.includes("/billing/webhook/stripe")) {
+        req.rawBody = buf;
+      }
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      const normalizedOrigin = normalizeOrigin(origin);
+      if (!origin || allowedOrigins.includes(normalizedOrigin)) {
         return callback(null, true);
       }
       return callback(new Error("CORS policy blocked this origin"));

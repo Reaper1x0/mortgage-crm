@@ -1,7 +1,13 @@
 const { Router } = require("express");
 const { userValidation } = require("../validations");
 const { userController } = require("../controllers");
-const { validate, isAuth, requireWorkspace, hasRole } = require("../middlewares");
+const {
+  validate,
+  isAuth,
+  requireWorkspace,
+  hasRole,
+  requireActiveSubscription,
+} = require("../middlewares");
 
 const router = Router();
 
@@ -28,6 +34,7 @@ router.post(
   "/",
   isAuth,
   requireWorkspace,
+  requireActiveSubscription,
   hasRole(["Admin"]),
   validate(userValidation.createUser),
   userController.createUser

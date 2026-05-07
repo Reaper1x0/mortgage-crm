@@ -9,3 +9,6 @@ module.exports.isPasswordSame = require("./isPasswordSame.middleware");
 module.exports.getDeviceId = require("./getDeviceId.middleware");
 module.exports.hasRole = require("./hasRole.middleware");
 module.exports.requireSystemRole = require("./requireSystemRole.middleware");
+module.exports.requireActiveSubscription = require("./requireActiveSubscription.middleware");
+module.exports.requireEntitlement = require("./requireEntitlement.middleware");
+module.exports.enforcePlanLimit = require("./enforcePlanLimit.middleware");

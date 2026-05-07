@@ -3,6 +3,8 @@ const { catchAsync } = require("../utils");
 const workspaceService = require("../services/workspace.service");
 const organizationService = require("../services/organization.service");
 const { FileService } = require("../services/file.service");
+const entitlementService = require("../billing/entitlement.service");
+const subscriptionService = require("../billing/subscription.service");
 
 const WorkspaceController = {
   listMine: catchAsync(async (req, res) => {
@@ -13,16 +15,43 @@ const WorkspaceController = {
 
   create: catchAsync(async (req, res) => {
     const { name, organizationId, organizationName } = req.body;
-    if (organizationId) {
-      const orgMember = await organizationService.findMembership(req.user, organizationId);
+    let targetOrganizationId = organizationId;
+    if (!targetOrganizationId) {
+      const memberships = await organizationService.listForUser(req.user);
+      if (memberships.length > 0) {
+        targetOrganizationId = memberships[0].organizationId;
+      }
+    }
+    if (targetOrganizationId) {
+      const orgMember = await organizationService.findMembership(req.user, targetOrganizationId);
       if (!orgMember) {
         return R4XX(res, 403, "You are not a member of the selected organization.");
+      }
+      const subscription = await entitlementService.getSubscriptionWithPlan(targetOrganizationId);
+      if (!subscriptionService.canAccessOrganization(subscription)) {
+        return R4XX(res, 402, "Active subscription required before creating a workspace.", {
+          code: "SUBSCRIPTION_REQUIRED",
+          organizationId: targetOrganizationId,
+        });
+      }
+      const limitCheck = await entitlementService.assertWithinLimit({
+        organizationId: targetOrganizationId,
+        featureKey: "max_workspaces_per_organization",
+        incrementBy: 1,
+      });
+      if (!limitCheck.ok) {
+        const status = limitCheck.code === "FEATURE_NOT_AVAILABLE" ? 403 : 429;
+        const reason =
+          limitCheck.code === "FEATURE_NOT_AVAILABLE"
+            ? "Workspaces are not available in your current plan."
+            : "Workspace limit reached for your current plan.";
+        return R4XX(res, status, reason, limitCheck);
       }
     }
     const workspace = await workspaceService.createWorkspaceAsUser({
       userId: req.user,
       name,
-      organizationId,
+      organizationId: targetOrganizationId,
       organizationName,
     });
     return R2XX(res, "Workspace created successfully", 201, {

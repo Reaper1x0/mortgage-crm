@@ -1,5 +1,6 @@
 const { User, Workspace, OrganizationMember } = require("../models");
 const workspaceService = require("./workspace.service");
+const entitlementService = require("../billing/entitlement.service");
 
 const UserService = {
   getUserByEmail: async (email) => {
@@ -53,6 +54,13 @@ const UserService = {
     role,
     workspaceId,
   }) {
+    const toLimitResult = (check, operation) => ({
+      ok: false,
+      code: "PLAN_LIMIT_REACHED",
+      operation,
+      limitError: check,
+    });
+
     const workspace = await Workspace.findById(workspaceId).lean();
     if (!workspace) {
       return { ok: false, code: "WORKSPACE_NOT_FOUND" };
@@ -68,16 +76,39 @@ const UserService = {
       if (alreadyMember) {
         return { ok: false, code: "ALREADY_IN_WORKSPACE" };
       }
+
+      const wsLimit = await entitlementService.assertWithinLimit({
+        organizationId,
+        workspaceId,
+        featureKey: "max_workspace_members",
+        incrementBy: 1,
+      });
+      if (!wsLimit.ok) {
+        return toLimitResult(wsLimit, "workspace_member_add");
+      }
+
+      const orgMember = await OrganizationMember.findOne({
+        user: existingEmail._id,
+        organization: organizationId,
+      }).lean();
+
+      if (!orgMember) {
+        const orgLimit = await entitlementService.assertWithinLimit({
+          organizationId,
+          featureKey: "max_organization_members",
+          incrementBy: 1,
+        });
+        if (!orgLimit.ok) {
+          return toLimitResult(orgLimit, "organization_member_add");
+        }
+      }
+
       await workspaceService.addMember({
         userId: existingEmail._id,
         workspaceId,
         organizationId,
         role: role || "Viewer",
       });
-      const orgMember = await OrganizationMember.findOne({
-        user: existingEmail._id,
-        organization: organizationId,
-      }).lean();
       if (!orgMember) {
         await OrganizationMember.create({
           user: existingEmail._id,
@@ -91,6 +122,25 @@ const UserService = {
     const existingUsername = await User.findOne({ username });
     if (existingUsername) {
       return { ok: false, code: "USERNAME_TAKEN" };
+    }
+
+    const wsLimit = await entitlementService.assertWithinLimit({
+      organizationId,
+      workspaceId,
+      featureKey: "max_workspace_members",
+      incrementBy: 1,
+    });
+    if (!wsLimit.ok) {
+      return toLimitResult(wsLimit, "workspace_member_add");
+    }
+
+    const orgLimit = await entitlementService.assertWithinLimit({
+      organizationId,
+      featureKey: "max_organization_members",
+      incrementBy: 1,
+    });
+    if (!orgLimit.ok) {
+      return toLimitResult(orgLimit, "organization_member_add");
     }
 
     const newUser = new User({

@@ -3,6 +3,7 @@ import { SERVER_URL } from "../constants/env.constants";
 import getDeviceId from "../utils/getDeviceId";
 import { AuthService } from "../service/authService";
 import { showErrorToast } from "../utils/errorHandler";
+import { getTenantFromPath, buildOrganizationPath } from "../utils/tenantRouting";
 
 const API_BASE_URL = SERVER_URL;
 
@@ -63,17 +64,15 @@ const refreshToken = async () => {
   }
 };
 
-const ACTIVE_WORKSPACE_KEY = "activeWorkspaceId";
-const ACTIVE_ORGANIZATION_KEY = "activeOrganizationId";
-
 // Request interceptor to add access token and active workspace (tenant) context
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
   if (token) {
     config.headers.Authorization = token;
   }
-  const workspaceId = localStorage.getItem(ACTIVE_WORKSPACE_KEY);
-  const organizationId = localStorage.getItem(ACTIVE_ORGANIZATION_KEY);
+  const { organizationId, workspaceId } = getTenantFromPath(
+    typeof window !== "undefined" ? window.location.pathname : ""
+  );
   if (organizationId) {
     config.headers["X-Organization-Id"] = organizationId;
   }
@@ -123,6 +122,16 @@ apiClient.interceptors.response.use(
       !originalRequest?.skipErrorToast
     ) {
       showErrorToast(error);
+    }
+
+    if (
+      error.response?.status === 402 &&
+      error.response?.data?.code === "SUBSCRIPTION_REQUIRED"
+    ) {
+      const { organizationId } = getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "");
+      window.location.href = organizationId
+        ? buildOrganizationPath(organizationId, "settings/billing")
+        : "/pricing";
     }
 
     return Promise.reject(error);

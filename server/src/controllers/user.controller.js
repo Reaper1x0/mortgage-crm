@@ -71,6 +71,15 @@ const UserController = {
       if (result.code === "USERNAME_TAKEN") {
         return R4XX(res, 409, "Username already exists.");
       }
+      if (result.code === "PLAN_LIMIT_REACHED" && result.limitError) {
+        const status = result.limitError.code === "FEATURE_NOT_AVAILABLE" ? 403 : 429;
+        const feature = result.limitError.feature || "resource";
+        const reason =
+          result.limitError.code === "FEATURE_NOT_AVAILABLE"
+            ? `${feature} is not available in your current plan.`
+            : `${feature} limit reached for your current plan.`;
+        return R4XX(res, status, reason, result.limitError);
+      }
       return R4XX(res, 400, "Unable to create user.");
     }
 

@@ -1,5 +1,5 @@
 const express = require('express');
-const { isAuth, requireWorkspace, hasRole } = require('../middlewares');
+const { isAuth, requireWorkspace, hasRole, requireActiveSubscription, enforcePlanLimit } = require('../middlewares');
 const SubmissionController = require('../controllers/submission.controller');
 const SubmissionFieldsController = require('../controllers/submissionFields.controller');
 const ExtractionController = require('../controllers/extraction.controller');
@@ -13,7 +13,15 @@ router.put("/:id/documents/:docEntryId", isAuth, requireWorkspace, hasRole(["Adm
 router.delete("/:id/documents/:docEntryId", isAuth, requireWorkspace, hasRole(["Admin", "Agent"]), ExtractionController.deleteSubmissionDocument);
 
 // Admin: Create a new Submission
-router.post('/', isAuth, requireWorkspace, hasRole(["Admin"]), SubmissionController.createSubmission);
+router.post(
+  '/',
+  isAuth,
+  requireWorkspace,
+  requireActiveSubscription,
+  hasRole(["Admin"]),
+  enforcePlanLimit("max_submissions"),
+  SubmissionController.createSubmission
+);
 
 // Admin, Agent: Update submission (approve validated data)
 router.put('/:key', isAuth, requireWorkspace, hasRole(["Admin", "Agent"]), SubmissionController.updateSubmission);

@@ -13,9 +13,7 @@ import { UserService } from "../service/userService";
 import { AuthService } from "../service/authService";
 import { WorkspaceService, WorkspaceSummary } from "../service/workspaceService";
 import { useTheme } from "./ThemeContext";
-
-const ACTIVE_WORKSPACE_KEY = "activeWorkspaceId";
-const ACTIVE_ORGANIZATION_KEY = "activeOrganizationId";
+import { getTenantFromPath } from "../utils/tenantRouting";
 
 interface AuthContextType {
   user: User | null;
@@ -48,10 +46,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
   const { applyBranding, setTheme } = useTheme();
   const [activeOrganizationId, setActiveOrganizationIdState] = useState<string | null>(() =>
-    typeof localStorage !== "undefined" ? localStorage.getItem(ACTIVE_ORGANIZATION_KEY) : null
+    getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "").organizationId
   );
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string | null>(() =>
-    typeof localStorage !== "undefined" ? localStorage.getItem(ACTIVE_WORKSPACE_KEY) : null
+    getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "").workspaceId
   );
   const isInitialMount = useRef(true);
   const refreshInProgress = useRef(false);
@@ -73,17 +71,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const setActiveOrganizationId = useCallback((id: string | null) => {
     setActiveOrganizationIdState(id);
-    if (id) localStorage.setItem(ACTIVE_ORGANIZATION_KEY, id);
-    else localStorage.removeItem(ACTIVE_ORGANIZATION_KEY);
   }, []);
 
   const setActiveWorkspaceId = useCallback((id: string | null) => {
     setActiveWorkspaceIdState(id);
-    if (id) {
-      localStorage.setItem(ACTIVE_WORKSPACE_KEY, id);
-    } else {
-      localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
-    }
     window.dispatchEvent(new CustomEvent("workspace:changed", { detail: { workspaceId: id } }));
   }, []);
 
@@ -106,8 +97,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setActiveOrganizationId(list[0].organization.organizationId);
       }
 
-      const stored = localStorage.getItem(ACTIVE_WORKSPACE_KEY);
-      const valid = stored && list.some((w) => w.workspaceId === stored);
+      const tenantFromPath = getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "");
+      const pathWorkspaceId = tenantFromPath.workspaceId;
+      const valid = pathWorkspaceId && list.some((w) => w.workspaceId === pathWorkspaceId);
       if (list.length > 0 && !valid) {
         setActiveWorkspaceId(list[0].workspaceId);
       } else if (list.length === 0) {
@@ -152,7 +144,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.removeItem("user");
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
-        localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
       } else {
         const storedUser = loadUserFromStorage();
         if (storedUser) {
@@ -193,8 +184,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem("user");
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
-      localStorage.removeItem(ACTIVE_ORGANIZATION_KEY);
-      localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
     } finally {
       setUser(null);
       setWorkspaces([]);
@@ -229,16 +218,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const handleStorageChange = (e: StorageEvent) => {
       if (
         e.key === "user" ||
-        e.key === "accessToken" ||
-        e.key === ACTIVE_WORKSPACE_KEY ||
-        e.key === ACTIVE_ORGANIZATION_KEY
+        e.key === "accessToken"
       ) {
-        if (e.key === ACTIVE_ORGANIZATION_KEY && e.newValue) {
-          setActiveOrganizationIdState(e.newValue);
-        }
-        if (e.key === ACTIVE_WORKSPACE_KEY && e.newValue) {
-          setActiveWorkspaceIdState(e.newValue);
-        }
         if (e.key === "user" || e.key === "accessToken") {
           if (e.newValue) {
             const storedUser = loadUserFromStorage();
@@ -280,6 +261,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       window.removeEventListener("auth:user-logged-out", handleUserLoggedOut);
     };
   }, [loadUserFromStorage, refreshWorkspaces]);
+
+  useEffect(() => {
+    const syncFromPath = () => {
+      const tenant = getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "");
+      setActiveOrganizationIdState(tenant.organizationId);
+      setActiveWorkspaceIdState(tenant.workspaceId);
+    };
+    syncFromPath();
+    window.addEventListener("popstate", syncFromPath);
+    return () => window.removeEventListener("popstate", syncFromPath);
+  }, []);
 
   useEffect(() => {
     const activeWorkspace = workspaces.find((w) => w.workspaceId === activeWorkspaceId);

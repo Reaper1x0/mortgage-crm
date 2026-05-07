@@ -1,5 +1,5 @@
 const express = require("express");
-const { isAuth, requireWorkspace, hasRole } = require("../middlewares");
+const { isAuth, requireWorkspace, hasRole, requireActiveSubscription, enforcePlanLimit } = require("../middlewares");
 const TemplateController = require("../controllers/template.controller");
 const { uploadTemplatePdf } = require("../middlewares/templateUpload.model");
 
@@ -10,7 +10,9 @@ router.post(
   "/",
   isAuth,
   requireWorkspace,
+  requireActiveSubscription,
   hasRole(["Admin"]),
+  enforcePlanLimit("max_templates"),
   uploadTemplatePdf.single("file"),
   TemplateController.createTemplate
 );

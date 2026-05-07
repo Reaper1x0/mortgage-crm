@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -14,6 +15,7 @@ import { useTheme } from "../../context/ThemeContext";
 export interface BarDataPoint {
   name: string;
   value: number;
+  color?: string;
 }
 
 interface BarChartSimpleProps {
@@ -181,7 +183,11 @@ const BarChartSimple: React.FC<BarChartSimpleProps> = ({
             dataKey={dataKey} 
             fill={`url(#barGradient-${color})`}
             radius={[6, 6, 0, 0]}
-          />
+          >
+            {data.map((entry, index) => (
+              <Cell key={`bar-cell-${index}`} fill={entry.color || `url(#barGradient-${color})`} />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>

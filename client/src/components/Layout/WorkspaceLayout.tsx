@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "react-router";
+import { Outlet, useLocation, useParams } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
@@ -6,27 +6,44 @@ import { LuBraces, LuInbox } from "react-icons/lu";
 import { RiFileEditFill } from "react-icons/ri";
 import { FiUsers, FiUser, FiUserPlus } from "react-icons/fi";
 import { GrDashboard } from "react-icons/gr";
+import { useEffect } from "react";
 
 export default function WorkspaceLayout() {
-  const { role } = useAuth();
+  const { role, activeWorkspaceId, setActiveWorkspaceId, setActiveOrganizationId } = useAuth();
   const location = useLocation();
-  const isOnboarding = location.pathname.includes("/workspace/onboarding");
+  const { organizationId, workspaceId: workspaceIdParam } = useParams();
+  const workspaceId = workspaceIdParam || activeWorkspaceId || "";
+  const isOnboarding = location.pathname.includes("/onboarding");
   const isTemplateDesigner =
     location.pathname.includes("/template-maker/") && location.pathname.includes("/manage");
 
+  const withWorkspace = (suffix: string) =>
+    organizationId && workspaceId
+      ? `/${organizationId}/workspaces/${workspaceId}/${suffix}`
+      : `/${suffix}`;
+
   const defaultLinks: SidebarLink[] = [
-    { to: "/workspace/dashboard/analytics", label: "Dashboard", icon: GrDashboard },
-    { to: "/workspace/submissions", label: "Clients", icon: LuInbox },
-    { to: "/workspace/master-fields", label: "Master Fields Schema", icon: LuBraces },
-    { to: "/workspace/template-maker", label: "Templates", icon: RiFileEditFill },
-    { to: "/workspace/leads", label: "Leads", icon: FiUserPlus },
-    { to: "/workspace/profile", label: "Profile", icon: FiUser },
+    { to: withWorkspace("dashboard"), label: "Dashboard", icon: GrDashboard },
+    { to: withWorkspace("submissions"), label: "Clients", icon: LuInbox },
+    { to: withWorkspace("master-fields"), label: "Master Fields Schema", icon: LuBraces },
+    { to: withWorkspace("template-maker"), label: "Templates", icon: RiFileEditFill },
+    { to: withWorkspace("leads"), label: "Leads", icon: FiUserPlus },
+    {
+      to: organizationId ? `/${organizationId}/profile` : "/profile",
+      label: "Profile",
+      icon: FiUser,
+    },
   ];
 
   const links: SidebarLink[] =
     role === "Admin"
-      ? [...defaultLinks, { to: "/workspace/users", label: "Users", icon: FiUsers }]
+      ? [...defaultLinks, { to: withWorkspace("users"), label: "Users", icon: FiUsers }]
       : defaultLinks;
+
+  useEffect(() => {
+    if (organizationId) setActiveOrganizationId(organizationId);
+    if (workspaceIdParam) setActiveWorkspaceId(workspaceIdParam);
+  }, [organizationId, workspaceIdParam, setActiveOrganizationId, setActiveWorkspaceId]);
 
   return (
     <div className="min-h-screen bg-background text-text">

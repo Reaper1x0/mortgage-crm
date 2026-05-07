@@ -13,6 +13,7 @@ const leadRoutes = require("./lead.routes");
 const workspaceRoutes = require("./workspace.routes");
 const organizationRoutes = require("./organization.routes");
 const superAdminRoutes = require("./superAdmin.routes");
+const billingRoutes = require("./billing.routes");
 
 const defaultRoutes = [
   {
@@ -62,6 +63,10 @@ const defaultRoutes = [
   {
     path: "/super-admin",
     route: superAdminRoutes,
+  },
+  {
+    path: "/billing",
+    route: billingRoutes,
   },
 ];
 

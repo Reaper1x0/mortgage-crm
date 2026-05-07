@@ -22,10 +22,10 @@ export default function ProtectedRoute({ roles = [], requireWorkspace = true }: 
     return <Navigate to="/" replace state={{ from: location }} />;
   }
 
-  const isOnboarding = location.pathname.includes("/workspace/onboarding");
+  const isOnboarding = location.pathname.includes("/onboarding");
 
   if (requireWorkspace && !isOnboarding && workspacesLoaded && workspaces.length === 0) {
-    return <Navigate to="/workspace/onboarding" replace state={{ from: location }} />;
+    return <Navigate to="/onboarding" replace state={{ from: location }} />;
   }
 
   if (requireWorkspace && !isOnboarding && workspaces.length > 0 && !activeWorkspaceId) {
@@ -36,7 +36,9 @@ export default function ProtectedRoute({ roles = [], requireWorkspace = true }: 
     );
   }
 
-  if (!isOnboarding && roles.length > 0) {
+  const isWorkspaceScopedRoute = location.pathname.includes("/workspaces/");
+
+  if (!isOnboarding && roles.length > 0 && isWorkspaceScopedRoute) {
     // System super admin route: allow even when a workspace role exists (Admin/Agent/Viewer)
     if (roles.includes("superAdmin") && user?.role === "superAdmin") {
       // ok

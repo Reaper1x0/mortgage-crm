@@ -1,13 +1,15 @@
-import { Outlet } from "react-router";
+import { Outlet, useParams } from "react-router";
 import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { RiBuildingLine } from "react-icons/ri";
-import { IoLayersOutline } from "react-icons/io5";
+import { FiCreditCard } from "react-icons/fi";
 
 export default function SettingsLayout() {
+  const { organizationId } = useParams();
+  const base = organizationId ? `/${organizationId}/settings` : "/settings";
   const links: SidebarLink[] = [
-    { to: "/workspace/settings/organization", label: "Organization Settings", icon: RiBuildingLine },
-    { to: "/workspace/settings/workspace", label: "Workspace Settings", icon: IoLayersOutline },
+    { to: `${base}/organization`, label: "Organization", icon: RiBuildingLine },
+    { to: `${base}/billing`, label: "Billing", icon: FiCreditCard },
   ];
 
   return (

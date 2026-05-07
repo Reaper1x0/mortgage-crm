@@ -58,6 +58,10 @@ const envVarsSchema = Joi.object({
     .min(10)
     .default(120)
     .label("TEXTRACT_MAX_POLLS"),
+  STRIPE_SECRET_KEY: Joi.string().allow("").optional().label("STRIPE_SECRET_KEY"),
+  STRIPE_WEBHOOK_SECRET: Joi.string().allow("").optional().label("STRIPE_WEBHOOK_SECRET"),
+  STRIPE_SUCCESS_URL: Joi.string().allow("").optional().label("STRIPE_SUCCESS_URL"),
+  STRIPE_CANCEL_URL: Joi.string().allow("").optional().label("STRIPE_CANCEL_URL"),
 })
   .unknown()
   .prefs({ errors: { label: "key" } });
@@ -104,4 +108,8 @@ module.exports = {
   S3_SIGNED_URL_EXPIRES: Number(envVars.S3_SIGNED_URL_EXPIRES || 3600),
   TEXTRACT_POLL_INTERVAL_MS: Number(envVars.TEXTRACT_POLL_INTERVAL_MS || 2000),
   TEXTRACT_MAX_POLLS: Number(envVars.TEXTRACT_MAX_POLLS || 120),
+  STRIPE_SECRET_KEY: envVars.STRIPE_SECRET_KEY || "",
+  STRIPE_WEBHOOK_SECRET: envVars.STRIPE_WEBHOOK_SECRET || "",
+  STRIPE_SUCCESS_URL: envVars.STRIPE_SUCCESS_URL || "",
+  STRIPE_CANCEL_URL: envVars.STRIPE_CANCEL_URL || "",
 };
