@@ -7,16 +7,16 @@ const {
   requireWorkspace,
   hasRole,
   requireActiveSubscription,
+  requireWorkspaceUserManager,
 } = require("../middlewares");
 
 const router = Router();
 
-// All user management routes require Admin role
 router.get(
   "/",
   isAuth,
   requireWorkspace,
-  hasRole(["Admin"]),
+  hasRole(["Admin", "Agent", "Viewer"]),
   validate(userValidation.listUsers),
   userController.listUsers
 );
@@ -25,7 +25,7 @@ router.get(
   "/:id",
   isAuth,
   requireWorkspace,
-  hasRole(["Admin"]),
+  hasRole(["Admin", "Agent", "Viewer"]),
   validate(userValidation.getUser),
   userController.getUser
 );
@@ -35,7 +35,7 @@ router.post(
   isAuth,
   requireWorkspace,
   requireActiveSubscription,
-  hasRole(["Admin"]),
+  requireWorkspaceUserManager,
   validate(userValidation.createUser),
   userController.createUser
 );
@@ -44,7 +44,7 @@ router.put(
   "/:id",
   isAuth,
   requireWorkspace,
-  hasRole(["Admin"]),
+  requireWorkspaceUserManager,
   validate(userValidation.updateUser),
   userController.updateUser
 );
@@ -53,7 +53,7 @@ router.delete(
   "/:id",
   isAuth,
   requireWorkspace,
-  hasRole(["Admin"]),
+  requireWorkspaceUserManager,
   validate(userValidation.deleteUser),
   userController.deleteUser
 );

@@ -2,13 +2,14 @@ import { Outlet, useParams } from "react-router";
 import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { RiBuildingLine } from "react-icons/ri";
-import { FiCreditCard } from "react-icons/fi";
+import { FiCreditCard, FiUsers } from "react-icons/fi";
 
 export default function SettingsLayout() {
   const { organizationId } = useParams();
   const base = organizationId ? `/${organizationId}/settings` : "/settings";
   const links: SidebarLink[] = [
     { to: `${base}/organization`, label: "Organization", icon: RiBuildingLine },
+    { to: `${base}/users`, label: "Users", icon: FiUsers },
     { to: `${base}/billing`, label: "Billing", icon: FiCreditCard },
   ];
 

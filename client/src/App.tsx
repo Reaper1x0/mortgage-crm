@@ -15,7 +15,7 @@ import SubmissionsPage from "./components/Submissions/SubmissionsPage";
 import SubmissionManagementPage from "./components/Submissions/SubmissionManagementPage";
 import TemplateMaker from "./components/TemplateMaker/TemplatesPage";
 import TemplateDesignerPage from "./components/TemplateMaker/TemplateDesignerPage";
-import UsersPage from "./components/Users/UsersPage";
+import WorkspaceUsersPage from "./components/Users/WorkspaceUsersPage";
 import DashboardAnalytics from "./components/Dashboard/DashboardAnalytics";
 import LeadsPage from "./components/Leads/LeadsPage";
 import WorkspaceOnboarding from "./components/Workspace/WorkspaceOnboarding";
@@ -30,6 +30,7 @@ import SuperAdminPlansPage from "./components/SuperAdmin/SuperAdminPlansPage";
 import SuperAdminSubscriptionsPage from "./components/SuperAdmin/SuperAdminSubscriptionsPage";
 import SuperAdminSubscriptionDetailPage from "./components/SuperAdmin/SuperAdminSubscriptionDetailPage";
 import BillingSettings from "./components/Workspace/BillingSettings";
+import OrganizationUsersSettings from "./components/Workspace/OrganizationUsersSettings";
 import PricingPage from "./components/Billing/PricingPage";
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/AuthContext";
@@ -108,12 +109,13 @@ function App() {
             <Route path="master-fields" element={<MasterFieldTable />}></Route>
             <Route path="template-maker" element={<TemplateMaker />}></Route>
             <Route path="template-maker/:templateId/manage" element={<TemplateDesignerPage />}></Route>
-            <Route path="users" element={<UsersPage />}></Route>
+            <Route path="users" element={<WorkspaceUsersPage />}></Route>
             <Route path="leads" element={<LeadsPage />}></Route>
           </Route>
           <Route path="settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="organization" replace />} />
             <Route path="organization" element={<OrganizationSettings />} />
+            <Route path="users" element={<OrganizationUsersSettings />} />
             <Route path="billing" element={<BillingSettings />} />
           </Route>
         </Route>

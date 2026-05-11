@@ -9,6 +9,7 @@ const {
 } = require("../models");
 const { buildPaginationMeta } = require("../utils/pagination.utils");
 const { getStripe } = require("../billing/stripe.service");
+const mongoose = require("mongoose");
 
 const orgRolePriority = {
   Owner: 4,
@@ -592,6 +593,261 @@ const SuperAdminService = {
             : 0,
       },
       pagination: buildPaginationMeta({ page: Number(page) || 1, limit: Math.max(1, Number(limit) || 10), total }),
+    };
+  },
+
+  getOrganizationDetails: async (organizationId) => {
+    if (!mongoose.Types.ObjectId.isValid(organizationId)) {
+      const err = new Error("Invalid organization id");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const organization = await Organization.findById(organizationId)
+      .populate({
+        path: "createdBy",
+        select: "fullName email username role isEmailVerified profile_picture",
+        populate: { path: "profile_picture" },
+      })
+      .lean();
+
+    if (!organization) {
+      const err = new Error("Organization not found");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const orgObjectId = organization._id;
+
+    const [
+      subscription,
+      workspaceCount,
+      orgMemberCount,
+      workspaceSeatCount,
+      organizationRoleBreakdown,
+      workspaceRoleBreakdown,
+      recentWorkspaces,
+      membersPreview,
+    ] = await Promise.all([
+      OrganizationSubscription.findOne({ organization: orgObjectId })
+        .populate({
+          path: "plan",
+          select:
+            "name code description displayOrder active visible recommended trialDays entitlements stripeMonthlyPriceId stripeYearlyPriceId",
+        })
+        .lean(),
+
+      Workspace.countDocuments({ organization: orgObjectId }),
+
+      OrganizationMember.countDocuments({ organization: orgObjectId }),
+
+      WorkspaceMember.countDocuments({ organization: orgObjectId }),
+
+      OrganizationMember.aggregate([
+        { $match: { organization: orgObjectId } },
+        { $group: { _id: "$role", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+
+      WorkspaceMember.aggregate([
+        { $match: { organization: orgObjectId } },
+        { $group: { _id: "$role", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+
+      Workspace.aggregate([
+        { $match: { organization: orgObjectId } },
+        {
+          $lookup: {
+            from: "workspace_members",
+            localField: "_id",
+            foreignField: "workspace",
+            as: "members",
+          },
+        },
+        {
+          $addFields: {
+            memberCount: { $size: "$members" },
+            adminCount: {
+              $size: {
+                $filter: {
+                  input: "$members",
+                  as: "m",
+                  cond: { $eq: ["$$m.role", "Admin"] },
+                },
+              },
+            },
+          },
+        },
+        { $sort: { updatedAt: -1 } },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            slug: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            memberCount: 1,
+            adminCount: 1,
+          },
+        },
+      ]),
+
+      OrganizationMember.find({ organization: orgObjectId })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .populate({
+          path: "user",
+          select: "fullName email username role isEmailVerified profile_picture",
+          populate: { path: "profile_picture" },
+        })
+        .lean(),
+    ]);
+
+    return {
+      ...organization,
+      subscription: subscription
+        ? {
+            _id: subscription._id,
+            status: subscription.status,
+            billingCycle: subscription.billingCycle,
+            stripeCustomerId: subscription.stripeCustomerId,
+            stripeSubscriptionId: subscription.stripeSubscriptionId,
+            stripePriceId: subscription.stripePriceId,
+            trialStart: subscription.trialStart,
+            trialEnd: subscription.trialEnd,
+            currentPeriodStart: subscription.currentPeriodStart,
+            currentPeriodEnd: subscription.currentPeriodEnd,
+            cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+            lastSyncedAt: subscription.lastSyncedAt,
+            planSnapshot: subscription.planSnapshot,
+            plan: subscription.plan || null,
+            createdAt: subscription.createdAt,
+            updatedAt: subscription.updatedAt,
+          }
+        : null,
+      counts: {
+        workspaces: workspaceCount,
+        organizationMembers: orgMemberCount,
+        workspaceSeats: workspaceSeatCount,
+      },
+      roleBreakdown: {
+        organization: organizationRoleBreakdown.map((r) => ({
+          role: r._id || "unknown",
+          count: r.count,
+        })),
+        workspace: workspaceRoleBreakdown.map((r) => ({
+          role: r._id || "unknown",
+          count: r.count,
+        })),
+      },
+      recentWorkspaces,
+      membersPreview,
+    };
+  },
+
+  getWorkspaceDetails: async (workspaceId) => {
+    if (!mongoose.Types.ObjectId.isValid(workspaceId)) {
+      const err = new Error("Invalid workspace id");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const workspace = await Workspace.findById(workspaceId)
+      .populate({
+        path: "organization",
+        select: "name slug legalName website industry size contactEmail phone settings branding",
+      })
+      .populate({
+        path: "createdBy",
+        select: "fullName email username role isEmailVerified profile_picture",
+        populate: { path: "profile_picture" },
+      })
+      .lean();
+
+    if (!workspace) {
+      const err = new Error("Workspace not found");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const workspaceObjectId = workspace._id;
+    const organizationId = workspace.organization?._id || workspace.organization;
+
+    const [
+      subscription,
+      memberCount,
+      roleBreakdown,
+      membersPreview,
+      organizationWorkspaceCount,
+      organizationMemberCount,
+    ] = await Promise.all([
+      organizationId
+        ? OrganizationSubscription.findOne({ organization: organizationId })
+            .populate({
+              path: "plan",
+              select:
+                "name code description displayOrder active visible recommended trialDays entitlements stripeMonthlyPriceId stripeYearlyPriceId",
+            })
+            .lean()
+        : null,
+
+      WorkspaceMember.countDocuments({ workspace: workspaceObjectId }),
+
+      WorkspaceMember.aggregate([
+        { $match: { workspace: workspaceObjectId } },
+        { $group: { _id: "$role", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+
+      WorkspaceMember.find({ workspace: workspaceObjectId })
+        .sort({ createdAt: -1 })
+        .limit(15)
+        .populate({
+          path: "user",
+          select: "fullName email username role isEmailVerified profile_picture",
+          populate: { path: "profile_picture" },
+        })
+        .lean(),
+
+      organizationId ? Workspace.countDocuments({ organization: organizationId }) : 0,
+
+      organizationId ? OrganizationMember.countDocuments({ organization: organizationId }) : 0,
+    ]);
+
+    return {
+      ...workspace,
+      subscription: subscription
+        ? {
+            _id: subscription._id,
+            status: subscription.status,
+            billingCycle: subscription.billingCycle,
+            stripeCustomerId: subscription.stripeCustomerId,
+            stripeSubscriptionId: subscription.stripeSubscriptionId,
+            stripePriceId: subscription.stripePriceId,
+            trialStart: subscription.trialStart,
+            trialEnd: subscription.trialEnd,
+            currentPeriodStart: subscription.currentPeriodStart,
+            currentPeriodEnd: subscription.currentPeriodEnd,
+            cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+            lastSyncedAt: subscription.lastSyncedAt,
+            planSnapshot: subscription.planSnapshot,
+            plan: subscription.plan || null,
+            createdAt: subscription.createdAt,
+            updatedAt: subscription.updatedAt,
+          }
+        : null,
+      counts: {
+        members: memberCount,
+        organizationWorkspaces: organizationWorkspaceCount,
+        organizationMembers: organizationMemberCount,
+      },
+      roleBreakdown: roleBreakdown.map((r) => ({
+        role: r._id || "unknown",
+        count: r.count,
+      })),
+      membersPreview,
     };
   },
 };

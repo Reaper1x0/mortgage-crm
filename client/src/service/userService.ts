@@ -31,6 +31,15 @@ export interface UserListResponse {
   message: string;
   success: boolean;
   users: User[];
+  roleStats?: {
+    adminCount: number;
+    agentCount: number;
+    viewerCount: number;
+  };
+  permissions?: {
+    canManageUsers: boolean;
+    canManageAdmins: boolean;
+  };
   pagination: {
     page: number;
     limit: number;

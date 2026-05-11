@@ -1,8 +1,87 @@
-const { User, Workspace, OrganizationMember } = require("../models");
+const mongoose = require("mongoose");
+const { User, Workspace, OrganizationMember, WorkspaceMember } = require("../models");
 const workspaceService = require("./workspace.service");
 const entitlementService = require("../billing/entitlement.service");
 
 const UserService = {
+  canManageWorkspaceUsers: ({ orgRole, workspaceRole }) => {
+    if (orgRole === "Owner" || orgRole === "Admin") return true;
+    return workspaceRole === "Admin";
+  },
+
+  getWorkspaceRoleStats: async (workspaceId) => {
+    const workspaceObjId =
+      typeof workspaceId === "string" ? new mongoose.Types.ObjectId(workspaceId) : workspaceId;
+    const rows = await WorkspaceMember.aggregate([
+      { $match: { workspace: workspaceObjId } },
+      { $group: { _id: "$role", count: { $sum: 1 } } },
+    ]);
+    const roleCounts = { Admin: 0, Agent: 0, Viewer: 0 };
+    rows.forEach((row) => {
+      if (roleCounts[row._id] !== undefined) roleCounts[row._id] = row.count;
+    });
+    return {
+      adminCount: roleCounts.Admin,
+      agentCount: roleCounts.Agent,
+      viewerCount: roleCounts.Viewer,
+    };
+  },
+
+  validateWorkspaceRoleUpdatePolicy: ({
+    actorOrgRole,
+    actorWorkspaceRole,
+    actorUserId,
+    targetUserId,
+    targetRole,
+    nextRole,
+    roleStats,
+  }) => {
+    if (!UserService.canManageWorkspaceUsers({ orgRole: actorOrgRole, workspaceRole: actorWorkspaceRole })) {
+      return { ok: false, status: 403, message: "You do not have permission to manage workspace users." };
+    }
+    if (!["Admin", "Agent", "Viewer"].includes(nextRole)) {
+      return { ok: false, status: 400, message: "Invalid workspace role." };
+    }
+    const orgHasElevatedControl = actorOrgRole === "Owner" || actorOrgRole === "Admin";
+    if (targetRole === "Admin" && !orgHasElevatedControl) {
+      return { ok: false, status: 403, message: "Only organization owner/admin can update workspace admins." };
+    }
+    if (nextRole === "Admin" && !orgHasElevatedControl) {
+      return { ok: false, status: 403, message: "Only organization owner/admin can assign admin role." };
+    }
+    if (String(actorUserId) === String(targetUserId) && targetRole === "Admin" && nextRole !== "Admin") {
+      return { ok: false, status: 400, message: "You cannot demote your own admin access." };
+    }
+    if (targetRole === "Admin" && nextRole !== "Admin" && (roleStats?.adminCount || 0) <= 1) {
+      return { ok: false, status: 400, message: "At least one workspace admin must remain." };
+    }
+    return { ok: true };
+  },
+
+  validateWorkspaceRemovalPolicy: ({
+    actorOrgRole,
+    actorWorkspaceRole,
+    actorUserId,
+    targetUserId,
+    targetRole,
+    roleStats,
+  }) => {
+    if (String(actorUserId) === String(targetUserId)) {
+      return { ok: false, status: 400, message: "You cannot remove your own workspace membership." };
+    }
+    if (!UserService.canManageWorkspaceUsers({ orgRole: actorOrgRole, workspaceRole: actorWorkspaceRole })) {
+      return { ok: false, status: 403, message: "You do not have permission to manage workspace users." };
+    }
+    const orgHasElevatedControl = actorOrgRole === "Owner" || actorOrgRole === "Admin";
+    if (targetRole === "Admin" && !orgHasElevatedControl) {
+      return { ok: false, status: 403, message: "Only organization owner/admin can remove workspace admins." };
+    }
+    if (targetRole === "Admin" && (roleStats?.adminCount || 0) <= 1) {
+      return { ok: false, status: 400, message: "At least one workspace admin must remain." };
+    }
+    return { ok: true };
+  },
+
   getUserByEmail: async (email) => {
     return await User.findOne({ email }).populate("profile_picture");
   },

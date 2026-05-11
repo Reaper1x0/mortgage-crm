@@ -88,6 +88,26 @@ const SuperAdminController = {
       pagination,
     });
   }),
+
+  getOrganizationDetails: catchAsync(async (req, res) => {
+    const organization = await superAdminService.getOrganizationDetails(req.params.organizationId);
+
+    await attachSignedUrlsDeep(organization);
+
+    return R2XX(res, "Organization details fetched successfully", 200, {
+      organization,
+    });
+  }),
+
+  getWorkspaceDetails: catchAsync(async (req, res) => {
+    const workspace = await superAdminService.getWorkspaceDetails(req.params.workspaceId);
+
+    await attachSignedUrlsDeep(workspace);
+
+    return R2XX(res, "Workspace details fetched successfully", 200, {
+      workspace,
+    });
+  }),
 };
 
 module.exports = SuperAdminController;

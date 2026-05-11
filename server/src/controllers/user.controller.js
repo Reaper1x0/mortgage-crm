@@ -29,9 +29,19 @@ const UserController = {
 
     const users = items.map((user) => sanitizers.userSanitizer(user));
     await attachSignedUrlsDeep(users);
+    const roleStats = await userService.getWorkspaceRoleStats(workspaceId);
+    const permissions = {
+      canManageUsers: userService.canManageWorkspaceUsers({
+        orgRole: req.orgRole,
+        workspaceRole: req.workspaceRole,
+      }),
+      canManageAdmins: req.orgRole === "Owner" || req.orgRole === "Admin",
+    };
 
     return R2XX(res, "Users fetched successfully", 200, {
       users,
+      roleStats,
+      permissions,
       pagination,
     });
   }),
@@ -99,6 +109,19 @@ const UserController = {
     const bundle = await userService.getUserInWorkspace(id, req.workspaceId);
     if (!bundle) return R4XX(res, 404, "User not found");
     const user = bundle.user;
+    const targetWorkspaceRole = bundle.workspaceRole;
+    const nextWorkspaceRole = updateData.role || targetWorkspaceRole;
+    const roleStats = await userService.getWorkspaceRoleStats(req.workspaceId);
+    const policy = userService.validateWorkspaceRoleUpdatePolicy({
+      actorOrgRole: req.orgRole,
+      actorWorkspaceRole: req.workspaceRole,
+      actorUserId: req.user,
+      targetUserId: id,
+      targetRole: targetWorkspaceRole,
+      nextRole: nextWorkspaceRole,
+      roleStats,
+    });
+    if (!policy.ok) return R4XX(res, policy.status || 400, policy.message || "Role update is not allowed.");
 
     if (updateData.email && updateData.email !== user.email) {
       const existingEmail = await userService.getUserByEmail(updateData.email);
@@ -131,10 +154,16 @@ const UserController = {
 
     const bundle = await userService.getUserInWorkspace(id, req.workspaceId);
     if (!bundle) return R4XX(res, 404, "User not found");
-
-    if (String(id) === String(req.user)) {
-      return R4XX(res, 400, "You cannot delete your own account");
-    }
+    const roleStats = await userService.getWorkspaceRoleStats(req.workspaceId);
+    const policy = userService.validateWorkspaceRemovalPolicy({
+      actorOrgRole: req.orgRole,
+      actorWorkspaceRole: req.workspaceRole,
+      actorUserId: req.user,
+      targetUserId: id,
+      targetRole: bundle.workspaceRole,
+      roleStats,
+    });
+    if (!policy.ok) return R4XX(res, policy.status || 400, policy.message || "User removal is not allowed.");
 
     const deleted = await userService.deleteUserById(id, req.workspaceId);
     if (!deleted) return R4XX(res, 404, "User not found");

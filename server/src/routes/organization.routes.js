@@ -16,6 +16,54 @@ router.patch(
   validate(organizationValidation.updateProfile),
   OrganizationController.updateProfile
 );
+router.get(
+  "/members",
+  isAuth,
+  requireOrganization,
+  hasRole({ scope: "organization", roles: ["Owner", "Admin", "Member", "Viewer"] }),
+  validate(organizationValidation.listMembers),
+  OrganizationController.listMembers
+);
+router.post(
+  "/members",
+  isAuth,
+  requireOrganization,
+  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  validate(organizationValidation.addMember),
+  OrganizationController.addMember
+);
+router.patch(
+  "/members/:userId/role",
+  isAuth,
+  requireOrganization,
+  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  validate(organizationValidation.updateMemberRole),
+  OrganizationController.updateMemberRole
+);
+router.patch(
+  "/members/:userId/workspaces/:workspaceId/role",
+  isAuth,
+  requireOrganization,
+  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  validate(organizationValidation.updateWorkspaceRole),
+  OrganizationController.updateWorkspaceRole
+);
+router.delete(
+  "/members/:userId/workspaces/:workspaceId",
+  isAuth,
+  requireOrganization,
+  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  validate(organizationValidation.removeWorkspaceAccess),
+  OrganizationController.removeWorkspaceAccess
+);
+router.delete(
+  "/members/:userId",
+  isAuth,
+  requireOrganization,
+  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  validate(organizationValidation.removeMember),
+  OrganizationController.removeMember
+);
 const brandingMiddlewares = [
   isAuth,
   requireOrganization,

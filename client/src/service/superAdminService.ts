@@ -24,6 +24,15 @@ export interface SignupDay {
   count: number;
 }
 
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasPrev: boolean;
+  hasNext: boolean;
+}
+
 export interface SuperAdminDashboardResponse {
   success: boolean;
   message: string;
@@ -56,6 +65,44 @@ export interface SuperAdminOrganizationsSummary {
   avgWorkspacesPerOrganization: number;
 }
 
+export interface SuperAdminPlan {
+  _id?: string;
+  name?: string;
+  code?: string;
+  description?: string;
+  displayOrder?: number;
+  active?: boolean;
+  visible?: boolean;
+  recommended?: boolean;
+  trialDays?: number;
+  entitlements?: Record<string, any>;
+  stripeMonthlyPriceId?: string | null;
+  stripeYearlyPriceId?: string | null;
+}
+
+export interface SuperAdminSubscription {
+  _id?: string;
+  status?: string;
+  billingCycle?: string;
+  cancelAtPeriodEnd?: boolean;
+  currentPeriodStart?: string | null;
+  currentPeriodEnd?: string | null;
+  trialStart?: string | null;
+  trialEnd?: string | null;
+  lastSyncedAt?: string | null;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  stripePriceId?: string | null;
+  planSnapshot?: {
+    name?: string;
+    code?: string;
+    entitlements?: Record<string, any>;
+  };
+  plan?: SuperAdminPlan | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface SuperAdminOrganizationRow {
   _id: string;
   name: string;
@@ -70,15 +117,7 @@ export interface SuperAdminOrganizationRow {
   workspaceCount: number;
   orgMemberCount: number;
   workspaceSeatCount: number;
-  subscription?: {
-    _id?: string;
-    status?: string;
-    billingCycle?: string;
-    cancelAtPeriodEnd?: boolean;
-    currentPeriodEnd?: string | null;
-    planSnapshot?: { name?: string; code?: string };
-    stripeSubscriptionId?: string | null;
-  } | null;
+  subscription?: SuperAdminSubscription | null;
 }
 
 export interface SuperAdminWorkspacesSummary {
@@ -91,6 +130,24 @@ export interface SuperAdminWorkspacesSummary {
   avgMembersPerWorkspace: number;
 }
 
+export interface SuperAdminWorkspaceOrganization {
+  _id: string;
+  name: string;
+  slug: string;
+  legalName?: string | null;
+  website?: string | null;
+  industry?: string | null;
+  size?: string | null;
+  contactEmail?: string | null;
+  phone?: string | null;
+  settings?: {
+    timezone?: string;
+    locale?: string;
+    currency?: string;
+  };
+  branding?: BrandingInfo | null;
+}
+
 export interface SuperAdminWorkspaceRow {
   _id: string;
   name: string;
@@ -99,30 +156,123 @@ export interface SuperAdminWorkspaceRow {
   updatedAt: string;
   memberCount: number;
   adminCount: number;
-  organization?: {
-    _id: string;
-    name: string;
-    slug: string;
-  } | null;
-  subscription?: {
-    status?: string;
-    billingCycle?: string;
-    currentPeriodEnd?: string | null;
-    cancelAtPeriodEnd?: boolean;
-  } | null;
+  organization?: SuperAdminWorkspaceOrganization | null;
+  subscription?: SuperAdminSubscription | null;
 }
+
+export interface BrandingInfo {
+  logoUrl?: string | null;
+  logoFile?: any;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  themeMode?: string | null;
+  customVars?: Record<string, any> | null;
+}
+
+export interface SuperAdminMiniUser {
+  _id?: string;
+  fullName?: string | null;
+  email?: string | null;
+  username?: string | null;
+  role?: string | null;
+  isEmailVerified?: boolean;
+  profile_picture?: any;
+}
+
+export interface OrganizationMemberPreview {
+  _id: string;
+  role: string;
+  createdAt?: string;
+  updatedAt?: string;
+  user?: SuperAdminMiniUser | null;
+}
+
+export interface WorkspaceMemberPreview {
+  _id: string;
+  role: string;
+  createdAt?: string;
+  updatedAt?: string;
+  user?: SuperAdminMiniUser | null;
+}
+
+export interface RecentWorkspacePreview {
+  _id: string;
+  name: string;
+  slug: string;
+  createdAt?: string;
+  updatedAt?: string;
+  memberCount?: number;
+  adminCount?: number;
+}
+
+export interface SuperAdminOrganizationDetails extends SuperAdminOrganizationRow {
+  phone?: string | null;
+  address?: {
+    line1?: string | null;
+    line2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+  };
+  settings?: {
+    timezone?: string;
+    locale?: string;
+    currency?: string;
+  };
+  branding?: BrandingInfo | null;
+  createdBy?: SuperAdminMiniUser | null;
+  counts?: {
+    workspaces: number;
+    organizationMembers: number;
+    workspaceSeats: number;
+  };
+  roleBreakdown?: {
+    organization: RoleCount[];
+    workspace: RoleCount[];
+  };
+  recentWorkspaces?: RecentWorkspacePreview[];
+  membersPreview?: OrganizationMemberPreview[];
+}
+
+export interface SuperAdminWorkspaceDetails extends SuperAdminWorkspaceRow {
+  branding?: BrandingInfo | null;
+  createdBy?: SuperAdminMiniUser | null;
+  counts?: {
+    members: number;
+    organizationWorkspaces: number;
+    organizationMembers: number;
+  };
+  roleBreakdown?: RoleCount[];
+  membersPreview?: WorkspaceMemberPreview[];
+}
+
+const defaultPagination = (limit = 10): PaginationMeta => ({
+  page: 1,
+  limit,
+  total: 0,
+  totalPages: 1,
+  hasPrev: false,
+  hasNext: false,
+});
+
+const unwrapPayload = <T = any>(data: any): T => {
+  return (data?.data || data || {}) as T;
+};
 
 export const SuperAdminService = {
   getDashboard: async (): Promise<Omit<SuperAdminDashboardResponse, "success" | "message">> => {
     const { data } = await apiClient.get<SuperAdminDashboardResponse>("/super-admin/dashboard");
+    const payload = unwrapPayload<SuperAdminDashboardResponse>(data);
+
     return {
-      summary: data.summary,
-      systemRoleBreakdown: data.systemRoleBreakdown,
-      workspaceRoleBreakdown: data.workspaceRoleBreakdown,
-      organizationRoleBreakdown: data.organizationRoleBreakdown,
-      signupsLast14Days: data.signupsLast14Days,
-      subscriptionStatusBreakdown: data.subscriptionStatusBreakdown || [],
-      estimatedRevenue: data.estimatedRevenue || {
+      summary: payload.summary,
+      systemRoleBreakdown: payload.systemRoleBreakdown || [],
+      workspaceRoleBreakdown: payload.workspaceRoleBreakdown || [],
+      organizationRoleBreakdown: payload.organizationRoleBreakdown || [],
+      signupsLast14Days: payload.signupsLast14Days || [],
+      subscriptionStatusBreakdown: payload.subscriptionStatusBreakdown || [],
+      estimatedRevenue: payload.estimatedRevenue || {
         mrr: 0,
         arr: 0,
         currency: "USD",
@@ -133,45 +283,59 @@ export const SuperAdminService = {
       },
     };
   },
+
   listOrganizations: async (params: {
     page: number;
     limit: number;
     search?: string;
     subscriptionStatus?: string;
-  }) => {
+  }): Promise<{
+    organizations: SuperAdminOrganizationRow[];
+    summary: SuperAdminOrganizationsSummary;
+    pagination: PaginationMeta;
+  }> => {
     const { data } = await apiClient.get("/super-admin/organizations", { params });
+    const payload = unwrapPayload(data);
+
     return {
-      organizations: (data?.organizations || []) as SuperAdminOrganizationRow[],
-      summary: (data?.summary || {}) as SuperAdminOrganizationsSummary,
-      pagination: data?.pagination || {
-        page: 1,
-        limit: params.limit || 10,
-        total: 0,
-        totalPages: 1,
-        hasPrev: false,
-        hasNext: false,
-      },
+      organizations: (payload?.organizations || []) as SuperAdminOrganizationRow[],
+      summary: (payload?.summary || {}) as SuperAdminOrganizationsSummary,
+      pagination: payload?.pagination || defaultPagination(params.limit),
     };
   },
+
+  getOrganizationDetails: async (organizationId: string): Promise<SuperAdminOrganizationDetails> => {
+    const { data } = await apiClient.get(`/super-admin/organizations/${organizationId}`);
+    const payload = unwrapPayload(data);
+
+    return payload.organization as SuperAdminOrganizationDetails;
+  },
+
   listWorkspaces: async (params: {
     page: number;
     limit: number;
     search?: string;
     role?: string;
     subscriptionStatus?: string;
-  }) => {
+  }): Promise<{
+    workspaces: SuperAdminWorkspaceRow[];
+    summary: SuperAdminWorkspacesSummary;
+    pagination: PaginationMeta;
+  }> => {
     const { data } = await apiClient.get("/super-admin/workspaces", { params });
+    const payload = unwrapPayload(data);
+
     return {
-      workspaces: (data?.workspaces || []) as SuperAdminWorkspaceRow[],
-      summary: (data?.summary || {}) as SuperAdminWorkspacesSummary,
-      pagination: data?.pagination || {
-        page: 1,
-        limit: params.limit || 10,
-        total: 0,
-        totalPages: 1,
-        hasPrev: false,
-        hasNext: false,
-      },
+      workspaces: (payload?.workspaces || []) as SuperAdminWorkspaceRow[],
+      summary: (payload?.summary || {}) as SuperAdminWorkspacesSummary,
+      pagination: payload?.pagination || defaultPagination(params.limit),
     };
+  },
+
+  getWorkspaceDetails: async (workspaceId: string): Promise<SuperAdminWorkspaceDetails> => {
+    const { data } = await apiClient.get(`/super-admin/workspaces/${workspaceId}`);
+    const payload = unwrapPayload(data);
+
+    return payload.workspace as SuperAdminWorkspaceDetails;
   },
 };
