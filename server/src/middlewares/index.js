@@ -1,11 +1,16 @@
 module.exports.isAuth = require("./auth.middleware");
 module.exports.requireOrganization = require("./organizationContext.middleware");
 module.exports.requireWorkspace = require("./workspaceContext.middleware");
+module.exports.attachWorkspacePermissionsIfPresent = require("./optionalWorkspaceContext.middleware");
 module.exports.isMember = require("./isMember.middleware");
 module.exports.validate = require("./validate.middleware");
 module.exports.isNotMember = require("./isNotMember.middleware");
 module.exports.isNotLoggedIn = require("./isNotLoggedIn.middleware");
 module.exports.isPasswordSame = require("./isPasswordSame.middleware");
 module.exports.getDeviceId = require("./getDeviceId.middleware");
-module.exports.hasRole = require("./hasRole.middleware");
+module.exports.requirePermission = require("./requirePermission.middleware");
 module.exports.requireSystemRole = require("./requireSystemRole.middleware");
+module.exports.requireActiveSubscription = require("./requireActiveSubscription.middleware");
+module.exports.requireEntitlement = require("./requireEntitlement.middleware");
+module.exports.enforcePlanLimit = require("./enforcePlanLimit.middleware");
+module.exports.requireWorkspaceUserManager = require("./requireWorkspaceUserManager.middleware");

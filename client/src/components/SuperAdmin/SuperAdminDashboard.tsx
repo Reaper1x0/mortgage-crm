@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "../Reusable/PageHeader";
 import StatCard from "../Reusable/StatCard";
 import ChartPanel from "../Reusable/ChartPanel";
@@ -39,6 +39,12 @@ export default function SuperAdminDashboard() {
   };
   const verifiedPct =
     s && s.totalUsers > 0 ? Math.round((s.verifiedUsers / s.totalUsers) * 1000) / 10 : 0;
+  const formatMoney = (value = 0, currency = "USD") =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency || "USD",
+      maximumFractionDigits: 0,
+    }).format(value || 0);
 
   const lineData = useMemo(() => {
     if (!data?.signupsLast14Days?.length) return [];
@@ -48,19 +54,55 @@ export default function SuperAdminDashboard() {
     });
   }, [data?.signupsLast14Days]);
 
-  const workspaceBar = useMemo(() => {
-    if (!data?.workspaceRoleBreakdown?.length) return [];
-    return [...data.workspaceRoleBreakdown]
-      .sort((a, b) => b.count - a.count)
-      .map((r) => ({ name: r.role, value: r.count }));
-  }, [data?.workspaceRoleBreakdown]);
+  const systemRoleBar = useMemo(() => {
+    const palette = ["var(--color-primary)", "var(--color-info)", "var(--color-accent)", "var(--color-success)"];
+    const rows = data?.systemRoleBreakdown || [];
+    return rows.map((r, idx) => {
+      const key = String(r.role || "unknown");
+      const name =
+        key === "superAdmin" ? "Super admin" : key === "user" ? "User" : key.replace(/_/g, " ");
+      return {
+        name,
+        value: Number(r.count || 0),
+        color: palette[idx % palette.length],
+      };
+    });
+  }, [data?.systemRoleBreakdown]);
 
-  const orgDonut = useMemo(() => {
-    if (!data?.organizationRoleBreakdown?.length) return [];
-    return data.organizationRoleBreakdown
-      .filter((r) => r.count > 0)
-      .map((r) => ({ name: r.role, value: r.count }));
-  }, [data?.organizationRoleBreakdown]);
+  const subscriptionDonut = useMemo(() => {
+    const order = ["active", "trialing", "past_due", "incomplete", "canceled", "unpaid", "paused"];
+    const colors: Record<string, string> = {
+      active: "var(--color-success)",
+      trialing: "var(--color-info)",
+      past_due: "var(--color-warning)",
+      incomplete: "var(--color-danger)",
+      canceled: "var(--color-card-text)",
+      unpaid: "var(--color-danger)",
+      paused: "var(--color-accent)",
+    };
+    const countMap = new Map((data?.subscriptionStatusBreakdown || []).map((s) => [s.status, s.count]));
+    return order.map((status) => ({
+      name: status.replace(/_/g, " "),
+      value: Number(countMap.get(status) || 0),
+      color: colors[status],
+    }));
+  }, [data?.subscriptionStatusBreakdown]);
+
+  const revenueByPlanBar = useMemo(() => {
+    const planColors = [
+      "var(--color-primary)",
+      "var(--color-info)",
+      "var(--color-accent)",
+      "var(--color-success)",
+      "var(--color-warning)",
+      "var(--color-danger)",
+    ];
+    return (data?.estimatedRevenue?.byPlan || []).map((plan, idx) => ({
+      name: plan.name,
+      value: Number(plan.mrr || 0),
+      color: planColors[idx % planColors.length],
+    }));
+  }, [data?.estimatedRevenue?.byPlan]);
 
   return (
     <div className="space-y-6">
@@ -118,6 +160,24 @@ export default function SuperAdminDashboard() {
           loading={loading}
           icon={<FiShield className="h-5 w-5" aria-hidden />}
         />
+        <StatCard
+          title="Estimated MRR"
+          value={getMetric(formatMoney(data?.estimatedRevenue?.mrr, data?.estimatedRevenue?.currency))}
+          hint={
+            data?.estimatedRevenue?.estimateAvailable
+              ? `From ${data?.estimatedRevenue?.estimatedFromSubscriptions || 0} billable subscription(s)`
+              : "Revenue estimate unavailable (Stripe not configured)"
+          }
+          loading={loading}
+          icon={<FiList className="h-5 w-5" aria-hidden />}
+        />
+        <StatCard
+          title="Estimated ARR"
+          value={getMetric(formatMoney(data?.estimatedRevenue?.arr, data?.estimatedRevenue?.currency))}
+          hint="Projected annual recurring revenue"
+          loading={loading}
+          icon={<FiGrid className="h-5 w-5" aria-hidden />}
+        />
       </div>
 
       <ChartPanel
@@ -132,21 +192,33 @@ export default function SuperAdminDashboard() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartPanel
-          title="Workspace roles"
-          description="Members by workspace role (Admin, Agent, Viewer)."
+          title="System account roles"
+          description="Accounts by built-in system role (super admin vs user). Tenant RBAC is not shown here."
           bodyClassName="!px-0 !py-0"
         >
-          <div className="-mx-2">
-            <BarChartSimple data={workspaceBar} loading={loading} color="primary" />
+          <div className="-mx-2 min-h-[280px]">
+            <BarChartSimple data={systemRoleBar} loading={loading} color="primary" />
           </div>
         </ChartPanel>
         <ChartPanel
-          title="Organization roles"
-          description="Members by organization role (Owner, Admin, Member, Viewer)."
+          title="Subscription status distribution"
+          description="Portfolio health across active, trialing, due, incomplete, and canceled states."
           bodyClassName="!px-0 !py-0"
         >
           <div className="-mx-2 min-h-[320px]">
-            <DonutWorkloadChart data={orgDonut} loading={loading} />
+            <DonutWorkloadChart data={subscriptionDonut} loading={loading} />
+          </div>
+        </ChartPanel>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        <ChartPanel
+          title="Estimated MRR by plan"
+          description="Plan-level contribution to monthly recurring revenue estimate."
+          bodyClassName="!px-0 !py-0"
+        >
+          <div className="-mx-2 min-h-[320px]">
+            <BarChartSimple data={revenueByPlanBar} loading={loading} color="primary" />
           </div>
         </ChartPanel>
       </div>

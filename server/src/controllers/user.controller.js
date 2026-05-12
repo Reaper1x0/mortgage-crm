@@ -4,6 +4,9 @@ const { catchAsync } = require("../utils");
 const { parsePagination } = require("../utils/pagination.utils");
 const { sanitizers } = require("../sanitizers");
 const { attachSignedUrlsDeep } = require("../utils/fileUrl.utils");
+const authorizationService = require("../services/authorization.service");
+const organizationService = require("../services/organization.service");
+const { WorkspaceRole } = require("../models");
 
 const UserController = {
   listUsers: catchAsync(async (req, res) => {
@@ -24,14 +27,26 @@ const UserController = {
       sortBy,
       sortOrder,
       role: req.query.role,
+      workspaceRoleId: req.query.workspaceRoleId,
       search: req.query.search,
     });
 
     const users = items.map((user) => sanitizers.userSanitizer(user));
     await attachSignedUrlsDeep(users);
+    const roleStats = await userService.getWorkspaceRoleStats(workspaceId);
+    const permissions = {
+      canManageUsers: authorizationService.canManageWorkspaceUsers({
+        orgPerms: req.orgPermissions,
+        wsPerms: req.workspacePermissions,
+      }),
+      canManageFullAccess:
+        req.orgPermissions.has("organization.members.invite") || req.orgPermissions.has("organization.members.update"),
+    };
 
     return R2XX(res, "Users fetched successfully", 200, {
       users,
+      roleStats,
+      permissions,
       pagination,
     });
   }),
@@ -50,14 +65,15 @@ const UserController = {
   }),
 
   createUser: catchAsync(async (req, res) => {
-    const { fullName, username, email, password, role } = req.body;
+    const { fullName, username, email, password, role, workspaceRoleId } = req.body;
 
     const result = await userService.createUserInWorkspace({
       fullName,
       username,
       email,
       password,
-      role: role || "Viewer",
+      role: role || "viewer",
+      workspaceRoleId,
       workspaceId: req.workspaceId,
     });
 
@@ -70,6 +86,15 @@ const UserController = {
       }
       if (result.code === "USERNAME_TAKEN") {
         return R4XX(res, 409, "Username already exists.");
+      }
+      if (result.code === "PLAN_LIMIT_REACHED" && result.limitError) {
+        const status = result.limitError.code === "FEATURE_NOT_AVAILABLE" ? 403 : 429;
+        const feature = result.limitError.feature || "resource";
+        const reason =
+          result.limitError.code === "FEATURE_NOT_AVAILABLE"
+            ? `${feature} is not available in your current plan.`
+            : `${feature} limit reached for your current plan.`;
+        return R4XX(res, status, reason, result.limitError);
       }
       return R4XX(res, 400, "Unable to create user.");
     }
@@ -90,6 +115,39 @@ const UserController = {
     const bundle = await userService.getUserInWorkspace(id, req.workspaceId);
     if (!bundle) return R4XX(res, 404, "User not found");
     const user = bundle.user;
+    const targetSlug = bundle.workspaceRoleSlug || "viewer";
+    let nextSlug = targetSlug;
+    if (updateData.workspaceRoleId || updateData.workspaceRole || updateData.role) {
+      const resolvedNextRoleId =
+        (await organizationService.resolveWorkspaceRoleId(req.organizationId, updateData.workspaceRoleId)) ||
+        (await organizationService.resolveWorkspaceRoleId(req.organizationId, updateData.workspaceRole)) ||
+        (await organizationService.resolveWorkspaceRoleId(req.organizationId, updateData.role));
+      if (!resolvedNextRoleId) {
+        return R4XX(res, 400, "Invalid workspace role.");
+      }
+      const nextRoleDoc = await WorkspaceRole.findOne({
+        _id: resolvedNextRoleId,
+        organization: req.organizationId,
+      })
+        .select("slug")
+        .lean();
+      if (!nextRoleDoc?.slug) {
+        return R4XX(res, 400, "Invalid workspace role.");
+      }
+      nextSlug = nextRoleDoc.slug;
+      updateData.workspaceRoleId = String(resolvedNextRoleId);
+      delete updateData.workspaceRole;
+      delete updateData.role;
+    }
+    const policy = userService.validateWorkspaceRoleUpdatePolicy({
+      actorOrgPerms: req.orgPermissions,
+      actorWsPerms: req.workspacePermissions,
+      actorUserId: req.user,
+      targetUserId: id,
+      targetRoleSlug: targetSlug,
+      nextRoleSlug: nextSlug,
+    });
+    if (!policy.ok) return R4XX(res, policy.status || 400, policy.message || "Role update is not allowed.");
 
     if (updateData.email && updateData.email !== user.email) {
       const existingEmail = await userService.getUserByEmail(updateData.email);
@@ -122,10 +180,15 @@ const UserController = {
 
     const bundle = await userService.getUserInWorkspace(id, req.workspaceId);
     if (!bundle) return R4XX(res, 404, "User not found");
-
-    if (String(id) === String(req.user)) {
-      return R4XX(res, 400, "You cannot delete your own account");
-    }
+    const targetSlug = bundle.workspaceRoleSlug || "viewer";
+    const policy = userService.validateWorkspaceRemovalPolicy({
+      actorOrgPerms: req.orgPermissions,
+      actorWsPerms: req.workspacePermissions,
+      actorUserId: req.user,
+      targetUserId: id,
+      targetRoleSlug: targetSlug,
+    });
+    if (!policy.ok) return R4XX(res, policy.status || 400, policy.message || "User removal is not allowed.");
 
     const deleted = await userService.deleteUserById(id, req.workspaceId);
     if (!deleted) return R4XX(res, 404, "User not found");

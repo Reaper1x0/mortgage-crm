@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { FiPlus } from "react-icons/fi";
 import { useNavigate } from "react-router";
 import Button from "../../components/Reusable/Button";
 import Modal from "../../components/Reusable/Modal";
@@ -9,9 +10,14 @@ import { TemplateDoc } from "../../types/template.types";
 import { prettyDate } from "../../utils/date";
 import PageHeader from "../Reusable/PageHeader";
 import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
+import { usePermissions } from "../../context/PermissionContext";
+import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
 
 export default function TemplatesPage() {
   const navigate = useNavigate();
+  const { canWorkspace, canAnyWorkspace } = usePermissions();
+  const canManageTemplates = canWorkspace("workspace.templates.manage");
+  const canOpenTemplateManage = canAnyWorkspace(["workspace.templates.manage", "workspace.templates.write"]);
   const [templates, setTemplates] = useState<TemplateDoc[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -79,6 +85,8 @@ export default function TemplatesPage() {
             <Button
               variant="secondary"
               onClick={() => navigate(`${row._id}/manage`)}
+              disabled={!canOpenTemplateManage}
+              disabledTooltip={!canOpenTemplateManage ? PERMISSION_TOOLTIPS.manageTemplate : undefined}
             >
               Manage
             </Button>
@@ -86,7 +94,7 @@ export default function TemplatesPage() {
         ),
       },
     ],
-    [navigate],
+    [navigate, canOpenTemplateManage],
   );
 
   return (
@@ -95,8 +103,16 @@ export default function TemplatesPage() {
         title="Templates"
         description="Create templates and manage field placements on PDFs."
         right={
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
-            Create Template
+          <Button
+            variant="primary"
+            onClick={() => setCreateOpen(true)}
+            disabled={!canManageTemplates}
+            disabledTooltip={!canManageTemplates ? PERMISSION_TOOLTIPS.createTemplate : undefined}
+          >
+            <span className="inline-flex items-center gap-2">
+              <FiPlus className="h-4 w-4 shrink-0" aria-hidden />
+              Create Template
+            </span>
           </Button>
         }
       />

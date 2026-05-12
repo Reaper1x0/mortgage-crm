@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from "react-router";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
-import { FiBarChart2, FiUser, FiUsers } from "react-icons/fi";
+import { FiBarChart2, FiUser, FiUsers, FiCreditCard, FiActivity, FiGrid } from "react-icons/fi";
+import { RiBuildingLine } from "react-icons/ri";
 import { useAuth } from "../../context/AuthContext";
 import Avatar from "../Reusable/Avatar";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
@@ -14,6 +15,10 @@ export default function SuperAdminLayout() {
   const links: SidebarLink[] = [
     { to: "/super-admin/dashboard", label: "Dashboard", icon: FiBarChart2 },
     { to: "/super-admin/users", label: "Users", icon: FiUsers },
+    { to: "/super-admin/organizations", label: "Organizations", icon: RiBuildingLine },
+    { to: "/super-admin/workspaces", label: "Workspaces", icon: FiGrid },
+    { to: "/super-admin/subscriptions", label: "Subscriptions", icon: FiActivity },
+    { to: "/super-admin/plans", label: "Plans", icon: FiCreditCard },
     { to: "/super-admin/profile", label: "Profile", icon: FiUser },
   ];
 

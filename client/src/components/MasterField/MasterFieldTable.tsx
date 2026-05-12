@@ -14,12 +14,15 @@ import {
   FiCheckCircle,
   FiXCircle,
   FiCopy,
-  FiEdit,
-  FiTrash,
+  FiEdit2,
+  FiPlus,
+  FiTrash2,
 } from "react-icons/fi";
 import IconButton from "../Reusable/IconButton";
 import { CgClose } from "react-icons/cg";
 import PageHeader from "../Reusable/PageHeader";
+import { usePermissions } from "../../context/PermissionContext";
+import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
 
 interface MasterField {
   key: string;
@@ -62,6 +65,8 @@ async function copyToClipboard(text: string) {
 
 const MasterFieldTable: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const { canWorkspace } = usePermissions();
+  const canMasterFieldsWrite = canWorkspace("workspace.masterfields.write");
 
   const [fields, setFields] = useState<MasterField[]>([]);
   const [isAddModalOpen, setAddModalOpen] = useState(false);
@@ -285,6 +290,7 @@ const MasterFieldTable: React.FC = () => {
           <Checkbox
             checked={selectedFieldsForDeletion.includes(row.key)}
             onChange={(e: any) => {
+              if (!canMasterFieldsWrite) return;
               if (e.target.checked) {
                 setSelectedFieldsForDeletion((prev) => [...prev, row.key]);
               } else {
@@ -293,6 +299,8 @@ const MasterFieldTable: React.FC = () => {
                 );
               }
             }}
+            disabled={!canMasterFieldsWrite}
+            title={!canMasterFieldsWrite ? PERMISSION_TOOLTIPS.masterFieldBulkSelection : undefined}
           />
         ),
       },
@@ -363,28 +371,32 @@ const MasterFieldTable: React.FC = () => {
               onClick={() => onCopyFieldJson(row)}
             />
             <IconButton
-              icon={FiEdit as any}
+              icon={FiEdit2 as any}
               size="sm"
               outline
               fillBg
               hoverable
-              title="Edit"
+              title="Edit field"
               onClick={() => openEdit(row)}
+              disabled={!canMasterFieldsWrite}
+              disabledTooltip={!canMasterFieldsWrite ? PERMISSION_TOOLTIPS.editMasterField : undefined}
             />
             <IconButton
-              icon={FiTrash as any}
+              icon={FiTrash2 as any}
               size="sm"
               outline
               fillBg
               hoverable
-              title="Delete"
+              title="Delete field"
               onClick={() => handleDeleteField(row.key)}
+              disabled={!canMasterFieldsWrite}
+              disabledTooltip={!canMasterFieldsWrite ? PERMISSION_TOOLTIPS.deleteMasterField : undefined}
             />
           </div>
         ),
       },
     ],
-    [handleDeleteField, onCopyFieldJson, openEdit, selectedFieldsForDeletion],
+    [handleDeleteField, onCopyFieldJson, openEdit, selectedFieldsForDeletion, canMasterFieldsWrite],
   );
 
   return (
@@ -394,13 +406,23 @@ const MasterFieldTable: React.FC = () => {
         description="Define your master schema keys and validation rules for mapping and form population."
         right={
           <div className="flex flex-wrap gap-2">
-            <Button variant="primary" onClick={openAdd}>
-              Add New Field
+            <Button
+              variant="primary"
+              onClick={openAdd}
+              disabled={!canMasterFieldsWrite}
+              disabledTooltip={!canMasterFieldsWrite ? PERMISSION_TOOLTIPS.addMasterField : undefined}
+            >
+              <span className="inline-flex items-center gap-2">
+                <FiPlus className="h-4 w-4 shrink-0" aria-hidden />
+                Add New Field
+              </span>
             </Button>
             {selectedFieldsForDeletion.length > 0 && (
               <Button
                 variant="danger"
                 onClick={() => setDeletedModalOpen(true)}
+                disabled={!canMasterFieldsWrite}
+                disabledTooltip={!canMasterFieldsWrite ? PERMISSION_TOOLTIPS.deleteMasterFieldsBulk : undefined}
               >
                 Delete Selected
               </Button>

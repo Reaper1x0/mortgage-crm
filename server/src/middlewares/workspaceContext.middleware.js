@@ -2,10 +2,11 @@ const mongoose = require("mongoose");
 const { R4XX } = require("../Responses");
 const workspaceService = require("../services/workspace.service");
 const organizationService = require("../services/organization.service");
+const authorizationService = require("../services/authorization.service");
 
 /**
  * Requires `Authorization` (isAuth) first. Reads active workspace from `X-Workspace-Id`
- * and sets req.workspaceId + req.userRole from membership.
+ * and sets req.workspaceId, workspace permissions, and legacy req.workspaceRole slug.
  */
 const requireWorkspace = async (req, res, next) => {
   try {
@@ -33,20 +34,37 @@ const requireWorkspace = async (req, res, next) => {
       return R4XX(res, 403, "Workspace does not belong to active organization.");
     }
 
-    const member = await workspaceService.findMembership(req.user, id);
-    if (!member) {
-      return R4XX(res, 403, "You are not a member of this workspace.");
-    }
-
-    if (member.organization && String(member.organization) !== String(orgId)) {
+    let workspaceMember = await workspaceService.findMembership(req.user, id);
+    if (workspaceMember && workspaceMember.organization && String(workspaceMember.organization) !== String(orgId)) {
       return R4XX(res, 403, "Workspace membership does not belong to active organization.");
     }
 
+    if (!workspaceMember && !orgMembership.isOwner) {
+      return R4XX(res, 403, "You are not a member of this workspace.");
+    }
+
     req.organizationId = orgId;
-    req.orgRole = orgMembership.role;
+    req.organizationMember = orgMembership;
+    req.isOrgOwner = !!orgMembership.isOwner;
+    req.orgRole = orgMembership.organizationRole?.slug || null;
+    req.orgPermissions = await authorizationService.getOrganizationPermissionSet(orgMembership);
+
     req.workspaceId = id;
-    req.workspaceRole = member.role;
-    req.userRole = member.role;
+    if (!workspaceMember && orgMembership.isOwner) {
+      req.workspaceMember = null;
+      req.workspaceRole = "owner";
+      req.userRole = "owner";
+      req.workspacePermissions = authorizationService.wsKeySet();
+    } else {
+      req.workspaceMember = workspaceMember;
+      req.workspaceRole = workspaceMember.workspaceRole?.slug || null;
+      req.userRole = req.workspaceRole;
+      req.workspacePermissions = await authorizationService.getWorkspacePermissionSet({
+        orgMemberLean: orgMembership,
+        workspaceMemberLean: workspaceMember,
+      });
+    }
+
     next();
   } catch (err) {
     return R4XX(res, 500, "Workspace validation failed.");

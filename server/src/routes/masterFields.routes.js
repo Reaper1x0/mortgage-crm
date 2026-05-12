@@ -1,24 +1,18 @@
-const express = require('express');
-const MasterFieldController = require('../controllers/masterFields.controller');
-const { isAuth, requireWorkspace, hasRole } = require('../middlewares');
+const express = require("express");
+const MasterFieldController = require("../controllers/masterFields.controller");
+const { isAuth, requireWorkspace, requirePermission } = require("../middlewares");
 const router = express.Router();
 
-// Admin: Manage validation rules (create, update, delete)
-router.post('/fields', isAuth, requireWorkspace, hasRole(["Admin"]), MasterFieldController.createMasterField);
+router.post("/fields", isAuth, requireWorkspace, requirePermission("workspace.masterfields.write"), MasterFieldController.createMasterField);
 
-// Admin, Agent, Viewer: Read-only access to validation rules
-router.get('/fields', isAuth, requireWorkspace, hasRole(["Admin", "Agent", "Viewer"]), MasterFieldController.getAllMasterFields);
+router.get("/fields", isAuth, requireWorkspace, requirePermission("workspace.masterfields.read"), MasterFieldController.getAllMasterFields);
 
-// Admin, Agent, Viewer: Read-only access to validation rules
-router.get('/fields/:key', isAuth, requireWorkspace, hasRole(["Admin", "Agent", "Viewer"]), MasterFieldController.getMasterFieldByKey);
+router.get("/fields/:key", isAuth, requireWorkspace, requirePermission("workspace.masterfields.read"), MasterFieldController.getMasterFieldByKey);
 
-// Admin: Update validation rules
-router.put('/fields/:key', isAuth, requireWorkspace, hasRole(["Admin"]), MasterFieldController.updateMasterField);
+router.put("/fields/:key", isAuth, requireWorkspace, requirePermission("workspace.masterfields.write"), MasterFieldController.updateMasterField);
 
-// Admin: Delete validation rules
-router.delete('/fields/:key', isAuth, requireWorkspace, hasRole(["Admin"]), MasterFieldController.deleteMasterField);
+router.delete("/fields/:key", isAuth, requireWorkspace, requirePermission("workspace.masterfields.write"), MasterFieldController.deleteMasterField);
 
-// Admin: Delete multiple validation rules
-router.delete('/fields', isAuth, requireWorkspace, hasRole(["Admin"]), MasterFieldController.deleteMultipleMasterFields);
+router.delete("/fields", isAuth, requireWorkspace, requirePermission("workspace.masterfields.write"), MasterFieldController.deleteMultipleMasterFields);
 
 module.exports = router;

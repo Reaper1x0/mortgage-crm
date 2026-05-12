@@ -1,4 +1,5 @@
 import React from "react";
+import { useParams } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import Callout from "../Reusable/Callout";
 import { OrganizationService } from "../../service/organizationService";
@@ -9,8 +10,21 @@ import Input from "../Reusable/Inputs/Input";
 import Button from "../Reusable/Button";
 
 const OrganizationSettings: React.FC = () => {
+  const { organizationId } = useParams<{ organizationId: string }>();
   const { workspaces, activeWorkspaceId, refreshWorkspaces } = useAuth();
-  const active = workspaces.find((w) => w.workspaceId === activeWorkspaceId);
+
+  const active = React.useMemo(() => {
+    const oid = organizationId;
+    if (!oid) {
+      return workspaces.find((w) => w.workspaceId === activeWorkspaceId) || null;
+    }
+    const inOrg = (w: (typeof workspaces)[0]) => w.organization?.organizationId === oid;
+    return (
+      workspaces.find((w) => w.workspaceId === activeWorkspaceId && inOrg(w)) ||
+      workspaces.find((w) => inOrg(w)) ||
+      null
+    );
+  }, [workspaces, activeWorkspaceId, organizationId]);
   const [saving, setSaving] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [showLogoPreview, setShowLogoPreview] = React.useState(false);
@@ -39,8 +53,8 @@ const OrganizationSettings: React.FC = () => {
   if (!active) {
     return (
       <div className="max-w-3xl mx-auto">
-        <Callout tone="warning" title="No active workspace">
-          Select or create a workspace first.
+        <Callout tone="warning" title="No workspace in this organization">
+          Create a workspace from onboarding or the workspace switcher, then open organization settings again.
         </Callout>
       </div>
     );

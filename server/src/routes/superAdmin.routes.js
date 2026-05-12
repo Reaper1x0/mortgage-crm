@@ -9,7 +9,7 @@ router.get(
   "/dashboard",
   isAuth,
   requireSystemRole(["superAdmin"]),
-  superAdminController.getDashboard
+  superAdminController.getDashboard,
 );
 
 router.get(
@@ -17,7 +17,33 @@ router.get(
   isAuth,
   requireSystemRole(["superAdmin"]),
   validate(superAdminValidation.listSystemUsers),
-  superAdminController.listSystemUsers
+  superAdminController.listSystemUsers,
+);
+router.get(
+  "/organizations",
+  isAuth,
+  requireSystemRole(["superAdmin"]),
+  validate(superAdminValidation.listOrganizations),
+  superAdminController.listOrganizations,
+);
+router.get(
+  "/organizations/:organizationId",
+  isAuth,
+  requireSystemRole(["superAdmin"]),
+  superAdminController.getOrganizationDetails,
+);
+router.get(
+  "/workspaces",
+  isAuth,
+  requireSystemRole(["superAdmin"]),
+  validate(superAdminValidation.listWorkspaces),
+  superAdminController.listWorkspaces,
+);
+router.get(
+  "/workspaces/:workspaceId",
+  isAuth,
+  requireSystemRole(["superAdmin"]),
+  superAdminController.getWorkspaceDetails,
 );
 
 module.exports = router;

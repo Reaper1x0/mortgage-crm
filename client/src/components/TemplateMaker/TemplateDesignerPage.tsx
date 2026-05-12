@@ -21,7 +21,7 @@ import KeyboardShortcutsHelp from "./components/KeyboardShortcutsHelp";
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 export default function TemplateDesignerPage() {
-  const { templateId } = useParams();
+  const { templateId, organizationId, workspaceId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -220,7 +220,14 @@ export default function TemplateDesignerPage() {
       <PageHeader
         title={<span className="break-words">Manage "{template?.name || "-"}" Template</span>}
         left={
-          <Button variant="secondary" onClick={() => navigate("/workspace/template-maker")}>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              organizationId && workspaceId
+                ? navigate(`/${organizationId}/workspaces/${workspaceId}/template-maker`)
+                : navigate("/onboarding")
+            }
+          >
             Back
           </Button>
         }

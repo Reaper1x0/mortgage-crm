@@ -14,11 +14,15 @@ const organizationMemberSchema = mongoose.Schema(
       required: true,
       index: true,
     },
-    role: {
-      type: String,
-      enum: ["Owner", "Admin", "Member", "Viewer"],
+    isOwner: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    organizationRole: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "organization_roles",
       required: true,
-      default: "Member",
     },
   },
   { timestamps: true }

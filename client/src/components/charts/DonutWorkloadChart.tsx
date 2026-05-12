@@ -192,16 +192,16 @@ const DonutWorkloadChart: React.FC<DonutWorkloadChartProps> = ({
               if (!payload || !Array.isArray(payload)) return null;
               
               return (
-                <div className="flex justify-center items-center gap-6 pt-4">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-4 sm:grid-cols-3 lg:grid-cols-4">
                   {payload.map((entry: any, index: number) => {
                     const itemColor = chartColors[index] || colors.cardText;
                     return (
-                      <div key={index} className="flex items-center gap-2">
+                      <div key={index} className="flex min-w-0 items-center gap-2">
                         <div 
-                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          className="h-3 w-3 flex-shrink-0 rounded-full"
                           style={{ backgroundColor: itemColor }}
                         />
-                        <span className="text-text text-sm font-medium">
+                        <span className="truncate text-sm font-medium text-text">
                           {entry.value}
                         </span>
                       </div>

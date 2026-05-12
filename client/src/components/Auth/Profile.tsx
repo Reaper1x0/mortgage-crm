@@ -9,7 +9,7 @@ import Surface from "../Reusable/Surface";
 import PageHeader from "../Reusable/PageHeader";
 import { FiCamera, FiLock, FiUser, FiMail } from "react-icons/fi";
 import Modal from "../Reusable/Modal";
-import { getUserDisplayName, normalizeUserForAvatar, getAvatarSource, getUserInitials } from "../../utils/userUtils";
+import { getUserDisplayName, normalizeUserForAvatar, getAvatarSource } from "../../utils/userUtils";
 import { useAuth } from "../../context/AuthContext";
 import StatusBadge from "../Reusable/StatusBadge";
 

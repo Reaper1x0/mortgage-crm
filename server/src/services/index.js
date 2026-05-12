@@ -8,3 +8,4 @@ module.exports.leadService = require("./lead.service");
 module.exports.organizationService = require("./organization.service");
 module.exports.workspaceService = require("./workspace.service");
 module.exports.superAdminService = require("./superAdmin.service");
+module.exports.billingService = require("./billing.service");

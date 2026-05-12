@@ -27,7 +27,6 @@ const SuperAdminController = {
       sortBy,
       sortOrder,
       role: req.query.role,
-      orgRole: req.query.orgRole,
       search: req.query.search,
     });
 
@@ -37,6 +36,74 @@ const SuperAdminController = {
     return R2XX(res, "System users fetched successfully", 200, {
       users,
       pagination,
+    });
+  }),
+
+  listOrganizations: catchAsync(async (req, res) => {
+    const { page, limit } = parsePagination(req.query, {
+      defaultPage: 1,
+      defaultLimit: 10,
+      maxLimit: 100,
+      defaultSortBy: "updatedAt",
+      defaultSortOrder: "desc",
+      allowedSortBy: ["updatedAt"],
+    });
+
+    const { items, summary, pagination } = await superAdminService.listOrganizations({
+      page,
+      limit,
+      search: req.query.search,
+      subscriptionStatus: req.query.subscriptionStatus,
+    });
+
+    return R2XX(res, "Organizations fetched successfully", 200, {
+      organizations: items,
+      summary,
+      pagination,
+    });
+  }),
+
+  listWorkspaces: catchAsync(async (req, res) => {
+    const { page, limit } = parsePagination(req.query, {
+      defaultPage: 1,
+      defaultLimit: 10,
+      maxLimit: 100,
+      defaultSortBy: "updatedAt",
+      defaultSortOrder: "desc",
+      allowedSortBy: ["updatedAt"],
+    });
+
+    const { items, summary, pagination } = await superAdminService.listWorkspaces({
+      page,
+      limit,
+      search: req.query.search,
+      subscriptionStatus: req.query.subscriptionStatus,
+    });
+
+    return R2XX(res, "Workspaces fetched successfully", 200, {
+      workspaces: items,
+      summary,
+      pagination,
+    });
+  }),
+
+  getOrganizationDetails: catchAsync(async (req, res) => {
+    const organization = await superAdminService.getOrganizationDetails(req.params.organizationId);
+
+    await attachSignedUrlsDeep(organization);
+
+    return R2XX(res, "Organization details fetched successfully", 200, {
+      organization,
+    });
+  }),
+
+  getWorkspaceDetails: catchAsync(async (req, res) => {
+    const workspace = await superAdminService.getWorkspaceDetails(req.params.workspaceId);
+
+    await attachSignedUrlsDeep(workspace);
+
+    return R2XX(res, "Workspace details fetched successfully", 200, {
+      workspace,
     });
   }),
 };

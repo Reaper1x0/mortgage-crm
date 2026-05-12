@@ -113,20 +113,7 @@ export function getProfilePictureUrl(user: UserInfo | null | undefined): string 
  */
 export function generateAvatarUrl(user: UserInfo | null | undefined): string | null {
   if (!user) return null;
-  
-  const name = getUserDisplayName(user);
-  const initials = getUserInitials(user);
-  
-  // Option 1: UI Avatars (free service)
-  // return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&size=128`;
-  
-  // Option 2: Gravatar (requires email)
-  // if (user.email) {
-  //   const hash = md5(user.email.toLowerCase());
-  //   return `https://www.gravatar.com/avatar/${hash}?d=identicon&s=128`;
-  // }
-  
-  // For now, return null and use initials fallback
+  // External avatar providers (UI Avatars, Gravatar) can be wired here; callers use initials via getAvatarSource.
   return null;
 }
 

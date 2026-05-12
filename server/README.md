@@ -70,6 +70,12 @@ EMAIL_PASS=your-app-password
 # Frontend URL
 FRONTEND_URL=http://localhost:5173
 
+# Stripe Billing
+STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+STRIPE_SUCCESS_URL=http://localhost:5173/workspace/settings/billing
+STRIPE_CANCEL_URL=http://localhost:5173/pricing
+
 # OpenAI Configuration (Optional - for AI text extraction)
 OPENAI_API_KEY=your-openai-api-key
 GPT_MODEL=gpt-4
@@ -158,7 +164,7 @@ server/
 │   │   └── user.controller.js
 │   ├── middlewares/            # Express middlewares
 │   │   ├── auth.middleware.js
-│   │   ├── hasRole.middleware.js
+│   │   ├── requirePermission.middleware.js
 │   │   ├── validate.middleware.js
 │   │   ├── getDeviceId.middleware.js
 │   │   └── ...
@@ -246,6 +252,27 @@ All API endpoints are prefixed with `/backend/api`.
 
 - `POST /extraction/cnic/extract-name/:id` - Upload and extract name from CNIC (Admin, Agent)
 - `POST /extraction/documents/extract-fields/:id` - Upload and extract fields from documents (Admin, Agent)
+
+### Billing & Plans
+
+- `GET /billing/plans/public` - Public pricing plans for frontend comparison
+- `GET /billing/organization` - Organization billing status + usage (Owner/Admin)
+- `POST /billing/checkout` - Start Stripe Checkout for selected plan (Owner/Admin)
+- `POST /billing/portal` - Open Stripe billing portal (Owner/Admin)
+- `POST /billing/change-plan` - Upgrade/downgrade plan (Owner/Admin)
+- `POST /billing/cancel` - Cancel subscription immediately or period-end (Owner/Admin)
+- `POST /billing/webhook/stripe` - Stripe webhook endpoint (signature verified + idempotent)
+- `GET /billing/admin/plans` - Super admin plan management
+- `POST /billing/admin/plans` - Super admin create plan
+- `PUT /billing/admin/plans/:id` - Super admin update plan
+
+### Stripe Webhook Local Testing
+
+Use Stripe CLI to forward events:
+
+```bash
+stripe listen --forward-to http://localhost:3000/backend/api/billing/webhook/stripe
+```
 
 ### Submissions
 
