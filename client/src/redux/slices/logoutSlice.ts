@@ -1,7 +1,6 @@
 // src/redux/slices/logoutSlice.ts
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { AuthService } from "../../service/authService";
-import { addToast } from "./toasterSlice";
 
 interface LogoutState {
   loading: boolean;
@@ -17,12 +16,10 @@ const initialState: LogoutState = {
 
 export const logout = createAsyncThunk(
   "auth/logout",
-  async (_, { dispatch, rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await AuthService.logout();
-      // Logout errors are skipped (skipErrorToast: true), so we don't show error toasts here
-      // Success messages are handled by AuthService.logout itself
-      return response.data;
+      await AuthService.logout();
+      return true;
     } catch (error: any) {
       // Error toast is skipped for logout (skipErrorToast: true in AuthService)
       return rejectWithValue(

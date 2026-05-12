@@ -26,12 +26,9 @@ const createUser = {
       "string.min": AUTH.PASSWORD_LENGTH,
       "any.required": AUTH.PASSWORD_REQUIRED,
     }),
-    role: Joi.string()
-      .valid("Admin", "Agent", "Viewer")
-      .default("Viewer")
-      .messages({
-        "any.only": "Role must be one of: Admin, Agent, Viewer",
-      }),
+    workspaceRoleId: Joi.string().hex().length(24).optional(),
+    role: Joi.string().optional(),
+    workspaceRole: Joi.string().optional(),
   }),
 };
 
@@ -49,11 +46,9 @@ const updateUser = {
     email: Joi.string().email({ tlds: { allow: false } }).messages({
       "string.email": AUTH.VALID_EMAIL,
     }),
-    role: Joi.string()
-      .valid("Admin", "Agent", "Viewer")
-      .messages({
-        "any.only": "Role must be one of: Admin, Agent, Viewer",
-      }),
+    workspaceRoleId: Joi.string().hex().length(24),
+    role: Joi.string(),
+    workspaceRole: Joi.string(),
     password: Joi.string().min(8).messages({
       "string.min": AUTH.PASSWORD_LENGTH,
     }),
@@ -78,7 +73,8 @@ const listUsers = {
     limit: Joi.number().integer().min(1).max(100).default(10),
     sortBy: Joi.string().default("createdAt"),
     sortOrder: Joi.string().valid("asc", "desc").default("desc"),
-    role: Joi.string().valid("Admin", "Agent", "Viewer"),
+    role: Joi.string(),
+    workspaceRoleId: Joi.string().hex().length(24),
     search: Joi.string().allow(""),
   }),
 };

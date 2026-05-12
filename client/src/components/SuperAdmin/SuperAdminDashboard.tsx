@@ -54,36 +54,20 @@ export default function SuperAdminDashboard() {
     });
   }, [data?.signupsLast14Days]);
 
-  const workspaceBar = useMemo(() => {
-    const roleOrder = ["Admin", "Agent", "Viewer"];
-    const roleColors: Record<string, string> = {
-      Admin: "var(--color-primary)",
-      Agent: "var(--color-info)",
-      Viewer: "var(--color-accent)",
-    };
-    const counts = new Map((data?.workspaceRoleBreakdown || []).map((r) => [r.role, r.count]));
-    return roleOrder.map((role) => ({
-      name: role,
-      value: Number(counts.get(role) || 0),
-      color: roleColors[role],
-    }));
-  }, [data?.workspaceRoleBreakdown]);
-
-  const organizationBar = useMemo(() => {
-    const roleOrder = ["Owner", "Admin", "Member", "Viewer"];
-    const roleColors: Record<string, string> = {
-      Owner: "var(--color-success)",
-      Admin: "var(--color-primary)",
-      Member: "var(--color-warning)",
-      Viewer: "var(--color-accent)",
-    };
-    const counts = new Map((data?.organizationRoleBreakdown || []).map((r) => [r.role, r.count]));
-    return roleOrder.map((role) => ({
-      name: role,
-      value: Number(counts.get(role) || 0),
-      color: roleColors[role],
-    }));
-  }, [data?.organizationRoleBreakdown]);
+  const systemRoleBar = useMemo(() => {
+    const palette = ["var(--color-primary)", "var(--color-info)", "var(--color-accent)", "var(--color-success)"];
+    const rows = data?.systemRoleBreakdown || [];
+    return rows.map((r, idx) => {
+      const key = String(r.role || "unknown");
+      const name =
+        key === "superAdmin" ? "Super admin" : key === "user" ? "User" : key.replace(/_/g, " ");
+      return {
+        name,
+        value: Number(r.count || 0),
+        color: palette[idx % palette.length],
+      };
+    });
+  }, [data?.systemRoleBreakdown]);
 
   const subscriptionDonut = useMemo(() => {
     const order = ["active", "trialing", "past_due", "incomplete", "canceled", "unpaid", "paused"];
@@ -208,26 +192,14 @@ export default function SuperAdminDashboard() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartPanel
-          title="Workspace roles"
-          description="Members by workspace role (Admin, Agent, Viewer)."
+          title="System account roles"
+          description="Accounts by built-in system role (super admin vs user). Tenant RBAC is not shown here."
           bodyClassName="!px-0 !py-0"
         >
-          <div className="-mx-2">
-            <BarChartSimple data={workspaceBar} loading={loading} color="primary" />
+          <div className="-mx-2 min-h-[280px]">
+            <BarChartSimple data={systemRoleBar} loading={loading} color="primary" />
           </div>
         </ChartPanel>
-        <ChartPanel
-          title="Organization roles"
-          description="Members by organization role (Owner, Admin, Member, Viewer)."
-          bodyClassName="!px-0 !py-0"
-        >
-          <div className="-mx-2 min-h-[320px]">
-            <BarChartSimple data={organizationBar} loading={loading} color="accent" />
-          </div>
-        </ChartPanel>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartPanel
           title="Subscription status distribution"
           description="Portfolio health across active, trialing, due, incomplete, and canceled states."
@@ -237,6 +209,9 @@ export default function SuperAdminDashboard() {
             <DonutWorkloadChart data={subscriptionDonut} loading={loading} />
           </div>
         </ChartPanel>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
         <ChartPanel
           title="Estimated MRR by plan"
           description="Plan-level contribution to monthly recurring revenue estimate."

@@ -1,7 +1,7 @@
 const { Router } = require("express");
 const express = require("express");
 const { billingController } = require("../controllers");
-const { isAuth, requireOrganization, hasRole, requireSystemRole, validate } = require("../middlewares");
+const { isAuth, requireOrganization, requirePermission, requireSystemRole, validate } = require("../middlewares");
 const { billingValidation } = require("../validations");
 
 const router = Router();
@@ -65,14 +65,17 @@ router.get(
   "/organization",
   isAuth,
   requireOrganization,
-  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  requirePermission(["organization.billing.read", "organization.billing.manage"], {
+    scope: "organization",
+    mode: "any",
+  }),
   billingController.getOrganizationBilling
 );
 router.post(
   "/checkout",
   isAuth,
   requireOrganization,
-  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  requirePermission("organization.billing.manage", { scope: "organization" }),
   validate(billingValidation.createCheckoutSession),
   billingController.createCheckoutSession
 );
@@ -80,14 +83,14 @@ router.post(
   "/portal",
   isAuth,
   requireOrganization,
-  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  requirePermission("organization.billing.manage", { scope: "organization" }),
   billingController.createPortalSession
 );
 router.post(
   "/change-plan",
   isAuth,
   requireOrganization,
-  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  requirePermission("organization.billing.manage", { scope: "organization" }),
   validate(billingValidation.changePlan),
   billingController.changePlan
 );
@@ -95,7 +98,7 @@ router.post(
   "/cancel",
   isAuth,
   requireOrganization,
-  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  requirePermission("organization.billing.manage", { scope: "organization" }),
   validate(billingValidation.cancelSubscription),
   billingController.cancelSubscription
 );
@@ -103,7 +106,7 @@ router.post(
   "/resume",
   isAuth,
   requireOrganization,
-  hasRole({ scope: "organization", roles: ["Owner", "Admin"] }),
+  requirePermission("organization.billing.manage", { scope: "organization" }),
   billingController.resumeSubscription
 );
 

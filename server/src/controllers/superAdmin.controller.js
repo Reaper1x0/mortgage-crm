@@ -27,7 +27,6 @@ const SuperAdminController = {
       sortBy,
       sortOrder,
       role: req.query.role,
-      orgRole: req.query.orgRole,
       search: req.query.search,
     });
 
@@ -78,7 +77,6 @@ const SuperAdminController = {
       page,
       limit,
       search: req.query.search,
-      role: req.query.role,
       subscriptionStatus: req.query.subscriptionStatus,
     });
 

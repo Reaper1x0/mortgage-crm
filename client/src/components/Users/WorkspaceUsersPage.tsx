@@ -7,29 +7,26 @@ import Button from "../Reusable/Button";
 import Modal from "../Reusable/Modal";
 import Avatar from "../Reusable/Avatar";
 import IconButton from "../Reusable/IconButton";
-import { FiEdit2, FiTrash2 } from "react-icons/fi";
+import { FiEdit2, FiPlus, FiTrash2 } from "react-icons/fi";
 import { prettyDate } from "../../utils/date";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { extractErrorMessage, showSuccessToast, showWarningToast } from "../../utils/errorHandler";
 import { User, UserService } from "../../service/userService";
+import { OrganizationService, RoleRow } from "../../service/organizationService";
 import { useAuth } from "../../context/AuthContext";
-import Callout from "../Reusable/Callout";
-
-type WorkspaceRole = "Admin" | "Agent" | "Viewer";
+import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
 
 interface WorkspaceRoleStats {
-  adminCount: number;
-  agentCount: number;
-  viewerCount: number;
+  fullAccessCount: number;
 }
 
 interface WorkspaceUserPermissions {
   canManageUsers: boolean;
-  canManageAdmins: boolean;
+  canManageFullAccess: boolean;
 }
 
-const defaultRoleStats: WorkspaceRoleStats = { adminCount: 0, agentCount: 0, viewerCount: 0 };
-const defaultPermissions: WorkspaceUserPermissions = { canManageUsers: false, canManageAdmins: false };
+const defaultRoleStats: WorkspaceRoleStats = { fullAccessCount: 0 };
+const defaultPermissions: WorkspaceUserPermissions = { canManageUsers: false, canManageFullAccess: false };
 
 export default function WorkspaceUsersPage() {
   const { user: authUser } = useAuth();
@@ -39,9 +36,11 @@ export default function WorkspaceUsersPage() {
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<WorkspaceRole | "">("");
+  const [roleFilter, setRoleFilter] = useState<string>("");
   const [permissions, setPermissions] = useState<WorkspaceUserPermissions>(defaultPermissions);
   const [roleStats, setRoleStats] = useState<WorkspaceRoleStats>(defaultRoleStats);
+  const [workspaceRoles, setWorkspaceRoles] = useState<RoleRow[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
@@ -54,7 +53,7 @@ export default function WorkspaceUsersPage() {
         limit: pageSize,
         sortBy: "createdAt",
         sortOrder: "desc",
-        role: roleFilter || undefined,
+        workspaceRoleId: roleFilter || undefined,
         search: searchQuery.trim() || undefined,
       });
       const list = response?.users || [];
@@ -72,26 +71,69 @@ export default function WorkspaceUsersPage() {
     fetchUsers();
   }, [fetchUsers]);
 
+  const rolesNeeded = createOpen || !!editingUser;
+  useEffect(() => {
+    if (!rolesNeeded) return;
+    let cancelled = false;
+    setRolesLoading(true);
+    (async () => {
+      try {
+        const res = await OrganizationService.listWorkspaceRoles();
+        if (cancelled) return;
+        setWorkspaceRoles(res.data?.roles || []);
+      } catch (error) {
+        if (!cancelled) showWarningToast(extractErrorMessage(error));
+      } finally {
+        if (!cancelled) setRolesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rolesNeeded]);
+
   const canDeleteUser = useCallback(
     (target: User) => {
       if (!permissions.canManageUsers) return false;
       if (String(target._id) === String(authUser?._id)) return false;
-      if (target.role === "Admin") {
-        if (!permissions.canManageAdmins) return false;
-        if (roleStats.adminCount <= 1) return false;
+      if ((target.workspaceRoleSlug || "") === "full-access") {
+        if (!permissions.canManageFullAccess) return false;
       }
       return true;
     },
-    [authUser?._id, permissions, roleStats.adminCount]
+    [authUser?._id, permissions]
   );
 
   const canEditUser = useCallback(
     (target: User) => {
       if (!permissions.canManageUsers) return false;
-      if (target.role === "Admin" && !permissions.canManageAdmins) return false;
+      if ((target.workspaceRoleSlug || "") === "full-access" && !permissions.canManageFullAccess) return false;
       return true;
     },
     [permissions]
+  );
+
+  const editWorkspaceUserDisabledReason = useCallback(
+    (target: User) => {
+      if (!permissions.canManageUsers) return PERMISSION_TOOLTIPS.editWorkspaceUser;
+      if ((target.workspaceRoleSlug || "") === "full-access" && !permissions.canManageFullAccess) {
+        return PERMISSION_TOOLTIPS.editWorkspaceFullAccess;
+      }
+      return "";
+    },
+    [permissions]
+  );
+
+  const removeWorkspaceUserDisabledReason = useCallback(
+    (target: User) => {
+      if (!permissions.canManageUsers) return PERMISSION_TOOLTIPS.removeWorkspaceUser;
+      if (String(target._id) === String(authUser?._id)) return PERMISSION_TOOLTIPS.removeYourselfWorkspace;
+      if ((target.workspaceRoleSlug || "") === "full-access" && !permissions.canManageFullAccess) {
+        return PERMISSION_TOOLTIPS.removeWorkspaceFullAccess;
+      }
+      return "";
+    },
+    [authUser?._id, permissions]
   );
 
   const columns = useMemo(
@@ -113,7 +155,7 @@ export default function WorkspaceUsersPage() {
       {
         title: "Workspace Role",
         dataIndex: "role",
-        render: (role: WorkspaceRole) => (
+        render: (role: string) => (
           <span className="inline-flex rounded-full border border-card-border px-2.5 py-1 text-xs font-semibold text-text">
             {role}
           </span>
@@ -138,6 +180,7 @@ export default function WorkspaceUsersPage() {
               title="Edit workspace role"
               onClick={() => setEditingUser(row)}
               disabled={!canEditUser(row)}
+              disabledTooltip={!canEditUser(row) ? editWorkspaceUserDisabledReason(row) : undefined}
             />
             <IconButton
               icon={FiTrash2 as any}
@@ -148,12 +191,13 @@ export default function WorkspaceUsersPage() {
               title="Remove from workspace"
               onClick={() => setDeleteUser(row)}
               disabled={!canDeleteUser(row)}
+              disabledTooltip={!canDeleteUser(row) ? removeWorkspaceUserDisabledReason(row) : undefined}
             />
           </div>
         ),
       },
     ],
-    [canDeleteUser, canEditUser]
+    [canDeleteUser, canEditUser, editWorkspaceUserDisabledReason, removeWorkspaceUserDisabledReason]
   );
 
   return (
@@ -162,19 +206,19 @@ export default function WorkspaceUsersPage() {
         title="Workspace Users"
         description="Manage workspace membership and roles with consistent role-based controls."
         right={
-          permissions.canManageUsers ? (
-            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+          <Button
+            variant="primary"
+            onClick={() => setCreateOpen(true)}
+            disabled={!permissions.canManageUsers}
+            disabledTooltip={!permissions.canManageUsers ? PERMISSION_TOOLTIPS.addWorkspaceUser : undefined}
+          >
+            <span className="inline-flex items-center gap-2">
+              <FiPlus className="h-4 w-4 shrink-0" aria-hidden />
               Add User
-            </Button>
-          ) : undefined
+            </span>
+          </Button>
         }
       />
-
-      {!permissions.canManageUsers && (
-        <Callout tone="warning" title="Read-only access">
-          You can view workspace users, but only authorized roles can manage membership and roles.
-        </Callout>
-      )}
 
       <div className="grid grid-cols-1 gap-4 rounded-2xl border border-card-border bg-card p-4 md:grid-cols-3">
         <Input
@@ -192,15 +236,14 @@ export default function WorkspaceUsersPage() {
           label="Workspace role"
           value={roleFilter}
           onChange={(e) => {
-            setRoleFilter(e.target.value as WorkspaceRole | "");
+            setRoleFilter(e.target.value);
             setPage(1);
           }}
           options={[
             { label: "All roles", value: "" },
-            { label: "Admin", value: "Admin" },
-            { label: "Agent", value: "Agent" },
-            { label: "Viewer", value: "Viewer" },
+            ...workspaceRoles.map((role) => ({ label: role.name, value: role._id })),
           ]}
+          disabled={rolesLoading}
         />
       </div>
 
@@ -221,7 +264,9 @@ export default function WorkspaceUsersPage() {
       <CreateWorkspaceUserModal
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
-        canAssignAdmin={permissions.canManageAdmins}
+        canAssignFullAccess={permissions.canManageFullAccess}
+        roles={workspaceRoles}
+        rolesLoading={rolesLoading}
         onCreated={async () => {
           setCreateOpen(false);
           await fetchUsers();
@@ -232,8 +277,10 @@ export default function WorkspaceUsersPage() {
       <EditWorkspaceUserModal
         isOpen={!!editingUser}
         user={editingUser}
-        canAssignAdmin={permissions.canManageAdmins}
+        canAssignFullAccess={permissions.canManageFullAccess}
         roleStats={roleStats}
+        roles={workspaceRoles}
+        rolesLoading={rolesLoading}
         onClose={() => setEditingUser(null)}
         onUpdated={async () => {
           setEditingUser(null);
@@ -258,12 +305,16 @@ export default function WorkspaceUsersPage() {
 function CreateWorkspaceUserModal({
   isOpen,
   onClose,
-  canAssignAdmin,
+  canAssignFullAccess,
+  roles,
+  rolesLoading,
   onCreated,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  canAssignAdmin: boolean;
+  canAssignFullAccess: boolean;
+  roles: RoleRow[];
+  rolesLoading: boolean;
   onCreated: () => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
@@ -272,14 +323,20 @@ function CreateWorkspaceUserModal({
     username: "",
     email: "",
     password: "",
-    role: "Viewer" as WorkspaceRole,
+    workspaceRoleId: "",
   });
 
-  const roleOptions = [
-    ...(canAssignAdmin ? [{ label: "Admin", value: "Admin" }] : []),
-    { label: "Agent", value: "Agent" },
-    { label: "Viewer", value: "Viewer" },
-  ];
+  const roleOptions = roles
+    .filter((role) => role.slug !== "full-access" || canAssignFullAccess)
+    .map((role) => ({ label: role.name, value: role._id }));
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setForm((prev) => ({
+      ...prev,
+      workspaceRoleId: prev.workspaceRoleId || roleOptions[0]?.value || "",
+    }));
+  }, [isOpen, roleOptions]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -293,9 +350,15 @@ function CreateWorkspaceUserModal({
     }
     setSaving(true);
     try {
-      await UserService.createUser(form);
+      await UserService.createUser({
+        fullName: form.fullName.trim(),
+        username: form.username.trim(),
+        email: form.email.trim(),
+        password: form.password,
+        workspaceRoleId: form.workspaceRoleId || undefined,
+      });
       await onCreated();
-      setForm({ fullName: "", username: "", email: "", password: "", role: "Viewer" });
+      setForm({ fullName: "", username: "", email: "", password: "", workspaceRoleId: "" });
     } catch (error) {
       showWarningToast(extractErrorMessage(error));
     } finally {
@@ -312,17 +375,18 @@ function CreateWorkspaceUserModal({
           <Input label="Email" name="email" type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />
           <Input label="Password" name="password" type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} />
           <Select
-            name="role"
+            name="workspaceRoleId"
             label="Workspace Role"
-            value={form.role}
-            onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as WorkspaceRole }))}
-            options={roleOptions}
+            value={form.workspaceRoleId}
+            onChange={(e) => setForm((p) => ({ ...p, workspaceRoleId: e.target.value }))}
+            options={[{ label: "Select a role", value: "" }, ...roleOptions]}
+            disabled={rolesLoading}
           />
           <div className="flex gap-2">
             <Button variant="secondary" type="button" onClick={onClose}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" disabled={saving}>
+            <Button variant="primary" type="submit" disabled={saving || rolesLoading || !form.workspaceRoleId}>
               {saving ? "Adding..." : "Add User"}
             </Button>
           </div>
@@ -334,34 +398,39 @@ function CreateWorkspaceUserModal({
 function EditWorkspaceUserModal({
   isOpen,
   user,
-  canAssignAdmin,
+  canAssignFullAccess,
   roleStats,
+  roles,
+  rolesLoading,
   onClose,
   onUpdated,
 }: {
   isOpen: boolean;
   user: User | null;
-  canAssignAdmin: boolean;
+  canAssignFullAccess: boolean;
   roleStats: WorkspaceRoleStats;
+  roles: RoleRow[];
+  rolesLoading: boolean;
   onClose: () => void;
   onUpdated: () => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
-  const [role, setRole] = useState<WorkspaceRole>("Viewer");
+  const [workspaceRoleId, setWorkspaceRoleId] = useState<string>("");
 
   useEffect(() => {
-    if (user) setRole((user.role as WorkspaceRole) || "Viewer");
+    if (user) setWorkspaceRoleId(user.workspaceRoleId || "");
   }, [user]);
 
   if (!user) return null;
 
-  const roleOptions = [
-    ...(canAssignAdmin ? [{ label: "Admin", value: "Admin" }] : []),
-    { label: "Agent", value: "Agent" },
-    { label: "Viewer", value: "Viewer" },
-  ];
-  const disableRoleChange = user.role === "Admin" && !canAssignAdmin;
-  const adminDowngradeBlocked = user.role === "Admin" && roleStats.adminCount <= 1;
+  const roleOptions = roles
+    .filter((role) => role.slug !== "full-access" || canAssignFullAccess)
+    .map((role) => ({ label: role.name, value: role._id }));
+  const disableRoleChange = (user.workspaceRoleSlug || "") === "full-access" && !canAssignFullAccess;
+  const fullAccessDowngradeBlocked =
+    (user.workspaceRoleSlug || "") === "full-access" &&
+    (roleStats.fullAccessCount || 0) <= 1 &&
+    workspaceRoleId !== user.workspaceRoleId;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -373,13 +442,13 @@ function EditWorkspaceUserModal({
           <Select
             name="workspaceRole"
             label="Workspace Role"
-            value={role}
+            value={workspaceRoleId}
             disabled={disableRoleChange}
-            onChange={(e) => setRole(e.target.value as WorkspaceRole)}
-            options={roleOptions}
+            onChange={(e) => setWorkspaceRoleId(e.target.value)}
+            options={[{ label: "Select a role", value: "" }, ...roleOptions]}
           />
-          {adminDowngradeBlocked && (
-            <p className="text-sm text-warning-text">At least one workspace admin must remain.</p>
+          {fullAccessDowngradeBlocked && (
+            <p className="text-sm text-warning-text">At least one user with full workspace access must remain.</p>
           )}
           <div className="flex gap-2">
             <Button variant="secondary" type="button" onClick={onClose}>
@@ -387,11 +456,18 @@ function EditWorkspaceUserModal({
             </Button>
             <Button
               variant="primary"
-              disabled={saving || adminDowngradeBlocked || disableRoleChange || role === user.role}
+              disabled={
+                saving ||
+                rolesLoading ||
+                !workspaceRoleId ||
+                fullAccessDowngradeBlocked ||
+                disableRoleChange ||
+                workspaceRoleId === user.workspaceRoleId
+              }
               onClick={async () => {
                 setSaving(true);
                 try {
-                  await UserService.updateUser(user._id, { role });
+                  await UserService.updateUser(user._id, { workspaceRoleId });
                   showSuccessToast("Workspace role updated.");
                   await onUpdated();
                 } catch (error) {

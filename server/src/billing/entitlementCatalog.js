@@ -1,23 +1,9 @@
 const ENTITLEMENT_CATALOG = {
-  max_organization_members: {
-    key: "max_organization_members",
-    type: "limit",
-    label: "Organization Members",
-    description: "Maximum members across organization.",
-    unlimitedValue: -1,
-  },
   max_workspaces_per_organization: {
     key: "max_workspaces_per_organization",
     type: "limit",
-    label: "Workspaces",
-    description: "Maximum workspaces under organization.",
-    unlimitedValue: -1,
-  },
-  max_workspace_members: {
-    key: "max_workspace_members",
-    type: "limit",
-    label: "Workspace Members",
-    description: "Maximum members in each workspace.",
+    label: "Workspaces per Organization",
+    description: "Maximum workspaces under one organization.",
     unlimitedValue: -1,
   },
   max_submissions: {

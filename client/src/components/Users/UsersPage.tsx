@@ -414,6 +414,11 @@ function CreateUserModal({
   );
 }
 
+function toWorkspaceRoleSelect(r: User["role"] | undefined): "Admin" | "Agent" | "Viewer" {
+  if (r === "Admin" || r === "Agent" || r === "Viewer") return r;
+  return "Viewer";
+}
+
 function EditUserModal({
   isOpen,
   user,
@@ -441,7 +446,7 @@ function EditUserModal({
         username: user.username || "",
         email: user.email || "",
         password: "",
-        role: user.role || "Viewer",
+        role: toWorkspaceRoleSelect(user.role),
       });
     }
   }, [user]);

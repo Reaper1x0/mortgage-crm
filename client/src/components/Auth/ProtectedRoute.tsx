@@ -1,14 +1,25 @@
 import { Navigate, useLocation, Outlet } from "react-router";
 import { useAuth } from "../../context/AuthContext";
+import { usePermissionsOptional } from "../../context/PermissionContext";
 
 interface ProtectedRouteProps {
   roles?: string[];
+  /** If set on org-scoped routes, allows access when the user has any of these org permission keys. */
+  organizationPermissionsAny?: string[];
+  /** If set on workspace-scoped routes, allows access when the user has any of these workspace permission keys. */
+  workspacePermissionsAny?: string[];
   requireWorkspace?: boolean;
 }
 
-export default function ProtectedRoute({ roles = [], requireWorkspace = true }: ProtectedRouteProps) {
+export default function ProtectedRoute({
+  roles = [],
+  organizationPermissionsAny = [],
+  workspacePermissionsAny = [],
+  requireWorkspace = true,
+}: ProtectedRouteProps) {
   const { user, loading, role, workspaces, workspacesLoaded, activeWorkspaceId } = useAuth();
   const location = useLocation();
+  const perm = usePermissionsOptional();
 
   if (loading || (user && !workspacesLoaded)) {
     return (
@@ -37,19 +48,51 @@ export default function ProtectedRoute({ roles = [], requireWorkspace = true }: 
   }
 
   const isWorkspaceScopedRoute = location.pathname.includes("/workspaces/");
+  const isTenantScopedRoute = /^\/[a-f\d]{24}(\/|$)/i.test(location.pathname);
 
-  if (!isOnboarding && roles.length > 0 && isWorkspaceScopedRoute) {
-    // System super admin route: allow even when a workspace role exists (Admin/Agent/Viewer)
-    if (roles.includes("superAdmin") && user?.role === "superAdmin") {
-      // ok
-    } else if (!role) {
+  if (!isOnboarding && isTenantScopedRoute && organizationPermissionsAny.length > 0) {
+    if (perm?.loading) {
       return (
         <div className="min-h-[50vh] flex items-center justify-center">
-          <div className="text-sm text-slate-500">Loading workspace…</div>
+          <div className="text-sm text-slate-500">Loading permissions…</div>
         </div>
       );
-    } else if (!roles.includes(role)) {
+    }
+    const ok =
+      (perm?.canAnyOrg(organizationPermissionsAny) ?? false) ||
+      perm?.effective?.isOrgOwner === true;
+    if (!ok) {
       return <Navigate to="/unauthorized" replace state={{ from: location }} />;
+    }
+  }
+
+  if (!isOnboarding && isWorkspaceScopedRoute) {
+    if (roles.includes("superAdmin") && user?.role === "superAdmin") {
+      // ok
+    } else if (workspacePermissionsAny.length > 0) {
+      if (perm?.loading) {
+        return (
+          <div className="min-h-[50vh] flex items-center justify-center">
+            <div className="text-sm text-slate-500">Loading permissions…</div>
+          </div>
+        );
+      }
+      const ok =
+        (perm?.canAnyWorkspace(workspacePermissionsAny) ?? false) ||
+        perm?.effective?.isOrgOwner === true;
+      if (!ok) {
+        return <Navigate to="/unauthorized" replace state={{ from: location }} />;
+      }
+    } else if (roles.length > 0) {
+      if (!role) {
+        return (
+          <div className="min-h-[50vh] flex items-center justify-center">
+            <div className="text-sm text-slate-500">Loading workspace…</div>
+          </div>
+        );
+      } else if (!roles.includes(role)) {
+        return <Navigate to="/unauthorized" replace state={{ from: location }} />;
+      }
     }
   }
 

@@ -5,18 +5,22 @@ import DataTable from "../Reusable/DataTable";
 import Input from "../Reusable/Inputs/Input";
 import Modal from "../Reusable/Modal";
 import { prettyDate } from "../../utils/date";
-import { FiEdit2 } from "react-icons/fi";
+import { FiEdit2, FiPlus } from "react-icons/fi";
 import { useNavigate } from "react-router";
 import { Submission } from "../../types/extraction.types";
 import PageHeader from "../Reusable/PageHeader";
-import { useAuth } from "../../context/AuthContext";
 import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
 import { Lead, LeadService } from "../../service/leadService";
+import { usePermissions } from "../../context/PermissionContext";
+import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
 
 const getRowId = (row: Submission) => row._id || "";
 
 const SubmissionsPage: React.FC = () => {
-  const { role } = useAuth();
+  const { canWorkspace } = usePermissions();
+  const canCreateClient = canWorkspace("workspace.submissions.manage");
+  const canEditClient = canWorkspace("workspace.submissions.write");
+  const canOpenClientDetail = canWorkspace("workspace.submissions.read");
   const [rows, setRows] = useState<Submission[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -40,11 +44,6 @@ const SubmissionsPage: React.FC = () => {
   const [editSaving, setEditSaving] = useState<boolean>(false);
 
   const navigate = useNavigate();
-
-  // Check if user can create (Admin only)
-  const canCreate = role === "Admin";
-  // Check if user can edit (Admin and Agent)
-  const canEdit = role === "Admin" || role === "Agent";
 
   const fetchSubmissions = useCallback(
     async (p = page, ps = pageSize) => {
@@ -136,7 +135,7 @@ const SubmissionsPage: React.FC = () => {
 
   useEffect(() => {
     const fetchLeadsForCreate = async () => {
-      if (!createOpen) return;
+      if (!createOpen || !canCreateClient) return;
       try {
         const data = await LeadService.listLeads({
           page: 1,
@@ -149,8 +148,8 @@ const SubmissionsPage: React.FC = () => {
         setAvailableLeads([]);
       }
     };
-    fetchLeadsForCreate();
-  }, [createOpen]);
+    void fetchLeadsForCreate();
+  }, [createOpen, canCreateClient]);
 
   /* -------------------- Edit (name only) -------------------- */
   const openEdit = useCallback((row: Submission) => {
@@ -233,22 +232,30 @@ const SubmissionsPage: React.FC = () => {
         key: "actions",
         render: (_: any, row: Submission) => (
           <div className="inline-flex items-center gap-2">
-            {canEdit && (
-              <Button variant="secondary" onClick={() => openEdit(row)}>
-                <span className="inline-flex items-center gap-2">
-                  <FiEdit2 />
-                  Edit
-                </span>
-              </Button>
-            )}
-            <Button variant="secondary" onClick={() => navigate(`${row._id}`)}>
+            <Button
+              variant="secondary"
+              onClick={() => openEdit(row)}
+              disabled={!canEditClient}
+              disabledTooltip={!canEditClient ? PERMISSION_TOOLTIPS.editClient : undefined}
+            >
+              <span className="inline-flex items-center gap-2">
+                <FiEdit2 className="h-4 w-4 shrink-0" aria-hidden />
+                Edit
+              </span>
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`${row._id}`)}
+              disabled={!canOpenClientDetail}
+              disabledTooltip={!canOpenClientDetail ? PERMISSION_TOOLTIPS.manageClient : undefined}
+            >
               Manage
             </Button>
           </div>
         ),
       },
     ],
-    [openEdit, navigate, canEdit],
+    [openEdit, navigate, canEditClient, canOpenClientDetail],
   );
 
   return (
@@ -257,11 +264,17 @@ const SubmissionsPage: React.FC = () => {
         title="Clients"
         description="Manage clients and continue extraction/document workflows."
         right={
-          canCreate ? (
-            <Button variant="primary" onClick={openCreate}>
-              + New Client
-            </Button>
-          ) : null
+          <Button
+            variant="primary"
+            onClick={openCreate}
+            disabled={!canCreateClient}
+            disabledTooltip={!canCreateClient ? PERMISSION_TOOLTIPS.addClient : undefined}
+          >
+            <span className="inline-flex items-center gap-2">
+              <FiPlus className="h-4 w-4 shrink-0" aria-hidden />
+              New Client
+            </span>
+          </Button>
         }
       />
 

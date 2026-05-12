@@ -1,17 +1,32 @@
+import { useMemo } from "react";
 import { Outlet, useParams } from "react-router";
 import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { RiBuildingLine } from "react-icons/ri";
-import { FiCreditCard, FiUsers } from "react-icons/fi";
+import { FiCreditCard, FiUsers, FiShield } from "react-icons/fi";
+import { usePermissions } from "../../context/PermissionContext";
 
 export default function SettingsLayout() {
   const { organizationId } = useParams();
+  const { canOrg } = usePermissions();
   const base = organizationId ? `/${organizationId}/settings` : "/settings";
-  const links: SidebarLink[] = [
-    { to: `${base}/organization`, label: "Organization", icon: RiBuildingLine },
-    { to: `${base}/users`, label: "Users", icon: FiUsers },
-    { to: `${base}/billing`, label: "Billing", icon: FiCreditCard },
-  ];
+
+  const links: SidebarLink[] = useMemo(() => {
+    const core: SidebarLink[] = [];
+    if (canOrg("organization.organization.read")) {
+      core.push({ to: `${base}/organization`, label: "Organization", icon: RiBuildingLine });
+    }
+    if (canOrg("organization.members.read")) {
+      core.push({ to: `${base}/users`, label: "Users", icon: FiUsers });
+    }
+    if (canOrg("organization.billing.read") || canOrg("organization.billing.manage")) {
+      core.push({ to: `${base}/billing`, label: "Billing", icon: FiCreditCard });
+    }
+    if (canOrg("organization.rbac.manage")) {
+      core.push({ to: `${base}/access`, label: "Roles", icon: FiShield });
+    }
+    return core;
+  }, [base, canOrg]);
 
   return (
     <div className="min-h-screen bg-background text-text">

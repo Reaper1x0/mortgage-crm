@@ -6,6 +6,12 @@ import { showErrorToast } from "../utils/errorHandler";
 import { getTenantFromPath, buildOrganizationPath } from "../utils/tenantRouting";
 
 const API_BASE_URL = SERVER_URL;
+const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
+
+const sanitizeOrgId = (value: unknown): string | null => {
+  const v = typeof value === "string" ? value.trim() : "";
+  return OBJECT_ID_RE.test(v) ? v : null;
+};
 
 // Extend AxiosRequestConfig to include skipErrorToast flag
 // Use this to skip automatic error toast for specific requests:
@@ -13,6 +19,10 @@ const API_BASE_URL = SERVER_URL;
 declare module "axios" {
   export interface AxiosRequestConfig {
     skipErrorToast?: boolean;
+    /** When set, sent as X-Organization-Id (overrides path-based tenant). Use during onboarding before URL updates. */
+    organizationId?: string | null;
+    /** When set, sent as X-Workspace-Id (overrides path-based tenant). */
+    workspaceId?: string | null;
   }
 }
 
@@ -70,14 +80,18 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = token;
   }
-  const { organizationId, workspaceId } = getTenantFromPath(
-    typeof window !== "undefined" ? window.location.pathname : ""
-  );
+  const pathTenant = getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "");
+  const organizationId = sanitizeOrgId(config.organizationId ?? pathTenant.organizationId);
+  const workspaceId = sanitizeOrgId(config.workspaceId ?? pathTenant.workspaceId);
   if (organizationId) {
     config.headers["X-Organization-Id"] = organizationId;
+  } else {
+    delete (config.headers as Record<string, unknown>)["X-Organization-Id"];
   }
   if (workspaceId) {
     config.headers["X-Workspace-Id"] = workspaceId;
+  } else {
+    delete (config.headers as Record<string, unknown>)["X-Workspace-Id"];
   }
   return config;
 });
@@ -115,10 +129,18 @@ apiClient.interceptors.response.use(
       }
     }
 
+    const data = error.response?.data as { reason?: string; message?: string } | undefined;
+    const reasonText = String(data?.reason || data?.message || "");
+    const isMissingOrgContext =
+      error.response?.status === 400 &&
+      (reasonText.includes("X-Organization-Id") || reasonText.includes("Active organization is required"));
+
     // Show error toast unless explicitly skipped
-    // Skip toasts for 401 errors (handled above) and if skipErrorToast flag is set
+    // Skip toasts for 401 errors (handled above), missing tenant context (client routing bug — avoid floods),
+    // and if skipErrorToast flag is set
     if (
       error.response?.status !== 401 &&
+      !isMissingOrgContext &&
       !originalRequest?.skipErrorToast
     ) {
       showErrorToast(error);

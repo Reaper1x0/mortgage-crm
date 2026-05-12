@@ -1,5 +1,6 @@
 const { Organization, Plan, OrganizationSubscription, StripeWebhookEvent } = require("../models");
 const entitlementService = require("../billing/entitlement.service");
+const { ENTITLEMENT_KEYS } = require("../billing/entitlementCatalog");
 const subscriptionService = require("../billing/subscription.service");
 const usageService = require("../billing/usage.service");
 const { envConfig } = require("../config");
@@ -136,8 +137,41 @@ const resolveAndValidateStripePrices = async ({ stripeMonthlyPriceId, stripeYear
   };
 };
 
-const normalizePlanEntitlements = (plan) =>
-  plan.entitlements instanceof Map ? Object.fromEntries(plan.entitlements.entries()) : plan.entitlements || {};
+const normalizePlanEntitlements = (plan) => {
+  const raw =
+    plan.entitlements instanceof Map ? Object.fromEntries(plan.entitlements.entries()) : plan.entitlements || {};
+  const out = {};
+  for (const key of ENTITLEMENT_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(raw, key)) out[key] = raw[key];
+  }
+  return out;
+};
+
+/** Stripe return URLs must include organization id (URL-tenant model; no localStorage org). */
+function stripeReturnUrlsForOrganization(organizationId) {
+  const id = String(organizationId || "").replace(/\/+/g, "");
+  if (!id) return { successUrl: "", cancelUrl: "", portalReturnUrl: "" };
+  const base = String(envConfig.FRONTEND_URL || "").trim().replace(/\/+$/, "");
+  if (base) {
+    return {
+      successUrl: `${base}/${id}/onboarding?checkout=success`,
+      cancelUrl: `${base}/${id}/onboarding?checkout=cancel`,
+      portalReturnUrl: `${base}/${id}/settings/billing`,
+    };
+  }
+  const seed = envConfig.STRIPE_SUCCESS_URL || envConfig.STRIPE_CANCEL_URL || "";
+  try {
+    const origin = seed ? new URL(seed).origin : "";
+    if (!origin) return { successUrl: "", cancelUrl: "", portalReturnUrl: "" };
+    return {
+      successUrl: `${origin}/${id}/onboarding?checkout=success`,
+      cancelUrl: `${origin}/${id}/onboarding?checkout=cancel`,
+      portalReturnUrl: `${origin}/${id}/settings/billing`,
+    };
+  } catch {
+    return { successUrl: "", cancelUrl: "", portalReturnUrl: "" };
+  }
+}
 
 const attachStripePricingToPlan = async (plan) => {
   const entitlements = normalizePlanEntitlements(plan);
@@ -505,22 +539,24 @@ const BillingService = {
       expectedInterval: billingCycle === "yearly" ? "year" : "month",
       label: billingCycle,
     });
+    const urls = stripeReturnUrlsForOrganization(organizationId);
     return subscriptionService.createCheckoutSession({
       organizationId,
       organizationName: organization.name,
       plan,
       billingCycle,
-      successUrl: envConfig.STRIPE_SUCCESS_URL,
-      cancelUrl: envConfig.STRIPE_CANCEL_URL,
+      successUrl: urls.successUrl || envConfig.STRIPE_SUCCESS_URL,
+      cancelUrl: urls.cancelUrl || envConfig.STRIPE_CANCEL_URL,
     });
   },
 
   createPortalSession: async ({ organizationId }) => {
     const subscription = await OrganizationSubscription.findOne({ organization: organizationId }).lean();
     if (!subscription?.stripeCustomerId) return null;
+    const urls = stripeReturnUrlsForOrganization(organizationId);
     return subscriptionService.createPortalSession({
       customerId: subscription.stripeCustomerId,
-      returnUrl: envConfig.STRIPE_SUCCESS_URL,
+      returnUrl: urls.portalReturnUrl || envConfig.STRIPE_SUCCESS_URL,
     });
   },
 

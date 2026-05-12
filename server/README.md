@@ -164,7 +164,7 @@ server/
 │   │   └── user.controller.js
 │   ├── middlewares/            # Express middlewares
 │   │   ├── auth.middleware.js
-│   │   ├── hasRole.middleware.js
+│   │   ├── requirePermission.middleware.js
 │   │   ├── validate.middleware.js
 │   │   ├── getDeviceId.middleware.js
 │   │   └── ...

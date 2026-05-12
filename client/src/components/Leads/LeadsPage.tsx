@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FiEdit, FiTrash, FiUpload, FiUserPlus } from "react-icons/fi";
+import { FiEdit2, FiPlus, FiTrash2, FiUpload } from "react-icons/fi";
 import PageHeader from "../Reusable/PageHeader";
 import Button from "../Reusable/Button";
 import DataTable from "../Reusable/DataTable";
@@ -12,6 +12,8 @@ import Checkbox from "../Reusable/Checkbox";
 import { prettyDate } from "../../utils/date";
 import { showSuccessToast, showWarningToast } from "../../utils/errorHandler";
 import { Lead, LeadService } from "../../service/leadService";
+import { usePermissions } from "../../context/PermissionContext";
+import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
 
 type LeadFormData = {
   fullName: string;
@@ -55,6 +57,8 @@ const getLeadPayload = (formData: LeadFormData) => ({
 });
 
 export default function LeadsPage() {
+  const { canWorkspace } = usePermissions();
+  const canLeadsWrite = canWorkspace("workspace.leads.write");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,6 +88,10 @@ export default function LeadsPage() {
           sortBy: string;
           sortOrder: "asc" | "desc";
           search?: string;
+          source?: string;
+          company?: string;
+          createdFrom?: string;
+          createdTo?: string;
         } = {
           page: p,
           limit: ps,
@@ -165,19 +173,22 @@ export default function LeadsPage() {
     }
   };
 
-  const handleMoveSingleLead = async (lead: Lead) => {
-    setLoading(true);
-    try {
-      const res = await LeadService.moveLeadToClient(lead._id);
-      showSuccessToast(`${lead.fullName} moved to client`);
-      if (res.skippedCount > 0) {
-        showWarningToast(`${res.skippedCount} lead(s) skipped`);
+  const handleMoveSingleLead = useCallback(
+    async (lead: Lead) => {
+      setLoading(true);
+      try {
+        const res = await LeadService.moveLeadToClient(lead._id);
+        showSuccessToast(`${lead.fullName} moved to client`);
+        if (res.skippedCount > 0) {
+          showWarningToast(`${res.skippedCount} lead(s) skipped`);
+        }
+        await fetchLeads(page, pageSize);
+      } finally {
+        setLoading(false);
       }
-      await fetchLeads(page, pageSize);
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [fetchLeads, page, pageSize]
+  );
 
   const handleBulkMoveToClients = async () => {
     if (!selectedLeadIds.length) return;
@@ -200,7 +211,13 @@ export default function LeadsPage() {
       {
         title: (
           <div className="flex items-center justify-center">
-            <Checkbox checked={allVisibleSelected} onChange={(e) => toggleSelectAllVisible(e.target.checked)} size="sm" />
+            <Checkbox
+              checked={allVisibleSelected}
+              onChange={(e) => toggleSelectAllVisible(e.target.checked)}
+              size="sm"
+              disabled={!canLeadsWrite}
+              title={!canLeadsWrite ? PERMISSION_TOOLTIPS.leadBulkSelection : undefined}
+            />
           </div>
         ),
         dataIndex: "select",
@@ -210,6 +227,8 @@ export default function LeadsPage() {
               checked={selectedLeadIds.includes(row._id)}
               onChange={(e) => toggleLeadSelection(row._id, e.target.checked)}
               size="sm"
+              disabled={!canLeadsWrite}
+              title={!canLeadsWrite ? PERMISSION_TOOLTIPS.leadBulkSelection : undefined}
             />
           </div>
         ),
@@ -235,33 +254,38 @@ export default function LeadsPage() {
         render: (_: unknown, row: Lead) => (
           <div className="flex gap-2">
             <IconButton
-              icon={FiEdit as never}
+              icon={FiEdit2 as never}
               size="sm"
               outline
               fillBg
               hoverable
-              title="Edit"
+              title="Edit lead"
               onClick={() => {
                 setSelectedLead(row);
                 setEditOpen(true);
               }}
+              disabled={!canLeadsWrite}
+              disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.editLead : undefined}
             />
             <IconButton
-              icon={FiTrash as never}
+              icon={FiTrash2 as never}
               size="sm"
               outline
               fillBg
               hoverable
-              title="Delete"
+              title="Delete lead"
               onClick={() => {
                 setLeadToDelete(row);
                 setDeleteConfirmOpen(true);
               }}
+              disabled={!canLeadsWrite}
+              disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.deleteLead : undefined}
             />
             <Button
               variant="secondary"
               onClick={() => handleMoveSingleLead(row)}
-              disabled={loading}
+              disabled={loading || !canLeadsWrite}
+              disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.moveLeadToClient : undefined}
             >
               Make Client
             </Button>
@@ -269,7 +293,7 @@ export default function LeadsPage() {
         ),
       },
     ],
-    [allVisibleSelected, selectedLeadIds]
+    [allVisibleSelected, selectedLeadIds, canLeadsWrite, loading, handleMoveSingleLead]
   );
 
   return (
@@ -279,14 +303,26 @@ export default function LeadsPage() {
         description="Manage your leads and import them from spreadsheets."
         right={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setBulkOpen(true)}>
+            <Button
+              variant="secondary"
+              onClick={() => setBulkOpen(true)}
+              disabled={!canLeadsWrite}
+              disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.bulkLeads : undefined}
+            >
               <span className="inline-flex items-center gap-2">
-                <FiUpload /> Bulk Upload
+                <FiUpload className="h-4 w-4 shrink-0" aria-hidden />
+                Bulk Upload
               </span>
             </Button>
-            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            <Button
+              variant="primary"
+              onClick={() => setCreateOpen(true)}
+              disabled={!canLeadsWrite}
+              disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.addLead : undefined}
+            >
               <span className="inline-flex items-center gap-2">
-                <FiUserPlus /> Add Lead
+                <FiPlus className="h-4 w-4 shrink-0" aria-hidden />
+                Add Lead
               </span>
             </Button>
           </div>
@@ -370,10 +406,20 @@ export default function LeadsPage() {
               <span className="font-semibold text-text">{selectedLeadIds.length}</span> lead(s) selected
             </p>
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={handleBulkMoveToClients} disabled={loading}>
+              <Button
+                variant="secondary"
+                onClick={handleBulkMoveToClients}
+                disabled={loading || !canLeadsWrite}
+                disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.moveLeadToClient : undefined}
+              >
                 Make Clients
               </Button>
-              <Button variant="danger" onClick={() => setBulkDeleteConfirmOpen(true)} disabled={loading}>
+              <Button
+                variant="danger"
+                onClick={() => setBulkDeleteConfirmOpen(true)}
+                disabled={loading || !canLeadsWrite}
+                disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.bulkDeleteLeads : undefined}
+              >
                 Delete Selected
               </Button>
             </div>

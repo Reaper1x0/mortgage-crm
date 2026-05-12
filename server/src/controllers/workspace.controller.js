@@ -2,6 +2,7 @@ const { R2XX, R4XX } = require("../Responses");
 const { catchAsync } = require("../utils");
 const workspaceService = require("../services/workspace.service");
 const organizationService = require("../services/organization.service");
+const authorizationService = require("../services/authorization.service");
 const { FileService } = require("../services/file.service");
 const entitlementService = require("../billing/entitlement.service");
 const subscriptionService = require("../billing/subscription.service");
@@ -15,7 +16,7 @@ const WorkspaceController = {
 
   create: catchAsync(async (req, res) => {
     const { name, organizationId, organizationName } = req.body;
-    let targetOrganizationId = organizationId;
+    let targetOrganizationId = req.organizationId || organizationId;
     if (!targetOrganizationId) {
       const memberships = await organizationService.listForUser(req.user);
       if (memberships.length > 0) {
@@ -27,6 +28,20 @@ const WorkspaceController = {
       if (!orgMember) {
         return R4XX(res, 403, "You are not a member of the selected organization.");
       }
+
+      const effective = await authorizationService.getEffectiveForUser({
+        userId: req.user,
+        organizationId: targetOrganizationId,
+      });
+      const canCreateWorkspace =
+        effective?.isOrgOwner || (effective?.organizationPermissions || []).includes("organization.workspaces.create");
+      if (!canCreateWorkspace) {
+        return R4XX(res, 403, "You do not have permission to create workspaces in this organization.", {
+          code: "WORKSPACE_CREATE_FORBIDDEN",
+          organizationId: targetOrganizationId,
+        });
+      }
+
       const subscription = await entitlementService.getSubscriptionWithPlan(targetOrganizationId);
       if (!subscriptionService.canAccessOrganization(subscription)) {
         return R4XX(res, 402, "Active subscription required before creating a workspace.", {

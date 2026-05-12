@@ -7,7 +7,7 @@ import Button from "../Reusable/Button";
 import Modal from "../Reusable/Modal";
 import Avatar from "../Reusable/Avatar";
 import IconButton from "../Reusable/IconButton";
-import { FiEdit2, FiTrash2 } from "react-icons/fi";
+import { FiEdit2, FiPlus, FiTrash2 } from "react-icons/fi";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { extractErrorMessage, showSuccessToast, showWarningToast } from "../../utils/errorHandler";
 import { prettyDate } from "../../utils/date";
@@ -16,15 +16,25 @@ import {
   OrganizationRoleStats,
   OrganizationService,
   OrganizationWorkspaceSummary,
+  RoleRow,
 } from "../../service/organizationService";
 import { useAuth } from "../../context/AuthContext";
+import { usePermissions } from "../../context/PermissionContext";
+import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
 import Callout from "../Reusable/Callout";
 
 type OrgRole = "Owner" | "Admin" | "Member" | "Viewer";
-type WorkspaceRole = "Admin" | "Agent" | "Viewer";
+
+function roleOptionLabel(role: RoleRow): string {
+  if (role.kind === "system") {
+    return `${role.name} (system)`;
+  }
+  return role.name;
+}
 
 export default function OrganizationUsersSettings() {
   const { workspaces, activeOrganizationId } = useAuth();
+  const { canOrg } = usePermissions();
   const [users, setUsers] = useState<OrganizationMemberUser[]>([]);
   const [orgWorkspaces, setOrgWorkspaces] = useState<OrganizationWorkspaceSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -48,7 +58,18 @@ export default function OrganizationUsersSettings() {
     const orgWorkspace = workspaces.find((w) => w.organization?.organizationId === activeOrganizationId);
     return orgWorkspace?.organizationRole || null;
   }, [activeOrganizationId, workspaces]);
-  const canManage = myOrgRole === "Owner" || myOrgRole === "Admin";
+  const canAddMember = useMemo(
+    () => canOrg("organization.members.invite") || myOrgRole === "Owner" || myOrgRole === "Admin",
+    [canOrg, myOrgRole]
+  );
+  const canUpdateMember = useMemo(
+    () => canOrg("organization.members.update") || myOrgRole === "Owner" || myOrgRole === "Admin",
+    [canOrg, myOrgRole]
+  );
+  const canRemoveOrgMember = useMemo(
+    () => canOrg("organization.members.remove") || myOrgRole === "Owner" || myOrgRole === "Admin",
+    [canOrg, myOrgRole]
+  );
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -61,10 +82,10 @@ export default function OrganizationUsersSettings() {
         role: orgRoleFilter || undefined,
         search: searchQuery.trim() || undefined,
       });
-      const list = response.data?.users || [];
+      const raw = response.data?.users || [];
       const workspaceList = response.data?.workspaces || [];
       const meta = response.data?.pagination;
-      setUsers(list);
+      setUsers(raw);
       setOrgWorkspaces(workspaceList);
       setRoleStats(
         response.data?.roleStats || {
@@ -74,7 +95,7 @@ export default function OrganizationUsersSettings() {
           viewerCount: 0,
         }
       );
-      setTotal(typeof meta?.total === "number" ? meta.total : list.length);
+      setTotal(typeof meta?.total === "number" ? meta.total : raw.length);
     } finally {
       setLoading(false);
     }
@@ -124,34 +145,60 @@ export default function OrganizationUsersSettings() {
       {
         title: "Actions",
         dataIndex: "actions",
-        render: (_: unknown, row: OrganizationMemberUser) => (
-          <div className="flex items-center gap-2">
-            <IconButton
-              icon={FiEdit2 as any}
-              size="sm"
-              outline
-              fillBg
-              hoverable
-              title="Manage access"
-              onClick={() => setEditingUser(row)}
-              disabled={!canManage || row.organizationRole === "Owner"}
-            />
-            <IconButton
-              icon={FiTrash2 as any}
-              size="sm"
-              outline
-              fillBg
-              hoverable
-              title="Remove user"
-              onClick={() => setDeleteUser(row)}
-              disabled={!canDeleteUser(myOrgRole, row.organizationRole, roleStats)}
-            />
-          </div>
-        ),
+        render: (_: unknown, row: OrganizationMemberUser) => {
+          const ownerRow = row.organizationRole === "Owner" || row.isOrgOwner;
+          const editDisabled = !canUpdateMember || ownerRow;
+          const editTooltip = ownerRow
+            ? PERMISSION_TOOLTIPS.editOrgOwner
+            : !canUpdateMember
+              ? PERMISSION_TOOLTIPS.editUser
+              : undefined;
+          const deleteAllowedByRules = canDeleteUser(myOrgRole, row.organizationRole, roleStats, row.isOrgOwner);
+          const deleteDisabled = !canRemoveOrgMember || !deleteAllowedByRules;
+          const deleteTooltip = !canRemoveOrgMember
+            ? PERMISSION_TOOLTIPS.removeUser
+            : !deleteAllowedByRules
+              ? PERMISSION_TOOLTIPS.removeOrgMemberProtected
+              : undefined;
+          return (
+            <div className="flex items-center gap-2">
+              <IconButton
+                icon={FiEdit2 as any}
+                size="sm"
+                outline
+                fillBg
+                hoverable
+                title="Manage access"
+                onClick={() => setEditingUser(row)}
+                disabled={editDisabled}
+                disabledTooltip={editDisabled ? editTooltip : undefined}
+              />
+              <IconButton
+                icon={FiTrash2 as any}
+                size="sm"
+                outline
+                fillBg
+                hoverable
+                title="Remove user"
+                onClick={() => setDeleteUser(row)}
+                disabled={deleteDisabled}
+                disabledTooltip={deleteDisabled ? deleteTooltip : undefined}
+              />
+            </div>
+          );
+        },
       },
     ],
-    [canManage, myOrgRole, roleStats]
+    [canRemoveOrgMember, canUpdateMember, myOrgRole, roleStats]
   );
+
+  useEffect(() => {
+    setEditingUser((prev) => {
+      if (!prev) return prev;
+      const next = users.find((u) => u._id === prev._id);
+      return next || prev;
+    });
+  }, [users]);
 
   return (
     <div className="space-y-5">
@@ -159,19 +206,19 @@ export default function OrganizationUsersSettings() {
         title="Organization Users"
         description="Manage organization members, workspace access, and roles with centralized controls."
         right={
-          canManage ? (
-            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+          <Button
+            variant="primary"
+            onClick={() => setCreateOpen(true)}
+            disabled={!canAddMember}
+            disabledTooltip={!canAddMember ? PERMISSION_TOOLTIPS.addUser : undefined}
+          >
+            <span className="inline-flex items-center gap-2">
+              <FiPlus className="h-4 w-4 shrink-0" aria-hidden />
               Add User
-            </Button>
-          ) : undefined
+            </span>
+          </Button>
         }
       />
-
-      {!canManage && (
-        <Callout tone="warning" title="Read-only access">
-          Only organization owners and admins can update member roles or workspace access.
-        </Callout>
-      )}
 
       <div className="grid grid-cols-1 gap-4 rounded-2xl border border-card-border bg-card p-4 md:grid-cols-3">
         <Input
@@ -235,7 +282,6 @@ export default function OrganizationUsersSettings() {
         workspaces={orgWorkspaces}
         onClose={() => setEditingUser(null)}
         onUpdated={async () => {
-          setEditingUser(null);
           await fetchMembers();
         }}
       />
@@ -255,9 +301,14 @@ export default function OrganizationUsersSettings() {
   );
 }
 
-function canDeleteUser(myRole: OrgRole | null, targetRole: OrgRole, stats: OrganizationRoleStats) {
+function canDeleteUser(
+  myRole: OrgRole | null,
+  targetRole: OrgRole,
+  stats: OrganizationRoleStats,
+  targetIsOwner?: boolean
+) {
   if (!myRole) return false;
-  if (targetRole === "Owner") return false;
+  if (targetIsOwner || targetRole === "Owner") return false;
   if (myRole !== "Owner" && myRole !== "Admin") return false;
   if (targetRole === "Admin") {
     if (myRole !== "Owner") return false;
@@ -278,19 +329,75 @@ function AddOrganizationMemberModal({
   onCreated: () => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [orgRoles, setOrgRoles] = useState<RoleRow[]>([]);
+  const [wsRoles, setWsRoles] = useState<RoleRow[]>([]);
   const [form, setForm] = useState({
     fullName: "",
     username: "",
     email: "",
     password: "",
-    organizationRole: "Member" as OrgRole,
+    organizationRoleId: "",
   });
-  const [workspaceRoles, setWorkspaceRoles] = useState<Record<string, WorkspaceRole>>({});
+  const [workspaceRoles, setWorkspaceRoles] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setRolesLoading(true);
+    (async () => {
+      try {
+        const [orgRes, wsRes] = await Promise.all([
+          OrganizationService.listOrganizationRoles(),
+          OrganizationService.listWorkspaceRoles(),
+        ]);
+        if (cancelled) return;
+        const org = orgRes.data?.roles || [];
+        const ws = wsRes.data?.roles || [];
+        setOrgRoles(org);
+        setWsRoles(ws);
+        const assignable = org.filter((r) => r.slug !== "owner");
+        setForm((prev) => ({
+          ...prev,
+          organizationRoleId: prev.organizationRoleId || assignable[0]?._id || "",
+        }));
+      } catch (error) {
+        showWarningToast(extractErrorMessage(error));
+      } finally {
+        if (!cancelled) setRolesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setForm({ fullName: "", username: "", email: "", password: "", organizationRoleId: "" });
+      setWorkspaceRoles({});
+      setOrgRoles([]);
+      setWsRoles([]);
+    }
+  }, [isOpen]);
+
+  const orgRoleOptions = orgRoles
+    .filter((r) => r.slug !== "owner")
+    .map((r) => ({ label: roleOptionLabel(r), value: r._id }));
+
+  const wsRoleOptions = wsRoles.map((r) => ({
+    label: roleOptionLabel(r),
+    value: r._id,
+  }));
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.fullName.trim() || !form.username.trim() || !form.email.trim()) {
       showWarningToast("Full name, username, and email are required.");
+      return;
+    }
+    if (!form.organizationRoleId) {
+      showWarningToast("Select an organization role.");
       return;
     }
     if (form.password && form.password.length < 8) {
@@ -301,20 +408,20 @@ function AddOrganizationMemberModal({
     setSaving(true);
     try {
       await OrganizationService.addMember({
-        ...form,
-        workspaceRoles: Object.entries(workspaceRoles).map(([workspaceId, role]) => ({
-          workspaceId,
-          role,
-        })),
+        fullName: form.fullName.trim(),
+        username: form.username.trim(),
+        email: form.email.trim(),
+        password: form.password,
+        organizationRoleId: form.organizationRoleId,
+        workspaceRoles: Object.entries(workspaceRoles)
+          .filter(([, workspaceRoleId]) => Boolean(workspaceRoleId))
+          .map(([workspaceId, workspaceRoleId]) => ({
+            workspaceId,
+            workspaceRoleId,
+          })),
       });
       await onCreated();
-      setForm({
-        fullName: "",
-        username: "",
-        email: "",
-        password: "",
-        organizationRole: "Member",
-      });
+      setForm({ fullName: "", username: "", email: "", password: "", organizationRoleId: "" });
       setWorkspaceRoles({});
     } catch (error) {
       showWarningToast(extractErrorMessage(error));
@@ -325,29 +432,59 @@ function AddOrganizationMemberModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-        <h2 className="text-xl font-semibold text-text">Add Organization User</h2>
-        <form className="mt-4 space-y-4" onSubmit={submit}>
-        <Input label="Full Name" name="fullName" value={form.fullName} onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))} />
-        <Input label="Username" name="username" value={form.username} onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))} />
-        <Input label="Email" name="email" type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />
-        <Input label="Password (new users)" name="password" type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} placeholder="Required if user does not already exist" />
-        <Select
-          label="Organization Role"
-          name="organizationRole"
-          value={form.organizationRole}
-          onChange={(e) => setForm((p) => ({ ...p, organizationRole: e.target.value as OrgRole }))}
-          options={[
-            { label: "Owner", value: "Owner" },
-            { label: "Admin", value: "Admin" },
-            { label: "Member", value: "Member" },
-            { label: "Viewer", value: "Viewer" },
-          ]}
+      <h2 className="text-xl font-semibold text-text">Add Organization User</h2>
+      <form className="mt-4 space-y-4" onSubmit={submit}>
+        <Input
+          label="Full Name"
+          name="fullName"
+          value={form.fullName}
+          onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
         />
+        <Input
+          label="Username"
+          name="username"
+          value={form.username}
+          onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))}
+        />
+        <Input
+          label="Email"
+          name="email"
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+        />
+        <Input
+          label="Password (new users)"
+          name="password"
+          type="password"
+          value={form.password}
+          onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+          placeholder="Required if user does not already exist"
+        />
+        {rolesLoading ? (
+          <p className="text-sm text-card-text">Loading roles…</p>
+        ) : orgRoleOptions.length === 0 ? (
+          <Callout tone="warning" title="No assignable organization roles">
+            Create organization roles under Access &amp; roles before inviting users.
+          </Callout>
+        ) : (
+          <Select
+            label="Organization role"
+            name="organizationRoleId"
+            value={form.organizationRoleId}
+            onChange={(e) => setForm((p) => ({ ...p, organizationRoleId: e.target.value }))}
+            options={[{ label: "Select a role", value: "" }, ...orgRoleOptions]}
+          />
+        )}
 
         <div className="space-y-3 rounded-xl border border-card-border p-3">
-          <p className="text-sm font-medium text-text">Workspace Access</p>
+          <p className="text-sm font-medium text-text">Workspace access</p>
           {workspaces.length === 0 ? (
             <p className="text-sm text-card-text">No workspaces in this organization yet.</p>
+          ) : wsRoleOptions.length === 0 ? (
+            <Callout tone="warning" title="No workspace roles">
+              Create workspace roles under Access &amp; roles before assigning workspace access.
+            </Callout>
           ) : (
             workspaces.map((workspace) => {
               const selected = workspaceRoles[workspace.workspaceId] || "";
@@ -358,7 +495,7 @@ function AddOrganizationMemberModal({
                     name={`workspaceRole-${workspace.workspaceId}`}
                     value={selected}
                     onChange={(e) => {
-                      const value = e.target.value as WorkspaceRole | "";
+                      const value = e.target.value;
                       setWorkspaceRoles((prev) => {
                         const next = { ...prev };
                         if (!value) delete next[workspace.workspaceId];
@@ -366,12 +503,7 @@ function AddOrganizationMemberModal({
                         return next;
                       });
                     }}
-                    options={[
-                      { label: "No access", value: "" },
-                      { label: "Admin", value: "Admin" },
-                      { label: "Agent", value: "Agent" },
-                      { label: "Viewer", value: "Viewer" },
-                    ]}
+                    options={[{ label: "No access", value: "" }, ...wsRoleOptions]}
                   />
                 </div>
               );
@@ -383,11 +515,11 @@ function AddOrganizationMemberModal({
           <Button variant="secondary" type="button" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" type="submit" disabled={saving}>
+          <Button variant="primary" type="submit" disabled={saving || rolesLoading || orgRoleOptions.length === 0}>
             {saving ? "Adding..." : "Add User"}
           </Button>
         </div>
-        </form>
+      </form>
     </Modal>
   );
 }
@@ -410,24 +542,62 @@ function ManageOrganizationMemberModal({
   onUpdated: () => Promise<void>;
 }) {
   const [savingOrgRole, setSavingOrgRole] = useState(false);
-  const [workspaceRoles, setWorkspaceRoles] = useState<Record<string, WorkspaceRole>>({});
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [orgRoles, setOrgRoles] = useState<RoleRow[]>([]);
+  const [wsRoles, setWsRoles] = useState<RoleRow[]>([]);
+  const [workspaceRoles, setWorkspaceRoles] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setRolesLoading(true);
+    (async () => {
+      try {
+        const [orgRes, wsRes] = await Promise.all([
+          OrganizationService.listOrganizationRoles(),
+          OrganizationService.listWorkspaceRoles(),
+        ]);
+        if (cancelled) return;
+        setOrgRoles(orgRes.data?.roles || []);
+        setWsRoles(wsRes.data?.roles || []);
+      } catch (error) {
+        showWarningToast(extractErrorMessage(error));
+      } finally {
+        if (!cancelled) setRolesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!user) return;
-    const map: Record<string, WorkspaceRole> = {};
-    user.workspaceMemberships.forEach((entry) => {
-      map[entry.workspaceId] = entry.role;
+    const map: Record<string, string> = {};
+    (user.workspaceMemberships || []).forEach((entry) => {
+      if (entry.workspaceRoleId) map[entry.workspaceId] = entry.workspaceRoleId;
     });
     setWorkspaceRoles(map);
   }, [user]);
 
   if (!user) return null;
 
-  const updateOrgRole = async (role: OrgRole) => {
-    if (!myOrgRole) return;
+  const orgRoleSelectOptions = orgRoles
+    .filter((r) => r.slug !== "owner")
+    .map((r) => ({ label: roleOptionLabel(r), value: r._id }));
+
+  const wsRoleSelectOptions = wsRoles.map((r) => ({
+    label: roleOptionLabel(r),
+    value: r._id,
+  }));
+
+  const orgRoleValue = user.organizationRoleId || "";
+
+  const updateOrgRole = async (organizationRoleId: string) => {
+    if (!myOrgRole || !organizationRoleId || organizationRoleId === orgRoleValue) return;
     setSavingOrgRole(true);
     try {
-      await OrganizationService.updateMemberRole(user._id, role);
+      await OrganizationService.updateMemberRole(user._id, { organizationRoleId });
       showSuccessToast("Organization role updated.");
       await onUpdated();
     } catch (error) {
@@ -437,15 +607,15 @@ function ManageOrganizationMemberModal({
     }
   };
 
-  const upsertWorkspaceRole = async (workspaceId: string, role: WorkspaceRole | "") => {
+  const upsertWorkspaceRole = async (workspaceId: string, workspaceRoleId: string | "") => {
     try {
-      if (!role) {
+      if (!workspaceRoleId) {
         await OrganizationService.removeWorkspaceAccess(user._id, workspaceId);
         showSuccessToast("Workspace access removed.");
         await onUpdated();
         return;
       }
-      await OrganizationService.updateWorkspaceRole(user._id, workspaceId, role);
+      await OrganizationService.updateMemberWorkspaceRole(user._id, workspaceId, { workspaceRoleId });
       showSuccessToast("Workspace role updated.");
       await onUpdated();
     } catch (error) {
@@ -455,66 +625,74 @@ function ManageOrganizationMemberModal({
 
   const canEditOrgRole = user.organizationRole !== "Owner";
   const canEditAdminRole = myOrgRole === "Owner";
-  const roleOptions = [
-    { label: "Owner", value: "Owner" },
-    { label: "Admin", value: "Admin" },
-    { label: "Member", value: "Member" },
-    { label: "Viewer", value: "Viewer" },
-  ].filter((option) => {
-    if (option.value === "Owner") return myOrgRole === "Owner";
-    if (option.value === "Admin") return myOrgRole === "Owner";
+  const orgOptionsForSelect = orgRoleSelectOptions.filter((option) => {
+    const row = orgRoles.find((r) => r._id === option.value);
+    if (!row) return false;
+    if (option.value === orgRoleValue) return true;
+    if (row.slug === "admin") return myOrgRole === "Owner";
     return true;
   });
 
   const disableOrgRoleDropdown =
     savingOrgRole ||
     !canEditOrgRole ||
+    rolesLoading ||
+    orgRoles.filter((r) => r.slug !== "owner").length === 0 ||
     (user.organizationRole === "Admin" && !canEditAdminRole) ||
     (user.organizationRole === "Admin" && roleStats.adminCount <= 1);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-        <h2 className="text-xl font-semibold text-text">Manage User Access</h2>
-        <p className="mt-1 text-sm text-card-text">
-          {user.fullName} ({user.email})
-        </p>
+      <h2 className="text-xl font-semibold text-text">Manage user access</h2>
+      <p className="mt-1 text-sm text-card-text">
+        {user.fullName} ({user.email})
+      </p>
 
-        <div className="mt-4 space-y-4">
-        <Select
-          name="organizationRole"
-          label="Organization Role"
-          value={user.organizationRole}
-          onChange={(e) => updateOrgRole(e.target.value as OrgRole)}
-          options={roleOptions}
-          disabled={disableOrgRoleDropdown}
-        />
+      <div className="mt-4 space-y-4">
+        {rolesLoading ? (
+          <p className="text-sm text-card-text">Loading roles…</p>
+        ) : (
+          <Select
+            name="organizationRoleId"
+            label="Organization role"
+            value={orgRoleValue}
+            onChange={(e) => void updateOrgRole(e.target.value)}
+            options={[{ label: "Select a role", value: "" }, ...orgOptionsForSelect]}
+            disabled={disableOrgRoleDropdown}
+          />
+        )}
 
         <div className="space-y-3 rounded-xl border border-card-border p-3">
-          <p className="text-sm font-medium text-text">Workspace Access</p>
-          {workspaces.map((workspace) => {
-            const selected = workspaceRoles[workspace.workspaceId] || "";
-            return (
-              <div key={workspace.workspaceId} className="flex items-center gap-3">
-                <span className="min-w-0 flex-1 text-sm text-text">{workspace.name}</span>
-                <Select
-                  name={`workspaceRole-${workspace.workspaceId}`}
-                  value={selected}
-                  onChange={(e) => {
-                    const value = e.target.value as WorkspaceRole | "";
-                    void upsertWorkspaceRole(workspace.workspaceId, value);
-                  }}
-                  options={[
-                    { label: "No access", value: "" },
-                    { label: "Admin", value: "Admin" },
-                    { label: "Agent", value: "Agent" },
-                    { label: "Viewer", value: "Viewer" },
-                  ]}
-                />
-              </div>
-            );
-          })}
+          <p className="text-sm font-medium text-text">Workspace access</p>
+          {wsRoleSelectOptions.length === 0 ? (
+            <Callout tone="warning" title="No workspace roles">
+              Create workspace roles under Access &amp; roles before assigning access.
+            </Callout>
+          ) : (
+            workspaces.map((workspace) => {
+              const selected = workspaceRoles[workspace.workspaceId] || "";
+              return (
+                <div key={workspace.workspaceId} className="flex items-center gap-3">
+                  <span className="min-w-0 flex-1 text-sm text-text">{workspace.name}</span>
+                  <Select
+                    name={`workspaceRole-${workspace.workspaceId}`}
+                    value={selected}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const prev = workspaceRoles[workspace.workspaceId] || "";
+                      if (value === prev) return;
+                      setWorkspaceRoles((prev) => ({ ...prev, [workspace.workspaceId]: value }));
+                      void upsertWorkspaceRole(workspace.workspaceId, value);
+                    }}
+                    options={[{ label: "No access", value: "" }, ...wsRoleSelectOptions]}
+                    disabled={rolesLoading}
+                  />
+                </div>
+              );
+            })
+          )}
         </div>
-        </div>
+      </div>
     </Modal>
   );
 }
@@ -536,7 +714,7 @@ function RemoveOrganizationMemberModal({
 }) {
   const [removing, setRemoving] = useState(false);
   if (!user) return null;
-  const canDelete = canDeleteUser(myOrgRole, user.organizationRole, roleStats);
+  const canDelete = canDeleteUser(myOrgRole, user.organizationRole, roleStats, user.isOrgOwner);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>

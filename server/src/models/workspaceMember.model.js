@@ -20,9 +20,9 @@ const workspaceMemberSchema = mongoose.Schema(
       required: true,
       index: true,
     },
-    role: {
-      type: String,
-      enum: ["Admin", "Agent", "Viewer"],
+    workspaceRole: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "workspace_roles",
       required: true,
     },
   },

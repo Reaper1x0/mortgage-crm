@@ -38,8 +38,6 @@ export interface SuperAdminDashboardResponse {
   message: string;
   summary: SuperAdminDashboardSummary;
   systemRoleBreakdown: RoleCount[];
-  workspaceRoleBreakdown: RoleCount[];
-  organizationRoleBreakdown: RoleCount[];
   signupsLast14Days: SignupDay[];
   subscriptionStatusBreakdown: Array<{ status: string; count: number }>;
   estimatedRevenue: {
@@ -181,7 +179,6 @@ export interface SuperAdminMiniUser {
 
 export interface OrganizationMemberPreview {
   _id: string;
-  role: string;
   createdAt?: string;
   updatedAt?: string;
   user?: SuperAdminMiniUser | null;
@@ -189,7 +186,6 @@ export interface OrganizationMemberPreview {
 
 export interface WorkspaceMemberPreview {
   _id: string;
-  role: string;
   createdAt?: string;
   updatedAt?: string;
   user?: SuperAdminMiniUser | null;
@@ -227,10 +223,6 @@ export interface SuperAdminOrganizationDetails extends SuperAdminOrganizationRow
     organizationMembers: number;
     workspaceSeats: number;
   };
-  roleBreakdown?: {
-    organization: RoleCount[];
-    workspace: RoleCount[];
-  };
   recentWorkspaces?: RecentWorkspacePreview[];
   membersPreview?: OrganizationMemberPreview[];
 }
@@ -243,7 +235,6 @@ export interface SuperAdminWorkspaceDetails extends SuperAdminWorkspaceRow {
     organizationWorkspaces: number;
     organizationMembers: number;
   };
-  roleBreakdown?: RoleCount[];
   membersPreview?: WorkspaceMemberPreview[];
 }
 
@@ -268,8 +259,6 @@ export const SuperAdminService = {
     return {
       summary: payload.summary,
       systemRoleBreakdown: payload.systemRoleBreakdown || [],
-      workspaceRoleBreakdown: payload.workspaceRoleBreakdown || [],
-      organizationRoleBreakdown: payload.organizationRoleBreakdown || [],
       signupsLast14Days: payload.signupsLast14Days || [],
       subscriptionStatusBreakdown: payload.subscriptionStatusBreakdown || [],
       estimatedRevenue: payload.estimatedRevenue || {
@@ -315,7 +304,6 @@ export const SuperAdminService = {
     page: number;
     limit: number;
     search?: string;
-    role?: string;
     subscriptionStatus?: string;
   }): Promise<{
     workspaces: SuperAdminWorkspaceRow[];

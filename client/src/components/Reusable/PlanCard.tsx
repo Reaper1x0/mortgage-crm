@@ -15,18 +15,14 @@ interface PlanCardProps {
 }
 
 const ENTITLEMENT_LABELS: Record<string, string> = {
-  max_organization_members: "Organization members",
-  max_workspaces_per_organization: "Workspaces per organization",
-  max_workspace_members: "Workspace members",
+  max_workspaces_per_organization: "Workspaces per Organization",
   max_submissions: "Submissions",
   max_templates: "Templates",
-  max_monthly_extractions: "Monthly extractions",
+  max_monthly_extractions: "Monthly Extractions",
 };
 
 const ORDERED_KEYS = [
-  "max_organization_members",
   "max_workspaces_per_organization",
-  "max_workspace_members",
   "max_submissions",
   "max_templates",
   "max_monthly_extractions",

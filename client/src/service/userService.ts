@@ -17,7 +17,9 @@ export interface User {
   fullName: string;
   username: string;
   email: string;
-  role: "superAdmin" | "user" | "Admin" | "Agent" | "Viewer";
+  role: string;
+  workspaceRoleId?: string | null;
+  workspaceRoleSlug?: string | null;
   isEmailVerified: boolean;
   profile_picture?: FileRef | null;
   createdAt: string;
@@ -32,13 +34,11 @@ export interface UserListResponse {
   success: boolean;
   users: User[];
   roleStats?: {
-    adminCount: number;
-    agentCount: number;
-    viewerCount: number;
+    fullAccessCount: number;
   };
   permissions?: {
     canManageUsers: boolean;
-    canManageAdmins: boolean;
+    canManageFullAccess: boolean;
   };
   pagination: {
     page: number;
@@ -79,7 +79,8 @@ export const UserService = {
     limit?: number;
     sortBy?: string;
     sortOrder?: "asc" | "desc";
-    role?: "Admin" | "Agent" | "Viewer";
+    role?: string;
+    workspaceRoleId?: string;
     search?: string;
   }) => {
     const response = await apiClient.get<UserListResponse>("/users", { params });
@@ -92,7 +93,6 @@ export const UserService = {
     sortBy?: string;
     sortOrder?: "asc" | "desc";
     role?: "superAdmin" | "user";
-    orgRole?: "Owner" | "Admin" | "Member" | "Viewer";
     search?: string;
   }) => {
     const response = await apiClient.get<UserListResponse>("/super-admin/users", { params });
@@ -109,7 +109,8 @@ export const UserService = {
     username: string;
     email: string;
     password: string;
-    role?: "Admin" | "Agent" | "Viewer";
+    role?: string;
+    workspaceRoleId?: string;
   }) => {
     const response = await apiClient.post<UserResponse>("/users", data);
     return response.data;
@@ -122,7 +123,9 @@ export const UserService = {
       username?: string;
       email?: string;
       password?: string;
-      role?: "Admin" | "Agent" | "Viewer";
+      role?: string;
+      workspaceRole?: string;
+      workspaceRoleId?: string;
     }
   ) => {
     const response = await apiClient.put<UserResponse>(`/users/${id}`, data);

@@ -4,6 +4,9 @@ const { catchAsync } = require("../utils");
 const { parsePagination } = require("../utils/pagination.utils");
 const { sanitizers } = require("../sanitizers");
 const { attachSignedUrlsDeep } = require("../utils/fileUrl.utils");
+const authorizationService = require("../services/authorization.service");
+const organizationService = require("../services/organization.service");
+const { WorkspaceRole } = require("../models");
 
 const UserController = {
   listUsers: catchAsync(async (req, res) => {
@@ -24,6 +27,7 @@ const UserController = {
       sortBy,
       sortOrder,
       role: req.query.role,
+      workspaceRoleId: req.query.workspaceRoleId,
       search: req.query.search,
     });
 
@@ -31,11 +35,12 @@ const UserController = {
     await attachSignedUrlsDeep(users);
     const roleStats = await userService.getWorkspaceRoleStats(workspaceId);
     const permissions = {
-      canManageUsers: userService.canManageWorkspaceUsers({
-        orgRole: req.orgRole,
-        workspaceRole: req.workspaceRole,
+      canManageUsers: authorizationService.canManageWorkspaceUsers({
+        orgPerms: req.orgPermissions,
+        wsPerms: req.workspacePermissions,
       }),
-      canManageAdmins: req.orgRole === "Owner" || req.orgRole === "Admin",
+      canManageFullAccess:
+        req.orgPermissions.has("organization.members.invite") || req.orgPermissions.has("organization.members.update"),
     };
 
     return R2XX(res, "Users fetched successfully", 200, {
@@ -60,14 +65,15 @@ const UserController = {
   }),
 
   createUser: catchAsync(async (req, res) => {
-    const { fullName, username, email, password, role } = req.body;
+    const { fullName, username, email, password, role, workspaceRoleId } = req.body;
 
     const result = await userService.createUserInWorkspace({
       fullName,
       username,
       email,
       password,
-      role: role || "Viewer",
+      role: role || "viewer",
+      workspaceRoleId,
       workspaceId: req.workspaceId,
     });
 
@@ -109,17 +115,37 @@ const UserController = {
     const bundle = await userService.getUserInWorkspace(id, req.workspaceId);
     if (!bundle) return R4XX(res, 404, "User not found");
     const user = bundle.user;
-    const targetWorkspaceRole = bundle.workspaceRole;
-    const nextWorkspaceRole = updateData.role || targetWorkspaceRole;
-    const roleStats = await userService.getWorkspaceRoleStats(req.workspaceId);
+    const targetSlug = bundle.workspaceRoleSlug || "viewer";
+    let nextSlug = targetSlug;
+    if (updateData.workspaceRoleId || updateData.workspaceRole || updateData.role) {
+      const resolvedNextRoleId =
+        (await organizationService.resolveWorkspaceRoleId(req.organizationId, updateData.workspaceRoleId)) ||
+        (await organizationService.resolveWorkspaceRoleId(req.organizationId, updateData.workspaceRole)) ||
+        (await organizationService.resolveWorkspaceRoleId(req.organizationId, updateData.role));
+      if (!resolvedNextRoleId) {
+        return R4XX(res, 400, "Invalid workspace role.");
+      }
+      const nextRoleDoc = await WorkspaceRole.findOne({
+        _id: resolvedNextRoleId,
+        organization: req.organizationId,
+      })
+        .select("slug")
+        .lean();
+      if (!nextRoleDoc?.slug) {
+        return R4XX(res, 400, "Invalid workspace role.");
+      }
+      nextSlug = nextRoleDoc.slug;
+      updateData.workspaceRoleId = String(resolvedNextRoleId);
+      delete updateData.workspaceRole;
+      delete updateData.role;
+    }
     const policy = userService.validateWorkspaceRoleUpdatePolicy({
-      actorOrgRole: req.orgRole,
-      actorWorkspaceRole: req.workspaceRole,
+      actorOrgPerms: req.orgPermissions,
+      actorWsPerms: req.workspacePermissions,
       actorUserId: req.user,
       targetUserId: id,
-      targetRole: targetWorkspaceRole,
-      nextRole: nextWorkspaceRole,
-      roleStats,
+      targetRoleSlug: targetSlug,
+      nextRoleSlug: nextSlug,
     });
     if (!policy.ok) return R4XX(res, policy.status || 400, policy.message || "Role update is not allowed.");
 
@@ -154,14 +180,13 @@ const UserController = {
 
     const bundle = await userService.getUserInWorkspace(id, req.workspaceId);
     if (!bundle) return R4XX(res, 404, "User not found");
-    const roleStats = await userService.getWorkspaceRoleStats(req.workspaceId);
+    const targetSlug = bundle.workspaceRoleSlug || "viewer";
     const policy = userService.validateWorkspaceRemovalPolicy({
-      actorOrgRole: req.orgRole,
-      actorWorkspaceRole: req.workspaceRole,
+      actorOrgPerms: req.orgPermissions,
+      actorWsPerms: req.workspacePermissions,
       actorUserId: req.user,
       targetUserId: id,
-      targetRole: bundle.workspaceRole,
-      roleStats,
+      targetRoleSlug: targetSlug,
     });
     if (!policy.ok) return R4XX(res, policy.status || 400, policy.message || "User removal is not allowed.");
 

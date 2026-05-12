@@ -23,7 +23,6 @@ import Select from "../Reusable/Inputs/Select";
 import PageHeader from "../Reusable/PageHeader";
 import StatCard from "../Reusable/StatCard";
 import {
-  RoleCount,
   SuperAdminOrganizationDetails,
   SuperAdminOrganizationRow,
   SuperAdminOrganizationsSummary,
@@ -188,60 +187,6 @@ function DetailSection({
       </div>
       {children}
     </section>
-  );
-}
-
-function RoleBreakdownCard({
-  title,
-  roles,
-}: {
-  title: string;
-  roles?: RoleCount[];
-}) {
-  const total = roles?.reduce((sum, item) => sum + (item.count || 0), 0) || 0;
-
-  return (
-    <div className="rounded-2xl border border-card-border bg-background/40 p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-bold text-text">{title}</div>
-          <div className="text-xs text-card-text">
-            {total} total assigned roles
-          </div>
-        </div>
-        <div className="rounded-full border border-card-border px-3 py-1 text-xs font-semibold text-card-text">
-          {roles?.length || 0} roles
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {roles?.length ? (
-          roles.map((item) => {
-            const percent =
-              total > 0 ? Math.round((item.count / total) * 100) : 0;
-
-            return (
-              <div key={item.role} className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-text">{item.role}</span>
-                  <span className="text-card-text">{item.count}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary/70"
-                    style={{ width: `${percent}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="rounded-xl border border-dashed border-card-border p-4 text-sm text-card-text">
-            No role information available.
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -489,19 +434,6 @@ function OrganizationDetailsModal({
                 </div>
               </DetailSection>
 
-              <DetailSection title="Role Distribution">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <RoleBreakdownCard
-                    title="Organization Roles"
-                    roles={organization.roleBreakdown?.organization || []}
-                  />
-                  <RoleBreakdownCard
-                    title="Workspace Roles"
-                    roles={organization.roleBreakdown?.workspace || []}
-                  />
-                </div>
-              </DetailSection>
-
               <DetailSection title="Recent Workspaces">
                 {organization.recentWorkspaces?.length ? (
                   <div className="overflow-hidden rounded-2xl border border-card-border">
@@ -567,7 +499,9 @@ function OrganizationDetailsModal({
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <StatusPill value={member.role} />
+                          <span className="rounded-full border border-card-border px-2.5 py-1 text-xs font-semibold text-card-text">
+                            Account: {member.user?.role === "superAdmin" ? "Super admin" : "User"}
+                          </span>
                           <span className="text-xs text-card-text">
                             Added {prettyDate(member.createdAt)}
                           </span>

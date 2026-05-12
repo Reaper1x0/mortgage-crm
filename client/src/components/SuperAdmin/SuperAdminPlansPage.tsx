@@ -12,34 +12,24 @@ type PlanForm = Partial<Plan> & {
 
 const ENTITLEMENT_CATALOG = [
   {
-    key: "max_organization_members",
-    label: "Organization Members",
-    description: "Maximum members allowed in an organization.",
-  },
-  {
     key: "max_workspaces_per_organization",
     label: "Workspaces per Organization",
     description: "Maximum workspaces that can be created under one organization.",
   },
   {
-    key: "max_workspace_members",
-    label: "Workspace Members",
-    description: "Maximum members that can be added to a single workspace.",
-  },
-  {
     key: "max_submissions",
     label: "Submissions",
-    description: "Maximum client/case submissions allowed.",
+    description: "Maximum submissions allowed per workspace.",
   },
   {
     key: "max_templates",
     label: "Templates",
-    description: "Maximum templates that can be created.",
+    description: "Maximum templates that can be created per workspace.",
   },
   {
     key: "max_monthly_extractions",
     label: "Monthly Extractions",
-    description: "Maximum OCR/AI extraction operations per month.",
+    description: "Maximum OCR/AI extraction operations per organization per month.",
   },
 ];
 

@@ -11,13 +11,6 @@ const { buildPaginationMeta } = require("../utils/pagination.utils");
 const { getStripe } = require("../billing/stripe.service");
 const mongoose = require("mongoose");
 
-const orgRolePriority = {
-  Owner: 4,
-  Admin: 3,
-  Member: 2,
-  Viewer: 1,
-};
-
 const SuperAdminService = {
   /**
    * High-level counts and breakdowns for the system admin dashboard.
@@ -45,19 +38,8 @@ const SuperAdminService = {
     periodStart.setHours(0, 0, 0, 0);
     periodStart.setDate(periodStart.getDate() - 13);
 
-    const [
-      systemRoleBreakdown,
-      workspaceRoleBreakdown,
-      organizationRoleBreakdown,
-      rawSignups,
-      subscriptionStatusBreakdown,
-      subscriptions,
-      plans,
-    ] =
-      await Promise.all([
+    const [systemRoleBreakdown, rawSignups, subscriptionStatusBreakdown, subscriptions, plans] = await Promise.all([
         User.aggregate([{ $group: { _id: "$role", count: { $sum: 1 } } }]),
-        WorkspaceMember.aggregate([{ $group: { _id: "$role", count: { $sum: 1 } } }]),
-        OrganizationMember.aggregate([{ $group: { _id: "$role", count: { $sum: 1 } } }]),
         User.aggregate([
           {
             $match: {
@@ -75,7 +57,7 @@ const SuperAdminService = {
         OrganizationSubscription.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
         OrganizationSubscription.find({}).select("status stripePriceId billingCycle").lean(),
         Plan.find({}).select("name code stripeMonthlyPriceId stripeYearlyPriceId").lean(),
-      ]);
+    ]);
 
     const signupByDay = new Map(rawSignups.map((row) => [row._id, row.count]));
     const signupsLast14Days = [];
@@ -185,14 +167,6 @@ const SuperAdminService = {
         role: r._id || "unknown",
         count: r.count,
       })),
-      workspaceRoleBreakdown: workspaceRoleBreakdown.map((r) => ({
-        role: r._id || "unknown",
-        count: r.count,
-      })),
-      organizationRoleBreakdown: organizationRoleBreakdown.map((r) => ({
-        role: r._id || "unknown",
-        count: r.count,
-      })),
       signupsLast14Days,
       subscriptionStatusBreakdown: subscriptionStatusBreakdown.map((r) => ({
         status: r._id || "unknown",
@@ -202,15 +176,7 @@ const SuperAdminService = {
     };
   },
 
-  listSystemUsers: async ({
-    page = 1,
-    limit = 10,
-    sortBy = "createdAt",
-    sortOrder = "desc",
-    role,
-    orgRole,
-    search,
-  }) => {
+  listSystemUsers: async ({ page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc", role, search }) => {
     const sortDir = sortOrder === "asc" ? 1 : -1;
     const safeSortBy = ["createdAt", "updatedAt", "fullName", "email", "username", "role"].includes(sortBy)
       ? sortBy
@@ -218,19 +184,6 @@ const SuperAdminService = {
 
     const filter = {};
     if (role) filter.role = role;
-    if (orgRole) {
-      const orgMembers = await OrganizationMember.find({ role: orgRole })
-        .select("user")
-        .lean();
-      const allowedUserIds = [...new Set(orgMembers.map((m) => String(m.user)))];
-      if (allowedUserIds.length === 0) {
-        return {
-          items: [],
-          pagination: buildPaginationMeta({ page, limit, total: 0 }),
-        };
-      }
-      filter._id = { $in: allowedUserIds };
-    }
     if (search && String(search).trim()) {
       const regex = new RegExp(String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
       filter.$or = [{ fullName: regex }, { email: regex }, { username: regex }];
@@ -262,28 +215,13 @@ const SuperAdminService = {
       { $match: { user: { $in: userIds } } },
       { $group: { _id: "$user", count: { $sum: 1 } } },
     ]);
-    const orgMemberships = await OrganizationMember.find({ user: { $in: userIds } })
-      .select("user role")
-      .lean();
-
     const workspaceCountByUserId = new Map(workspaceCounts.map((row) => [String(row._id), row.count]));
     const orgCountByUserId = new Map(orgCounts.map((row) => [String(row._id), row.count]));
-    const primaryOrgRoleByUserId = new Map();
-    orgMemberships.forEach((m) => {
-      const key = String(m.user);
-      const current = primaryOrgRoleByUserId.get(key);
-      const currentScore = current ? orgRolePriority[current] || 0 : 0;
-      const nextScore = orgRolePriority[m.role] || 0;
-      if (!current || nextScore > currentScore) {
-        primaryOrgRoleByUserId.set(key, m.role);
-      }
-    });
 
     const items = users.map((u) => ({
       ...u,
       workspaceCount: workspaceCountByUserId.get(String(u._id)) || 0,
       organizationCount: orgCountByUserId.get(String(u._id)) || 0,
-      primaryOrganizationRole: primaryOrgRoleByUserId.get(String(u._id)) || null,
     }));
 
     return {
@@ -448,7 +386,7 @@ const SuperAdminService = {
     };
   },
 
-  listWorkspaces: async ({ page = 1, limit = 10, search, role, subscriptionStatus }) => {
+  listWorkspaces: async ({ page = 1, limit = 10, search, subscriptionStatus }) => {
     const match = {};
     if (search && String(search).trim()) {
       const re = new RegExp(String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -484,30 +422,33 @@ const SuperAdminService = {
         },
       },
       {
-        $addFields: {
-          memberCount: { $size: "$members" },
-          adminCount: {
-            $size: {
-              $filter: {
-                input: "$members",
-                as: "m",
-                cond: { $eq: ["$$m.role", "Admin"] },
+        $lookup: {
+          from: "workspace_members",
+          let: { wsId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$workspace", "$$wsId"] } } },
+            {
+              $lookup: {
+                from: "workspace_roles",
+                localField: "workspaceRole",
+                foreignField: "_id",
+                as: "wr",
               },
             },
-          },
+            { $unwind: { path: "$wr", preserveNullAndEmptyArrays: true } },
+            { $match: { "wr.slug": "admin" } },
+          ],
+          as: "adminMembers",
+        },
+      },
+      {
+        $addFields: {
+          memberCount: { $size: "$members" },
+          adminCount: { $size: "$adminMembers" },
         },
       },
     ];
 
-    if (role) {
-      pipeline.push({
-        $match: {
-          members: {
-            $elemMatch: { role },
-          },
-        },
-      });
-    }
     if (subscriptionStatus) {
       if (subscriptionStatus === "none") pipeline.push({ $match: { subscription: { $eq: null } } });
       else pipeline.push({ $match: { "subscription.status": subscriptionStatus } });
@@ -624,10 +565,8 @@ const SuperAdminService = {
       workspaceCount,
       orgMemberCount,
       workspaceSeatCount,
-      organizationRoleBreakdown,
-      workspaceRoleBreakdown,
       recentWorkspaces,
-      membersPreview,
+      membersPreviewRaw,
     ] = await Promise.all([
       OrganizationSubscription.findOne({ organization: orgObjectId })
         .populate({
@@ -643,18 +582,6 @@ const SuperAdminService = {
 
       WorkspaceMember.countDocuments({ organization: orgObjectId }),
 
-      OrganizationMember.aggregate([
-        { $match: { organization: orgObjectId } },
-        { $group: { _id: "$role", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
-
-      WorkspaceMember.aggregate([
-        { $match: { organization: orgObjectId } },
-        { $group: { _id: "$role", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
-
       Workspace.aggregate([
         { $match: { organization: orgObjectId } },
         {
@@ -666,17 +593,29 @@ const SuperAdminService = {
           },
         },
         {
-          $addFields: {
-            memberCount: { $size: "$members" },
-            adminCount: {
-              $size: {
-                $filter: {
-                  input: "$members",
-                  as: "m",
-                  cond: { $eq: ["$$m.role", "Admin"] },
+          $lookup: {
+            from: "workspace_members",
+            let: { wsId: "$_id" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$workspace", "$$wsId"] } } },
+              {
+                $lookup: {
+                  from: "workspace_roles",
+                  localField: "workspaceRole",
+                  foreignField: "_id",
+                  as: "wr",
                 },
               },
-            },
+              { $unwind: { path: "$wr", preserveNullAndEmptyArrays: true } },
+              { $match: { "wr.slug": "admin" } },
+            ],
+            as: "adminMembers",
+          },
+        },
+        {
+          $addFields: {
+            memberCount: { $size: "$members" },
+            adminCount: { $size: "$adminMembers" },
           },
         },
         { $sort: { updatedAt: -1 } },
@@ -705,6 +644,13 @@ const SuperAdminService = {
         .lean(),
     ]);
 
+    const membersPreview = (membersPreviewRaw || []).map((m) => ({
+      _id: m._id,
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+      user: m.user,
+    }));
+
     return {
       ...organization,
       subscription: subscription
@@ -731,16 +677,6 @@ const SuperAdminService = {
         workspaces: workspaceCount,
         organizationMembers: orgMemberCount,
         workspaceSeats: workspaceSeatCount,
-      },
-      roleBreakdown: {
-        organization: organizationRoleBreakdown.map((r) => ({
-          role: r._id || "unknown",
-          count: r.count,
-        })),
-        workspace: workspaceRoleBreakdown.map((r) => ({
-          role: r._id || "unknown",
-          count: r.count,
-        })),
       },
       recentWorkspaces,
       membersPreview,
@@ -775,46 +711,41 @@ const SuperAdminService = {
     const workspaceObjectId = workspace._id;
     const organizationId = workspace.organization?._id || workspace.organization;
 
-    const [
-      subscription,
-      memberCount,
-      roleBreakdown,
-      membersPreview,
-      organizationWorkspaceCount,
-      organizationMemberCount,
-    ] = await Promise.all([
-      organizationId
-        ? OrganizationSubscription.findOne({ organization: organizationId })
-            .populate({
-              path: "plan",
-              select:
-                "name code description displayOrder active visible recommended trialDays entitlements stripeMonthlyPriceId stripeYearlyPriceId",
-            })
-            .lean()
-        : null,
+    const [subscription, memberCount, membersPreviewRaw, organizationWorkspaceCount, organizationMemberCount] =
+      await Promise.all([
+        organizationId
+          ? OrganizationSubscription.findOne({ organization: organizationId })
+              .populate({
+                path: "plan",
+                select:
+                  "name code description displayOrder active visible recommended trialDays entitlements stripeMonthlyPriceId stripeYearlyPriceId",
+              })
+              .lean()
+          : null,
 
-      WorkspaceMember.countDocuments({ workspace: workspaceObjectId }),
+        WorkspaceMember.countDocuments({ workspace: workspaceObjectId }),
 
-      WorkspaceMember.aggregate([
-        { $match: { workspace: workspaceObjectId } },
-        { $group: { _id: "$role", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
+        WorkspaceMember.find({ workspace: workspaceObjectId })
+          .sort({ createdAt: -1 })
+          .limit(15)
+          .populate({
+            path: "user",
+            select: "fullName email username role isEmailVerified profile_picture",
+            populate: { path: "profile_picture" },
+          })
+          .lean(),
 
-      WorkspaceMember.find({ workspace: workspaceObjectId })
-        .sort({ createdAt: -1 })
-        .limit(15)
-        .populate({
-          path: "user",
-          select: "fullName email username role isEmailVerified profile_picture",
-          populate: { path: "profile_picture" },
-        })
-        .lean(),
+        organizationId ? Workspace.countDocuments({ organization: organizationId }) : 0,
 
-      organizationId ? Workspace.countDocuments({ organization: organizationId }) : 0,
+        organizationId ? OrganizationMember.countDocuments({ organization: organizationId }) : 0,
+      ]);
 
-      organizationId ? OrganizationMember.countDocuments({ organization: organizationId }) : 0,
-    ]);
+    const membersPreview = (membersPreviewRaw || []).map((m) => ({
+      _id: m._id,
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+      user: m.user,
+    }));
 
     return {
       ...workspace,
@@ -843,10 +774,6 @@ const SuperAdminService = {
         organizationWorkspaces: organizationWorkspaceCount,
         organizationMembers: organizationMemberCount,
       },
-      roleBreakdown: roleBreakdown.map((r) => ({
-        role: r._id || "unknown",
-        count: r.count,
-      })),
       membersPreview,
     };
   },

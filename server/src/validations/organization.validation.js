@@ -37,10 +37,16 @@ const listMembers = {
     limit: Joi.number().integer().min(1).max(100).default(10),
     sortBy: Joi.string().default("createdAt"),
     sortOrder: Joi.string().valid("asc", "desc").default("desc"),
-    role: Joi.string().valid("Owner", "Admin", "Member", "Viewer"),
+    role: Joi.string().valid("Owner", "Admin", "Member", "Viewer", "owner", "admin", "member", "viewer"),
     search: Joi.string().allow(""),
   }),
 };
+
+const workspaceRoleEntry = Joi.object({
+  workspaceId: objectId,
+  workspaceRoleId: Joi.string().hex().length(24).optional(),
+  role: Joi.string().valid("Admin", "Agent", "Viewer", "admin", "agent", "viewer").optional(),
+}).or("workspaceRoleId", "role");
 
 const addMember = {
   body: Joi.object().keys({
@@ -48,15 +54,9 @@ const addMember = {
     username: Joi.string().trim().min(3).max(60).required(),
     email: Joi.string().email().required(),
     password: Joi.string().min(8).allow("").optional(),
-    organizationRole: Joi.string().valid("Owner", "Admin", "Member", "Viewer").default("Member"),
-    workspaceRoles: Joi.array()
-      .items(
-        Joi.object({
-          workspaceId: objectId,
-          role: Joi.string().valid("Admin", "Agent", "Viewer").required(),
-        })
-      )
-      .default([]),
+    organizationRoleId: Joi.string().hex().length(24).optional(),
+    organizationRole: Joi.string().valid("Owner", "Admin", "Member", "Viewer", "owner", "admin", "member", "viewer").optional(),
+    workspaceRoles: Joi.array().items(workspaceRoleEntry).default([]),
   }),
 };
 
@@ -64,9 +64,12 @@ const updateMemberRole = {
   params: Joi.object().keys({
     userId: objectId,
   }),
-  body: Joi.object().keys({
-    role: Joi.string().valid("Owner", "Admin", "Member", "Viewer").required(),
-  }),
+  body: Joi.object()
+    .keys({
+      organizationRoleId: Joi.string().hex().length(24).optional(),
+      role: Joi.string().valid("Owner", "Admin", "Member", "Viewer", "owner", "admin", "member", "viewer").optional(),
+    })
+    .or("organizationRoleId", "role"),
 };
 
 const updateWorkspaceRole = {
@@ -74,9 +77,12 @@ const updateWorkspaceRole = {
     userId: objectId,
     workspaceId: objectId,
   }),
-  body: Joi.object().keys({
-    role: Joi.string().valid("Admin", "Agent", "Viewer").required(),
-  }),
+  body: Joi.object()
+    .keys({
+      workspaceRoleId: Joi.string().hex().length(24).optional(),
+      role: Joi.string().valid("Admin", "Agent", "Viewer", "admin", "agent", "viewer").optional(),
+    })
+    .or("workspaceRoleId", "role"),
 };
 
 const removeWorkspaceAccess = {

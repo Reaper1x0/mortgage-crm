@@ -1,5 +1,4 @@
-const { OrganizationSubscription, Workspace, WorkspaceMember, OrganizationMember, Submission, Template, Plan } =
-  require("../models");
+const { OrganizationSubscription, Workspace, Submission, Template, Plan } = require("../models");
 const { ENTITLEMENT_CATALOG, isUnlimited } = require("./entitlementCatalog");
 const usageService = require("./usage.service");
 
@@ -24,16 +23,20 @@ const getEntitlementValue = ({ subscription, key }) => {
 
 const getCurrentCount = async ({ organizationId, workspaceId, featureKey }) => {
   switch (featureKey) {
-    case "max_organization_members":
-      return OrganizationMember.countDocuments({ organization: organizationId });
     case "max_workspaces_per_organization":
       return Workspace.countDocuments({ organization: organizationId });
-    case "max_workspace_members":
-      return WorkspaceMember.countDocuments({ organization: organizationId, workspace: workspaceId });
-    case "max_submissions":
-      return Submission.countDocuments({ workspace: workspaceId });
-    case "max_templates":
-      return Template.countDocuments({ workspace: workspaceId });
+    case "max_submissions": {
+      if (workspaceId) return Submission.countDocuments({ workspace: workspaceId });
+      const wsIds = await Workspace.find({ organization: organizationId }).distinct("_id");
+      if (!wsIds.length) return 0;
+      return Submission.countDocuments({ workspace: { $in: wsIds } });
+    }
+    case "max_templates": {
+      if (workspaceId) return Template.countDocuments({ workspace: workspaceId });
+      const templateWsIds = await Workspace.find({ organization: organizationId }).distinct("_id");
+      if (!templateWsIds.length) return 0;
+      return Template.countDocuments({ workspace: { $in: templateWsIds } });
+    }
     case "max_monthly_extractions":
       return usageService.getUsage({ organizationId, metricKey: featureKey });
     default:

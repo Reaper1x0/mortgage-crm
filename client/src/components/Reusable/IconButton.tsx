@@ -11,6 +11,8 @@ interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
   outline?: boolean;
   hoverable?: boolean;
   fillBg?: boolean; // controls whether to show background fill
+  /** When disabled, native tooltip text (e.g. missing permission). */
+  disabledTooltip?: string;
 }
 
 const sizeConfig = {
@@ -24,6 +26,7 @@ const IconButton: React.FC<IconButtonProps> = ({
   icon: Icon,
   className = "",
   disabled,
+  disabledTooltip,
   selected = false,
   size = "md",
   outline = true,
@@ -46,14 +49,26 @@ const IconButton: React.FC<IconButtonProps> = ({
   const hover = hoverable ? "hover:bg-card-hover hover:shadow-sm" : "";
   const selectedCls = selected ? "bg-card-hover shadow-sm" : "";
   const state = disabled || isLoading ? "opacity-60 cursor-not-allowed" : "cursor-pointer";
+  const showDisabledHint = Boolean(disabled && !isLoading && disabledTooltip);
+  const nativeTitle = showDisabledHint ? undefined : title;
 
-  return (
+  const button = (
     <button
       type={type}
       disabled={isLoading || disabled}
-      title={title}
+      title={nativeTitle}
       aria-label={rest["aria-label"] || title || "icon button"}
-      className={cn(base, btn, border, bg, hover, selectedCls, state, className)}
+      className={cn(
+        base,
+        btn,
+        border,
+        bg,
+        hover,
+        selectedCls,
+        state,
+        showDisabledHint && "pointer-events-none",
+        className
+      )}
       {...rest}
     >
       {/* subtle inner highlight */}
@@ -81,6 +96,16 @@ const IconButton: React.FC<IconButtonProps> = ({
       )}
     </button>
   );
+
+  if (showDisabledHint) {
+    return (
+      <span className="inline-flex cursor-not-allowed" title={disabledTooltip}>
+        {button}
+      </span>
+    );
+  }
+
+  return button;
 };
 
 export default IconButton;

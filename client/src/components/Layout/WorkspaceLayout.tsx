@@ -1,15 +1,17 @@
 import { Outlet, useLocation, useParams } from "react-router";
 import { useAuth } from "../../context/AuthContext";
+import { usePermissionsOptional } from "../../context/PermissionContext";
 import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { LuBraces, LuInbox } from "react-icons/lu";
 import { RiFileEditFill } from "react-icons/ri";
 import { FiUsers, FiUser, FiUserPlus } from "react-icons/fi";
 import { GrDashboard } from "react-icons/gr";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 export default function WorkspaceLayout() {
   const { role, activeWorkspaceId, setActiveWorkspaceId, setActiveOrganizationId } = useAuth();
+  const perm = usePermissionsOptional();
   const location = useLocation();
   const { organizationId, workspaceId: workspaceIdParam } = useParams();
   const workspaceId = workspaceIdParam || activeWorkspaceId || "";
@@ -22,23 +24,46 @@ export default function WorkspaceLayout() {
       ? `/${organizationId}/workspaces/${workspaceId}/${suffix}`
       : `/${suffix}`;
 
-  const defaultLinks: SidebarLink[] = [
-    { to: withWorkspace("dashboard"), label: "Dashboard", icon: GrDashboard },
-    { to: withWorkspace("submissions"), label: "Clients", icon: LuInbox },
-    { to: withWorkspace("master-fields"), label: "Master Fields Schema", icon: LuBraces },
-    { to: withWorkspace("template-maker"), label: "Templates", icon: RiFileEditFill },
-    { to: withWorkspace("leads"), label: "Leads", icon: FiUserPlus },
-    {
-      to: organizationId ? `/${organizationId}/profile` : "/profile",
-      label: "Profile",
-      icon: FiUser,
+  const defaultLinks: SidebarLink[] = useMemo(
+    () => {
+      const nav: SidebarLink[] = [];
+      if (perm?.canAnyWorkspace(["workspace.dashboard.read"]) || perm?.effective?.isOrgOwner) {
+        nav.push({ to: withWorkspace("dashboard"), label: "Dashboard", icon: GrDashboard });
+      }
+      if (perm?.canAnyWorkspace(["workspace.submissions.read"]) || perm?.effective?.isOrgOwner) {
+        nav.push({ to: withWorkspace("submissions"), label: "Clients", icon: LuInbox });
+      }
+      if (perm?.canAnyWorkspace(["workspace.masterfields.read"]) || perm?.effective?.isOrgOwner) {
+        nav.push({ to: withWorkspace("master-fields"), label: "Master Fields Schema", icon: LuBraces });
+      }
+      if (perm?.canAnyWorkspace(["workspace.templates.read"]) || perm?.effective?.isOrgOwner) {
+        nav.push({ to: withWorkspace("template-maker"), label: "Templates", icon: RiFileEditFill });
+      }
+      if (perm?.canAnyWorkspace(["workspace.leads.read"]) || perm?.effective?.isOrgOwner) {
+        nav.push({ to: withWorkspace("leads"), label: "Leads", icon: FiUserPlus });
+      }
+      if (perm?.canAnyOrg(["organization.organization.read"]) || perm?.effective?.isOrgOwner) {
+        nav.push({
+          to: organizationId ? `/${organizationId}/profile` : "/profile",
+          label: "Profile",
+          icon: FiUser,
+        });
+      }
+      return nav;
     },
-  ];
+    [organizationId, workspaceId, perm]
+  );
 
-  const links: SidebarLink[] =
-    role === "Admin"
-      ? [...defaultLinks, { to: withWorkspace("users"), label: "Users", icon: FiUsers }]
-      : defaultLinks;
+  const showUsersNav =
+    role === "Admin" ||
+    perm?.effective?.isOrgOwner ||
+    perm?.canAnyWorkspace(["workspace.users.read", "workspace.users.manage"]) ||
+    perm?.canAnyOrg(["organization.members.read", "organization.members.invite", "organization.members.update"]);
+
+  const links: SidebarLink[] = useMemo(
+    () => (showUsersNav ? [...defaultLinks, { to: withWorkspace("users"), label: "Users", icon: FiUsers }] : defaultLinks),
+    [defaultLinks, showUsersNav, workspaceId, organizationId]
+  );
 
   useEffect(() => {
     if (organizationId) setActiveOrganizationId(organizationId);

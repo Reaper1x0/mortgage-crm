@@ -7,6 +7,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   rounded?: boolean;
   isLoading?: boolean;
   disabled?: boolean;
+  /** When the button is disabled, shows this text as a native tooltip on hover (e.g. missing permission). */
+  disabledTooltip?: string;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -15,7 +17,9 @@ const Button: React.FC<ButtonProps> = ({
   rounded,
   isLoading,
   disabled,
+  disabledTooltip,
   className = "",
+  title,
   ...rest
 }) => {
   const base =
@@ -63,15 +67,36 @@ const Button: React.FC<ButtonProps> = ({
       ? "opacity-60 cursor-not-allowed active:translate-y-0 hover:shadow-sm"
       : "cursor-pointer";
 
-  return (
+  const showDisabledHint = Boolean(disabled && !isLoading && disabledTooltip);
+  const button = (
     <button
       {...rest}
-      className={cn(base, shape, variant !== "link" ? surface : "", shine, variantCls, state, className)}
+      className={cn(
+        base,
+        shape,
+        variant !== "link" ? surface : "",
+        shine,
+        variantCls,
+        state,
+        showDisabledHint && "pointer-events-none",
+        className
+      )}
       disabled={isLoading || disabled}
+      title={showDisabledHint ? undefined : title}
     >
       <span className="relative z-10">{isLoading ? "Loading..." : children}</span>
     </button>
   );
+
+  if (showDisabledHint) {
+    return (
+      <span className="inline-flex max-w-full cursor-not-allowed" title={disabledTooltip}>
+        {button}
+      </span>
+    );
+  }
+
+  return button;
 };
 
 export default Button;

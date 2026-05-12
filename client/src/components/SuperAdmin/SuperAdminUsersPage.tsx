@@ -16,7 +16,6 @@ export default function SuperAdminUsersPage() {
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"superAdmin" | "user" | "">("");
-  const [orgRoleFilter, setOrgRoleFilter] = useState<"Owner" | "Admin" | "Member" | "Viewer" | "">("");
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -28,7 +27,6 @@ export default function SuperAdminUsersPage() {
         sortOrder: "desc",
         search: searchQuery.trim() || undefined,
         role: roleFilter || undefined,
-        orgRole: orgRoleFilter || undefined,
       });
       const list = response?.users || [];
       const pagination = response?.pagination;
@@ -37,7 +35,7 @@ export default function SuperAdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [orgRoleFilter, page, pageSize, roleFilter, searchQuery]);
+  }, [page, pageSize, roleFilter, searchQuery]);
 
   useEffect(() => {
     fetchUsers();
@@ -65,15 +63,6 @@ export default function SuperAdminUsersPage() {
         render: (role: User["role"]) => (
           <span className="inline-flex rounded-full border border-card-border px-2.5 py-1 text-xs font-semibold text-text">
             {role}
-          </span>
-        ),
-      },
-      {
-        title: "Primary Org Role",
-        dataIndex: "primaryOrganizationRole",
-        render: (role: User["primaryOrganizationRole"]) => (
-          <span className="inline-flex rounded-full border border-card-border px-2.5 py-1 text-xs font-semibold text-text">
-            {role || "-"}
           </span>
         ),
       },
@@ -107,10 +96,10 @@ export default function SuperAdminUsersPage() {
     <div className="space-y-5">
       <PageHeader
         title="All System Users"
-        description="System-level visibility across organizations, workspaces, and user roles."
+        description="System accounts (super admin vs user). Organization and workspace RBAC is managed inside each tenant."
       />
 
-      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-card-border bg-card p-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-card-border bg-card p-4 md:grid-cols-2">
         <Input
           name="searchUsers"
           label="Search users"
@@ -133,22 +122,6 @@ export default function SuperAdminUsersPage() {
             { label: "All roles", value: "" },
             { label: "superAdmin", value: "superAdmin" },
             { label: "user", value: "user" },
-          ]}
-        />
-        <Select
-          name="orgRoleFilter"
-          label="Organization role"
-          value={orgRoleFilter}
-          onChange={(e) => {
-            setOrgRoleFilter(e.target.value as "Owner" | "Admin" | "Member" | "Viewer" | "");
-            setPage(1);
-          }}
-          options={[
-            { label: "All org roles", value: "" },
-            { label: "Owner", value: "Owner" },
-            { label: "Admin", value: "Admin" },
-            { label: "Member", value: "Member" },
-            { label: "Viewer", value: "Viewer" },
           ]}
         />
       </div>

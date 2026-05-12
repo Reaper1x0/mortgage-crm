@@ -20,7 +20,6 @@ import Select from "../Reusable/Inputs/Select";
 import PageHeader from "../Reusable/PageHeader";
 import StatCard from "../Reusable/StatCard";
 import {
-  RoleCount,
   SuperAdminService,
   SuperAdminWorkspaceDetails,
   SuperAdminWorkspaceRow,
@@ -168,54 +167,6 @@ function DetailSection({
       </div>
       {children}
     </section>
-  );
-}
-
-function RoleBreakdownCard({ roles }: { roles?: RoleCount[] }) {
-  const total = roles?.reduce((sum, item) => sum + (item.count || 0), 0) || 0;
-
-  return (
-    <div className="rounded-2xl border border-card-border bg-background/40 p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-bold text-text">Workspace Roles</div>
-          <div className="text-xs text-card-text">
-            {total} total assigned roles
-          </div>
-        </div>
-        <div className="rounded-full border border-card-border px-3 py-1 text-xs font-semibold text-card-text">
-          {roles?.length || 0} roles
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {roles?.length ? (
-          roles.map((item) => {
-            const percent =
-              total > 0 ? Math.round((item.count / total) * 100) : 0;
-
-            return (
-              <div key={item.role} className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-text">{item.role}</span>
-                  <span className="text-card-text">{item.count}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary/70"
-                    style={{ width: `${percent}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="rounded-xl border border-dashed border-card-border p-4 text-sm text-card-text">
-            No role information available.
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -482,10 +433,6 @@ function WorkspaceDetailsModal({
                 </div>
               </DetailSection>
 
-              <DetailSection title="Workspace Role Distribution">
-                <RoleBreakdownCard roles={workspace.roleBreakdown || []} />
-              </DetailSection>
-
               <DetailSection title="Recent Workspace Members">
                 {workspace.membersPreview?.length ? (
                   <div className="overflow-hidden rounded-2xl border border-card-border">
@@ -516,7 +463,9 @@ function WorkspaceDetailsModal({
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <StatusPill value={member.role} />
+                          <span className="rounded-full border border-card-border px-2.5 py-1 text-xs font-semibold text-card-text">
+                            Account: {member.user?.role === "superAdmin" ? "Super admin" : "User"}
+                          </span>
                           <span className="text-xs text-card-text">
                             Added {prettyDate(member.createdAt)}
                           </span>
@@ -553,7 +502,6 @@ export default function SuperAdminWorkspacesPage() {
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
-  const [role, setRole] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState("");
 
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -569,7 +517,6 @@ export default function SuperAdminWorkspacesPage() {
         page,
         limit: pageSize,
         search: search.trim() || undefined,
-        role: role || undefined,
         subscriptionStatus: subscriptionStatus || undefined,
       });
 
@@ -579,7 +526,7 @@ export default function SuperAdminWorkspacesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, role, subscriptionStatus]);
+  }, [page, pageSize, search, subscriptionStatus]);
 
   useEffect(() => {
     void load();
@@ -724,7 +671,7 @@ export default function SuperAdminWorkspacesPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-card-border bg-card p-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-card-border bg-card p-4 md:grid-cols-2">
         <Input
           name="workspaceSearch"
           label="Search workspaces"
@@ -734,22 +681,6 @@ export default function SuperAdminWorkspacesPage() {
             setSearch(e.target.value);
             setPage(1);
           }}
-        />
-
-        <Select
-          name="workspaceRoleFilter"
-          label="Contains role"
-          value={role}
-          onChange={(e) => {
-            setRole(e.target.value);
-            setPage(1);
-          }}
-          options={[
-            { label: "All roles", value: "" },
-            { label: "Admin", value: "Admin" },
-            { label: "Agent", value: "Agent" },
-            { label: "Viewer", value: "Viewer" },
-          ]}
         />
 
         <Select

@@ -1,180 +1,224 @@
+/**
+ * WorkspaceOnboarding
+ *
+ * Single call to GET /organizations/onboarding-session determines the current step.
+ * Onboarding carries its own organizationId state, so no X-Organization-Id header
+ * problems occur during any step — every org-scoped call explicitly passes the id.
+ *
+ * Steps:
+ *   1. "organization"  – create org + branding
+ *   2. "billing"       – choose plan & Stripe checkout
+ *   3. "workspace"     – create first workspace → navigate to dashboard
+ */
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
-import { FiCheck, FiCreditCard, FiFolder, FiLayers } from "react-icons/fi";
+import { useNavigate, useParams } from "react-router";
+import { FiCheck, FiCreditCard, FiFolder, FiLayers, FiRefreshCw } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { WorkspaceService } from "../../service/workspaceService";
-import { OrganizationService } from "../../service/organizationService";
+import { OrganizationService, OnboardingSessionState } from "../../service/organizationService";
 import { BillingCycle, BillingService, Plan } from "../../service/billingService";
 import Button from "../Reusable/Button";
 import { cn } from "../../utils/cn";
 import ImageUpload from "../Reusable/Inputs/ImageUpload";
 import PlanCard from "../Reusable/PlanCard";
 import Segmented from "../Reusable/Segmented";
-import { buildWorkspacePath } from "../../utils/tenantRouting";
+import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
+
+const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
+
+/* ──────────────────────────────────────────────────────────────────────────── */
 
 const WorkspaceOnboarding: React.FC = () => {
-  const {
-    user,
-    workspaces,
-    refreshWorkspaces,
-    setActiveWorkspaceId,
-    setActiveOrganizationId,
-    isAuthenticated,
-    loading,
-  } = useAuth();
+  const { organizationId: urlOrgParam } = useParams<{ organizationId?: string }>();
+  // Only trust route param if it looks like a real Mongo ObjectId
+  const urlOrgId =
+    urlOrgParam && OBJECT_ID_RE.test(urlOrgParam.trim()) ? urlOrgParam.trim() : null;
+
+  const { user, workspaces, refreshWorkspaces, setActiveWorkspaceId, isAuthenticated, loading } =
+    useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+
+  // ── Session state from server ─────────────────────────────────────────────
+  const [session, setSession] = useState<OnboardingSessionState | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  // Derived active org id: prefer server session, fallback to URL, else null
+  const organizationId = session?.organizationId ?? urlOrgId;
+
+  // ── Step state (override can come from session or action results) ─────────
+  type Step = "organization" | "billing" | "workspace" | "access";
+  const [step, setStep] = useState<Step>("organization");
+
+  // ── Form state ────────────────────────────────────────────────────────────
   const [companyName, setCompanyName] = useState("");
-  const [workspaceName, setWorkspaceName] = useState("");
   const [logoFile, setLogoFile] = useState<File | undefined>(undefined);
   const [orgPrimaryColor, setOrgPrimaryColor] = useState("#3b82f6");
   const [orgSecondaryColor, setOrgSecondaryColor] = useState("#8b5cf6");
-  const [activeOrganizationId, setLocalActiveOrganizationId] = useState<string | null>(null);
+  const [workspaceName, setWorkspaceName] = useState("");
+
+  // ── Billing state ─────────────────────────────────────────────────────────
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
-  const [checkingSubscription, setCheckingSubscription] = useState(false);
-  const [step, setStep] = useState<"organization" | "billing" | "workspace">(
-    activeOrganizationId ? "billing" : "organization"
-  );
+
+  // ── Action state ──────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // 1. Redirect unauthenticated users
+  // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!loading && !isAuthenticated) navigate("/", { replace: true });
   }, [loading, isAuthenticated, navigate]);
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // 2. Guard bad route params – redirect to clean /onboarding
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (urlOrgParam && !urlOrgId) {
+      navigate("/onboarding", { replace: true });
+    }
+  }, [urlOrgParam, urlOrgId, navigate]);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 3. If workspaces already loaded and user has one, skip straight to dashboard
+  // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (workspaces.length > 0) {
       const first = workspaces[0];
-      const orgId = first?.organization?.organizationId;
+      const oid = first?.organization?.organizationId;
       const wsId = first?.workspaceId;
-      if (orgId && wsId) navigate(buildWorkspacePath(orgId, wsId, "dashboard"), { replace: true });
+      if (oid && wsId) navigate(buildWorkspacePath(oid, wsId, "dashboard"), { replace: true });
     }
-  }, [workspaces.length, navigate]);
+  }, [workspaces, navigate]);
 
-  const checkBillingEligibility = async (organizationId: string) => {
-    setCheckingSubscription(true);
-    setError(null);
+  // ──────────────────────────────────────────────────────────────────────────
+  // 4. Single API call: resolve onboarding session
+  // ──────────────────────────────────────────────────────────────────────────
+  const fetchSession = async () => {
+    setSessionLoading(true);
+    setSessionError(null);
     try {
-      setActiveOrganizationId(organizationId);
-      const data = await BillingService.getOrganizationBilling();
-      const eligible = Boolean(data?.access?.canUseProduct);
-      setStep(eligible ? "workspace" : "billing");
-      setCheckoutNotice(
-        eligible
-          ? "Subscription verified. You can now create your first workspace."
-          : "Subscription is not active yet. Complete checkout to continue."
-      );
-    } catch (_err) {
-      setStep("billing");
-      setCheckoutNotice("We could not verify subscription yet. Please try again in a moment.");
+      const res = await OrganizationService.getOnboardingSession(urlOrgId);
+      const s = res.data?.session;
+      if (!s) throw new Error("Empty session response");
+
+      setSession(s);
+
+      // If server says "complete" (workspace exists), refresh and navigate
+      if (s.step === "complete" && s.organizationId && s.workspaceId) {
+        await refreshWorkspaces();
+        navigate(buildWorkspacePath(s.organizationId, s.workspaceId, "dashboard"), {
+          replace: true,
+        });
+        return;
+      }
+
+      // If org exists but we're on /onboarding (no org id in URL), update URL
+      if (s.hasOrganization && s.organizationId && !urlOrgId) {
+        navigate(buildOrganizationPath(s.organizationId, "onboarding"), { replace: true });
+      }
+
+      // Sync step from server truth
+      const serverStep: Step =
+        s.step === "complete" ? "workspace" : (s.step as Step) ?? "organization";
+      setStep(serverStep);
+    } catch {
+      setSessionError("Could not reach the server. Check your connection and try again.");
     } finally {
-      setCheckingSubscription(false);
+      setSessionLoading(false);
     }
   };
 
+  // Handle Stripe callback (success / cancel query params) once session loaded
+  const [stripeHandled, setStripeHandled] = useState(false);
   useEffect(() => {
-    const init = async () => {
-      if (!activeOrganizationId || workspaces.length > 0) return;
-      await checkBillingEligibility(activeOrganizationId);
-    };
-    void init();
-  }, [activeOrganizationId, workspaces.length]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
+    if (sessionLoading || stripeHandled) return;
+    const params = new URLSearchParams(window.location.search);
     const checkout = params.get("checkout");
     if (!checkout) return;
-    if (checkout === "success" && activeOrganizationId) {
-      setCheckoutNotice("Checkout completed. Verifying subscription status...");
-      void checkBillingEligibility(activeOrganizationId);
+    setStripeHandled(true);
+
+    // Clean URL without re-trigger
+    window.history.replaceState({}, "", window.location.pathname);
+
+    if (checkout === "success") {
+      setNotice("Checkout completed. Verifying subscription status…");
+      void fetchSession(); // re-check subscription
     } else if (checkout === "cancel") {
-      setCheckoutNotice("Checkout was canceled. You can pick a plan and try again.");
+      setNotice("Checkout was canceled. Pick a plan and try again.");
     }
-  }, [location.search, activeOrganizationId]);
+  }, [sessionLoading, stripeHandled]);
 
+  // Initial fetch
   useEffect(() => {
-    if (!checkoutNotice) return;
-    if (checkingSubscription) return;
-    const timeout = window.setTimeout(() => setCheckoutNotice(null), 4500);
-    return () => window.clearTimeout(timeout);
-  }, [checkoutNotice, checkingSubscription]);
+    void fetchSession();
+  }, [urlOrgId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // 5. Load plans when billing step is active
+  // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const loadPlans = async () => {
-      if (step !== "billing") return;
-      try {
-        setPlans(await BillingService.listPublicPlans());
-      } catch (_err) {
-        setPlans([]);
-      }
+    if (step !== "billing") return;
+    let alive = true;
+    setPlansLoading(true);
+    BillingService.listPublicPlans()
+      .then((p) => alive && setPlans(p))
+      .catch(() => alive && setPlans([]))
+      .finally(() => alive && setPlansLoading(false));
+    return () => {
+      alive = false;
     };
-    void loadPlans();
   }, [step]);
+
+  // Notice auto-clear
+  useEffect(() => {
+    if (!notice) return;
+    const t = window.setTimeout(() => setNotice(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [notice]);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 6. Handlers
+  // ──────────────────────────────────────────────────────────────────────────
 
   const handleCreateOrganization = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     const company = companyName.trim();
     if (company.length < 2) return setError("Enter a company name (at least 2 characters).");
+    setError(null);
     setSubmitting(true);
     try {
       const orgRes = await OrganizationService.create(company);
-      const organizationId = orgRes.data?.organization?._id;
-      if (!organizationId) throw new Error("Organization not created");
-      setLocalActiveOrganizationId(String(organizationId));
-      setActiveOrganizationId(String(organizationId));
-      const orgBranding = new FormData();
-      orgBranding.append("primaryColor", orgPrimaryColor);
-      orgBranding.append("secondaryColor", orgSecondaryColor);
-      if (logoFile) orgBranding.append("logo", logoFile);
-      await OrganizationService.updateBranding(orgBranding);
-      await checkBillingEligibility(String(organizationId));
-    } catch (_err) {
+      const newOrgId = orgRes.data?.organization?._id;
+      if (!newOrgId) throw new Error("Organization not created");
+      const id = String(newOrgId);
+
+      // Upload branding (pass org id explicitly — no URL context yet)
+      const brandingForm = new FormData();
+      brandingForm.append("primaryColor", orgPrimaryColor);
+      brandingForm.append("secondaryColor", orgSecondaryColor);
+      if (logoFile) brandingForm.append("logo", logoFile);
+      await OrganizationService.updateBranding(brandingForm, id);
+
+      // Navigate to org-scoped onboarding; URL update triggers session re-fetch
+      navigate(buildOrganizationPath(id, "onboarding"), { replace: true });
+    } catch {
       setError("Could not create organization. Try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleWorkspaceCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleStartCheckout = async (planId: string) => {
+    if (!organizationId) return;
     setError(null);
-    const workspace = workspaceName.trim();
-    if (workspace.length < 2) return setError("Enter a workspace name (at least 2 characters).");
-    if (!activeOrganizationId) {
-      setStep("organization");
-      return setError("Organization context is missing. Please create organization first.");
-    }
     setSubmitting(true);
     try {
-      const res = await WorkspaceService.create(workspace, activeOrganizationId);
-      const id = res.data?.workspace?._id;
-      await refreshWorkspaces();
-      if (id) setActiveWorkspaceId(String(id));
-      if (id && activeOrganizationId) {
-        navigate(buildWorkspacePath(activeOrganizationId, String(id), "dashboard"), { replace: true });
-      }
-    } catch (err: any) {
-      const code = err?.response?.data?.code;
-      if (code === "SUBSCRIPTION_REQUIRED" || code === "FEATURE_NOT_AVAILABLE") {
-        setStep("billing");
-        setError("Please activate a plan before creating a workspace.");
-      } else {
-        setError("Could not create workspace. Try again.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleStartCheckout = async (planId: string) => {
-    if (!activeOrganizationId) return;
-    try {
-      setSubmitting(true);
-      setError(null);
-      const data = await BillingService.createCheckoutSession(planId, billingCycle);
+      const data = await BillingService.createCheckoutSession(planId, billingCycle, organizationId);
       if (data?.checkoutUrl) window.location.href = data.checkoutUrl;
       else setError("Checkout session could not be created.");
     } catch (err: any) {
@@ -184,54 +228,165 @@ const WorkspaceOnboarding: React.FC = () => {
     }
   };
 
-  const onboardingProgress = useMemo(
+  const handleVerifySubscription = () => {
+    setNotice("Re-checking subscription…");
+    void fetchSession();
+  };
+
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = workspaceName.trim();
+    if (name.length < 2) return setError("Enter a workspace name (at least 2 characters).");
+    if (!organizationId) return setError("Organization context missing. Please refresh.");
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await WorkspaceService.create(name, organizationId);
+      const wsId = res.data?.workspace?._id;
+      if (!wsId) throw new Error("Workspace not returned");
+      await refreshWorkspaces();
+      setActiveWorkspaceId(String(wsId));
+      navigate(buildWorkspacePath(organizationId, String(wsId), "dashboard"), { replace: true });
+    } catch (err: any) {
+      const code = err?.response?.data?.code;
+      if (code === "SUBSCRIPTION_REQUIRED" || code === "FEATURE_NOT_AVAILABLE") {
+        setStep("billing");
+        setError("Please activate a plan before creating a workspace.");
+      } else if (code === "WORKSPACE_CREATE_FORBIDDEN") {
+        setStep("access");
+        setError("Your role does not allow workspace creation in this organization.");
+      } else {
+        setError("Could not create workspace. Try again.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 7. Progress indicator
+  // ──────────────────────────────────────────────────────────────────────────
+  const progress = useMemo(
     () => ({
-      organization: step === "organization" ? "current" : "done",
-      billing: step === "billing" ? "current" : step === "workspace" ? "done" : "pending",
-      workspace: step === "workspace" ? "current" : "pending",
+      organization:
+        step === "organization" ? "current" : ("done" as const),
+      billing:
+        step === "billing"
+          ? "current"
+          : step === "workspace" || step === "access"
+          ? "done"
+          : ("pending" as const),
+      workspace: step === "workspace" ? "current" : step === "access" ? "done" : ("pending" as const),
     }),
     [step]
   );
 
-  if (!user) return <div className="min-h-[40vh] flex items-center justify-center text-sm text-slate-500">Loading…</div>;
+  // ──────────────────────────────────────────────────────────────────────────
+  // Render
+  // ──────────────────────────────────────────────────────────────────────────
+  if (!user || loading) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center text-sm text-card-text">
+        Loading…
+      </div>
+    );
+  }
+
+  if (sessionLoading) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center text-sm text-card-text">
+        Preparing your setup…
+      </div>
+    );
+  }
+
+  if (sessionError) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4 text-sm">
+        <p className="text-danger-text">{sessionError}</p>
+        <Button variant="secondary" onClick={() => void fetchSession()}>
+          <FiRefreshCw className="mr-2 inline" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const STEPS = [
+    {
+      k: "organization" as const,
+      label: "Organization",
+      icon: FiLayers,
+      text: "Company profile, branding colors, and logo.",
+    },
+    {
+      k: "billing" as const,
+      label: "Billing Plan",
+      icon: FiCreditCard,
+      text: "Choose a monthly/yearly plan and complete Stripe checkout.",
+    },
+    {
+      k: "workspace" as const,
+      label: "Workspace",
+      icon: FiFolder,
+      text: "Create your first workspace and enter the CRM dashboard.",
+    },
+  ];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6 pb-12">
+      {/* ── Header + progress ──────────────────────────────────────── */}
       <section className="rounded-3xl border border-card-border bg-card p-6 shadow-sm">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-card-text">Workspace Onboarding</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-card-text">
+              Workspace Onboarding
+            </p>
             <h1 className="mt-1 text-2xl font-semibold text-text">Set up your CRM in three steps</h1>
             <p className="mt-2 max-w-2xl text-sm text-card-text">
-              Signed in as <span className="font-medium text-text">{user.email}</span>. Create your organization, pick a plan, then create your first workspace.
+              Signed in as <span className="font-medium text-text">{user.email}</span>. Create your
+              organization, pick a plan, then create your first workspace.
             </p>
-            {checkoutNotice ? <p className="mt-3 text-sm font-medium text-primary">{checkoutNotice}</p> : null}
+            {notice ? (
+              <p className="mt-3 text-sm font-medium text-primary">{notice}</p>
+            ) : null}
           </div>
-          <div className="rounded-2xl border border-card-border bg-background/60 px-4 py-3 text-xs text-card-text">
-            <span className="font-semibold text-text">Current step:</span>{" "}
-            {step === "organization" ? "Organization Setup" : step === "billing" ? "Billing Plan Selection" : "Workspace Creation"}
+          <div className="shrink-0 rounded-2xl border border-card-border bg-background/60 px-4 py-3 text-xs text-card-text">
+            <span className="font-semibold text-text">Current step: </span>
+            {step === "organization"
+              ? "Organization Setup"
+              : step === "billing"
+              ? "Billing Plan Selection"
+              : step === "access"
+              ? "Awaiting Access"
+              : "Workspace Creation"}
           </div>
         </div>
+
+        {/* Step cards */}
         <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-          {[
-            { k: "organization", label: "Organization", icon: FiLayers, text: "Company profile, branding colors, and logo." },
-            { k: "billing", label: "Billing Plan", icon: FiCreditCard, text: "Choose monthly/yearly plan and complete Stripe checkout." },
-            { k: "workspace", label: "Workspace", icon: FiFolder, text: "Create your first workspace and enter the CRM dashboard." },
-          ].map((item, idx) => {
+          {STEPS.map((item, idx) => {
             const Icon = item.icon;
-            const status = onboardingProgress[item.k as keyof typeof onboardingProgress];
+            const status = progress[item.k];
             return (
               <div
                 key={item.k}
                 className={cn(
                   "rounded-2xl border p-4 transition-all",
-                  status === "current" ? "border-primary-border bg-primary/10" : "border-card-border bg-background/40"
+                  status === "current"
+                    ? "border-primary-border bg-primary/10"
+                    : "border-card-border bg-background/40"
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-text"><Icon className="text-primary" /> {item.label}</div>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text">
+                    <Icon className="text-primary" />
+                    {item.label}
+                  </div>
                   {status === "done" ? (
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-success text-success-text"><FiCheck size={14} /></span>
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-success text-success-text">
+                      <FiCheck size={14} />
+                    </span>
                   ) : (
                     <span className="text-xs text-card-text">Step {idx + 1}</span>
                   )}
@@ -243,97 +398,228 @@ const WorkspaceOnboarding: React.FC = () => {
         </div>
       </section>
 
+      {/* ── Step 1: Create Organization ────────────────────────────── */}
       {step === "organization" ? (
         <form onSubmit={handleCreateOrganization} className="space-y-4">
           <div className="rounded-3xl border border-card-border bg-card p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-text">Organization details</h2>
-            <p className="mt-1 text-sm text-card-text">Tell us about your company and visual identity.</p>
-            <label htmlFor="company-name" className="mb-1.5 mt-5 block text-sm font-medium text-text">Organization name</label>
+            <p className="mt-1 text-sm text-card-text">
+              Tell us about your company and visual identity.
+            </p>
+
+            <label
+              htmlFor="company-name"
+              className="mb-1.5 mt-5 block text-sm font-medium text-text"
+            >
+              Organization name
+            </label>
             <input
               id="company-name"
               type="text"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="e.g. Acme Mortgage Inc."
-              className={cn("w-full rounded-xl border border-card-border bg-background px-3 py-2 text-sm text-text", "placeholder:text-card-text/70 focus:outline-none focus:ring-2 focus:ring-primary/30")}
+              className={cn(
+                "w-full rounded-xl border border-card-border bg-background px-3 py-2 text-sm text-text",
+                "placeholder:text-card-text/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              )}
               autoComplete="organization"
             />
-            <div className="mt-5"><ImageUpload label="Organization logo" name="company-logo" value={logoFile} onChange={setLogoFile} height="h-36" /></div>
-          </div>
-          <div className="rounded-3xl border border-card-border bg-card p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-text">Branding colors</h2>
-            <p className="mt-1 text-sm text-card-text">Set default colors used in organization-level UI themes.</p>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div><label className="mb-1.5 mt-4 block text-sm font-medium text-text">Primary color</label><input type="color" value={orgPrimaryColor} onChange={(e) => setOrgPrimaryColor(e.target.value)} /></div>
-              <div><label className="mb-1.5 mt-4 block text-sm font-medium text-text">Secondary color</label><input type="color" value={orgSecondaryColor} onChange={(e) => setOrgSecondaryColor(e.target.value)} /></div>
+
+            <div className="mt-5">
+              <ImageUpload
+                label="Organization logo"
+                name="company-logo"
+                value={logoFile}
+                onChange={setLogoFile}
+                height="h-36"
+              />
             </div>
           </div>
-          {error ? <div className="rounded-xl border border-danger-border bg-danger/10 px-4 py-3 text-sm text-danger-text">{error}</div> : null}
-          <div className="flex justify-end"><Button type="submit" isLoading={submitting} disabled={submitting}>Continue to plan selection</Button></div>
+
+          <div className="rounded-3xl border border-card-border bg-card p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-text">Branding colors</h2>
+            <p className="mt-1 text-sm text-card-text">
+              Set default colors used in organization-level UI themes.
+            </p>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-text">Primary color</label>
+                <input
+                  type="color"
+                  value={orgPrimaryColor}
+                  onChange={(e) => setOrgPrimaryColor(e.target.value)}
+                  className="h-10 w-20 cursor-pointer rounded border border-card-border"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-text">
+                  Secondary color
+                </label>
+                <input
+                  type="color"
+                  value={orgSecondaryColor}
+                  onChange={(e) => setOrgSecondaryColor(e.target.value)}
+                  className="h-10 w-20 cursor-pointer rounded border border-card-border"
+                />
+              </div>
+            </div>
+          </div>
+
+          {error ? (
+            <p className="rounded-xl border border-danger-border bg-danger/10 px-4 py-3 text-sm text-danger-text">
+              {error}
+            </p>
+          ) : null}
+          <div className="flex justify-end">
+            <Button type="submit" isLoading={submitting} disabled={submitting}>
+              Continue to plan selection
+            </Button>
+          </div>
         </form>
       ) : null}
 
+      {/* ── Step 2: Billing Plan ───────────────────────────────────── */}
       {step === "billing" ? (
         <section className="space-y-4">
           <div className="rounded-3xl border border-card-border bg-card p-6 shadow-sm">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-text">Choose a billing plan</h2>
-                <p className="mt-1 text-sm text-card-text">Your organization is ready. Select a plan to activate product access.</p>
+                <p className="mt-1 text-sm text-card-text">
+                  Your organization is ready. Select a plan to activate product access.
+                </p>
               </div>
-              <div className="w-full max-w-sm">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-card-text">Billing cycle</p>
-                <Segmented value={billingCycle} onChange={(value) => setBillingCycle(value as BillingCycle)} options={[{ key: "monthly", label: "Monthly" }, { key: "yearly", label: "Yearly" }]} />
+              <div className="w-full max-w-xs">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-card-text">
+                  Billing cycle
+                </p>
+                <Segmented
+                  value={billingCycle}
+                  onChange={(v) => setBillingCycle(v as BillingCycle)}
+                  options={[
+                    { key: "monthly", label: "Monthly" },
+                    { key: "yearly", label: "Yearly" },
+                  ]}
+                />
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {plans.map((plan) => (
-              <PlanCard
-                key={plan._id}
-                name={plan.name}
-                description={plan.description}
-                recommended={plan.recommended}
-                pricing={plan.pricing}
-                billingCycle={billingCycle}
-                entitlements={plan.entitlements}
-                onAction={() => void handleStartCheckout(plan._id)}
-                actionLabel={!plan.pricing ? "Pricing unavailable" : submitting ? "Please wait..." : `Choose ${plan.name}`}
-                disabled={submitting || !plan.pricing}
-              />
-            ))}
-          </div>
-          {plans.length === 0 ? <div className="rounded-2xl border border-card-border bg-card p-5 text-sm text-card-text shadow-sm">No active plans are currently available. Please contact super admin.</div> : null}
-          {error ? <div className="rounded-xl border border-danger-border bg-danger/10 px-4 py-3 text-sm text-danger-text">{error}</div> : null}
+
+          {plansLoading ? (
+            <div className="text-sm text-card-text">Loading plans…</div>
+          ) : plans.length === 0 ? (
+            <div className="rounded-2xl border border-card-border bg-card p-5 text-sm text-card-text shadow-sm">
+              No active plans are currently available. Please contact the super admin.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {plans.map((plan) => (
+                <PlanCard
+                  key={plan._id}
+                  name={plan.name}
+                  description={plan.description}
+                  recommended={plan.recommended}
+                  pricing={plan.pricing}
+                  billingCycle={billingCycle}
+                  entitlements={plan.entitlements}
+                  onAction={() => void handleStartCheckout(plan._id)}
+                  actionLabel={
+                    !plan.pricing
+                      ? "Pricing unavailable"
+                      : submitting
+                      ? "Please wait…"
+                      : `Choose ${plan.name}`
+                  }
+                  disabled={submitting || !plan.pricing}
+                />
+              ))}
+            </div>
+          )}
+
+          {error ? (
+            <p className="rounded-xl border border-danger-border bg-danger/10 px-4 py-3 text-sm text-danger-text">
+              {error}
+            </p>
+          ) : null}
+
           <div className="flex justify-end">
-            <Button variant="secondary" onClick={() => activeOrganizationId && void checkBillingEligibility(activeOrganizationId)} isLoading={checkingSubscription}>
-              I have activated my plan
+            <Button
+              variant="secondary"
+              onClick={handleVerifySubscription}
+              isLoading={sessionLoading}
+            >
+              I've completed checkout — verify subscription
             </Button>
           </div>
         </section>
       ) : null}
 
+      {/* ── Step 3: Create Workspace ───────────────────────────────── */}
       {step === "workspace" ? (
-        <form onSubmit={handleWorkspaceCreate} className="space-y-4">
+        <form onSubmit={handleCreateWorkspace} className="space-y-4">
           <div className="rounded-3xl border border-card-border bg-card p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-text">Create your first workspace</h2>
-            <p className="mt-1 text-sm text-card-text">Name your primary workspace. You can create more based on your plan limits.</p>
+            <p className="mt-1 text-sm text-card-text">
+              Name your primary workspace. You can create more from settings later.
+            </p>
             <div className="mt-4">
-              <label htmlFor="ws-name" className="mb-1.5 block text-sm font-medium text-text">Workspace name</label>
+              <label htmlFor="ws-name" className="mb-1.5 block text-sm font-medium text-text">
+                Workspace name
+              </label>
               <input
                 id="ws-name"
                 type="text"
                 value={workspaceName}
                 onChange={(e) => setWorkspaceName(e.target.value)}
                 placeholder="e.g. Acme Lending Team"
-                className={cn("w-full rounded-xl border border-card-border bg-background px-3 py-2 text-sm text-text", "placeholder:text-card-text/70 focus:outline-none focus:ring-2 focus:ring-primary/30")}
-                autoComplete="organization"
+                className={cn(
+                  "w-full rounded-xl border border-card-border bg-background px-3 py-2 text-sm text-text",
+                  "placeholder:text-card-text/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                )}
+                autoComplete="off"
               />
             </div>
           </div>
-          {error ? <div className="rounded-xl border border-danger-border bg-danger/10 px-4 py-3 text-sm text-danger-text">{error}</div> : null}
-          <div className="flex justify-end"><Button type="submit" isLoading={submitting} disabled={submitting}>Complete setup</Button></div>
+
+          {error ? (
+            <p className="rounded-xl border border-danger-border bg-danger/10 px-4 py-3 text-sm text-danger-text">
+              {error}
+            </p>
+          ) : null}
+          <div className="flex justify-end">
+            <Button type="submit" isLoading={submitting} disabled={submitting}>
+              Complete setup
+            </Button>
+          </div>
         </form>
+      ) : null}
+
+      {/* ── Restricted access state ─────────────────────────────────── */}
+      {step === "access" ? (
+        <section className="space-y-4">
+          <div className="rounded-3xl border border-card-border bg-card p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-text">Awaiting elevated access</h2>
+            <p className="mt-2 text-sm text-card-text">
+              Your organization setup is complete, but your role cannot finish onboarding actions.
+              Ask your organization owner/admin to either assign you to a workspace or grant the required permissions.
+            </p>
+            <div className="mt-4 rounded-2xl border border-card-border bg-background/50 p-4 text-sm text-card-text">
+              <p>
+                {session?.accessReason === "billing_manage_required"
+                  ? "Missing permission: organization.billing.manage"
+                  : "Missing permission: organization.workspaces.create"}
+              </p>
+              <p className="mt-1">Current account: {user.email}</p>
+            </div>
+            <div className="mt-5 flex justify-end">
+              <Button variant="secondary" onClick={() => void fetchSession()} isLoading={sessionLoading}>
+                <FiRefreshCw className="mr-2 inline" />
+                Refresh access
+              </Button>
+            </div>
+          </div>
+        </section>
       ) : null}
     </div>
   );

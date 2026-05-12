@@ -1,29 +1,25 @@
 const mongoose = require("mongoose");
 const { R4XX } = require("../Responses");
 const workspaceService = require("../services/workspace.service");
-const organizationService = require("../services/organization.service");
 const authorizationService = require("../services/authorization.service");
 
 /**
- * Requires `Authorization` (isAuth) first. Reads active workspace from `X-Workspace-Id`
- * and sets req.workspaceId, workspace permissions, and legacy req.workspaceRole slug.
+ * Run after `requireOrganization`. If `X-Workspace-Id` is present and valid, attaches
+ * `req.workspaceId` and `req.workspacePermissions` for `requirePermission` with `scope: "either"`.
+ * If the header is omitted, leaves workspace fields unset (org-only permission checks).
  */
-const requireWorkspace = async (req, res, next) => {
+const attachWorkspacePermissionsIfPresent = async (req, res, next) => {
   try {
-    const orgRaw = req.headers["x-organization-id"];
-    const orgId = typeof orgRaw === "string" ? orgRaw.trim() : "";
-    const raw = req.headers["x-workspace-id"];
-    const id = typeof raw === "string" ? raw.trim() : "";
-    if (!orgId || !mongoose.isValidObjectId(orgId)) {
-      return R4XX(res, 400, "Active organization is required (X-Organization-Id header).");
-    }
-    if (!id || !mongoose.isValidObjectId(id)) {
-      return R4XX(res, 400, "Active workspace is required (X-Workspace-Id header).");
+    const orgId = req.organizationId;
+    const orgMembership = req.organizationMember;
+    if (!orgId || !orgMembership) {
+      return R4XX(res, 500, "Organization context required before optional workspace attachment.");
     }
 
-    const orgMembership = await organizationService.findMembership(req.user, orgId);
-    if (!orgMembership) {
-      return R4XX(res, 403, "You are not a member of this organization.");
+    const raw = req.headers["x-workspace-id"];
+    const id = typeof raw === "string" ? raw.trim() : "";
+    if (!id || !mongoose.isValidObjectId(id)) {
+      return next();
     }
 
     const workspace = await workspaceService.getWorkspaceById(id);
@@ -43,12 +39,6 @@ const requireWorkspace = async (req, res, next) => {
       return R4XX(res, 403, "You are not a member of this workspace.");
     }
 
-    req.organizationId = orgId;
-    req.organizationMember = orgMembership;
-    req.isOrgOwner = !!orgMembership.isOwner;
-    req.orgRole = orgMembership.organizationRole?.slug || null;
-    req.orgPermissions = await authorizationService.getOrganizationPermissionSet(orgMembership);
-
     req.workspaceId = id;
     if (!workspaceMember && orgMembership.isOwner) {
       req.workspaceMember = null;
@@ -66,9 +56,9 @@ const requireWorkspace = async (req, res, next) => {
     }
 
     next();
-  } catch (err) {
-    return R4XX(res, 500, "Workspace validation failed.");
+  } catch (_err) {
+    return R4XX(res, 500, "Optional workspace context failed.");
   }
 };
 
-module.exports = requireWorkspace;
+module.exports = attachWorkspacePermissionsIfPresent;

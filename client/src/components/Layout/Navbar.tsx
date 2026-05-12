@@ -11,10 +11,11 @@ import { cn } from "../../utils/cn";
 import { FiSun, FiMoon, FiChevronDown, FiPlus } from "react-icons/fi";
 import { RiBuildingLine } from "react-icons/ri";
 import { useAuth } from "../../context/AuthContext";
+import { usePermissionsOptional } from "../../context/PermissionContext";
 import { WorkspaceService } from "../../service/workspaceService";
 import { OrganizationService } from "../../service/organizationService";
 import { PopoverTrigger } from "../Reusable/PopoverTrigger";
-import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
+import { buildOrganizationPath, buildWorkspacePath, getTenantFromPath } from "../../utils/tenantRouting";
 
 const Navbar = () => {
   const { t } = useLanguage();
@@ -32,6 +33,7 @@ const Navbar = () => {
     setActiveWorkspaceId,
     refreshWorkspaces,
   } = useAuth();
+  const perm = usePermissionsOptional();
 
   const [isLogoutModalOpen, setLogoutModalOpen] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
@@ -49,16 +51,30 @@ const Navbar = () => {
   const organizationName = orgReferenceWorkspace?.organization?.name || "Mortgage CRM";
   const organizationLogo = orgReferenceWorkspace?.branding?.organization?.logoUrl || null;
 
+  const resolveOrganizationIdForApi = (): string | null => {
+    const fromPath = getTenantFromPath(location.pathname).organizationId;
+    if (fromPath) return fromPath;
+    if (activeOrganizationId && /^[a-f\d]{24}$/i.test(activeOrganizationId)) return activeOrganizationId;
+    const fromWorkspace = orgReferenceWorkspace?.organization?.organizationId;
+    if (fromWorkspace && /^[a-f\d]{24}$/i.test(fromWorkspace)) return fromWorkspace;
+    return null;
+  };
+
   const mode: "light" | "dark" = theme === "dark" ? "dark" : "light";
+  const canCreateWorkspace =
+    perm?.effective?.isOrgOwner ||
+    perm?.canAnyOrg(["organization.workspaces.create"]) ||
+    false;
 
   const toggleTheme = async () => {
     const next = mode === "dark" ? "light" : "dark";
     setTheme(next);
-    if (!activeOrganizationId) return;
+    const orgId = resolveOrganizationIdForApi();
+    if (!orgId) return;
     try {
       const form = new FormData();
       form.append("themeMode", next);
-      await OrganizationService.updateBranding(form);
+      await OrganizationService.updateBranding(form, orgId);
       await refreshWorkspaces();
     } catch (err) {
       console.error("Failed to persist organization theme mode:", err);
@@ -81,20 +97,19 @@ const Navbar = () => {
     if (trimmed.length < 2) return;
     setCreateWsLoading(true);
     try {
-      const res = await WorkspaceService.create(trimmed, activeOrganizationId);
+      const orgId = resolveOrganizationIdForApi();
+      const res = await WorkspaceService.create(trimmed, orgId);
       const wid = res.data?.workspace?._id;
       await refreshWorkspaces();
-      if (wid) {
+      if (wid && orgId) {
         setActiveWorkspaceId(String(wid));
-        if (activeOrganizationId) {
-          navigate(buildWorkspacePath(activeOrganizationId, String(wid), "dashboard"));
-          return;
-        }
+        navigate(buildWorkspacePath(orgId, String(wid), "dashboard"));
+        return;
       }
       setNewWsName("");
       setCreateWsOpen(false);
-      if (activeOrganizationId) {
-        navigate(buildOrganizationPath(activeOrganizationId, "dashboard"));
+      if (orgId) {
+        navigate(buildOrganizationPath(orgId, "dashboard"));
       }
     } catch (err) {
       console.error(err);
@@ -221,20 +236,22 @@ const Navbar = () => {
                               );
                             })}
                           </div>
-                          <div className="mt-2 border-t border-card-border pt-2">
-                            <button
-                              type="button"
-                              onClick={() => setCreateWsOpen(true)}
-                              className={cn(
-                                "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
-                                "inline-flex items-center gap-2",
-                                "text-text hover:bg-card-hover"
-                              )}
-                            >
-                              <FiPlus className="h-4 w-4" />
-                              Create workspace
-                            </button>
-                          </div>
+                          {canCreateWorkspace ? (
+                            <div className="mt-2 border-t border-card-border pt-2">
+                              <button
+                                type="button"
+                                onClick={() => setCreateWsOpen(true)}
+                                className={cn(
+                                  "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
+                                  "inline-flex items-center gap-2",
+                                  "text-text hover:bg-card-hover"
+                                )}
+                              >
+                                <FiPlus className="h-4 w-4" />
+                                Create workspace
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       }
                     >
@@ -361,6 +378,11 @@ const Navbar = () => {
       <Modal isOpen={createWsOpen} onClose={() => setCreateWsOpen(false)}>
         <h2 className="text-lg font-semibold mb-2 text-text">New workspace</h2>
         <p className="text-sm text-card-text mb-4">Create another workspace. You will be switched to it after creation.</p>
+        {!canCreateWorkspace ? (
+          <p className="mb-4 rounded-xl border border-warning-border bg-warning/10 px-3 py-2 text-sm text-warning-text">
+            You do not have permission to create workspaces in this organization.
+          </p>
+        ) : null}
         <input
           type="text"
           value={newWsName}
@@ -375,7 +397,12 @@ const Navbar = () => {
           <Button variant="secondary" onClick={() => setCreateWsOpen(false)}>
             {t("cancel")}
           </Button>
-          <Button variant="primary" onClick={handleCreateWorkspace} isLoading={createWsLoading} disabled={createWsLoading}>
+          <Button
+            variant="primary"
+            onClick={handleCreateWorkspace}
+            isLoading={createWsLoading}
+            disabled={createWsLoading || !canCreateWorkspace}
+          >
             Create
           </Button>
         </div>

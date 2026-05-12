@@ -112,28 +112,46 @@ export const BillingService = {
     const { data } = await apiClient.get("/billing/plans/public");
     return data?.plans || [];
   },
-  async getOrganizationBilling() {
-    const { data } = await apiClient.get("/billing/organization");
+  async getOrganizationBilling(organizationId?: string | null) {
+    const { data } = await apiClient.get("/billing/organization", {
+      ...(organizationId ? { organizationId } : {}),
+    });
     return data;
   },
-  async createCheckoutSession(planId: string, billingCycle: BillingCycle) {
-    const { data } = await apiClient.post("/billing/checkout", { planId, billingCycle });
+  async createCheckoutSession(planId: string, billingCycle: BillingCycle, organizationId?: string | null) {
+    const { data } = await apiClient.post(
+      "/billing/checkout",
+      { planId, billingCycle },
+      { ...(organizationId ? { organizationId } : {}) }
+    );
     return data;
   },
-  async createPortalSession() {
-    const { data } = await apiClient.post("/billing/portal");
+  async createPortalSession(organizationId?: string | null) {
+    const { data } = await apiClient.post("/billing/portal", undefined, {
+      ...(organizationId ? { organizationId } : {}),
+    });
     return data;
   },
-  async changePlan(planId: string, billingCycle: BillingCycle) {
-    const { data } = await apiClient.post("/billing/change-plan", { planId, billingCycle });
+  async changePlan(planId: string, billingCycle: BillingCycle, organizationId?: string | null) {
+    const { data } = await apiClient.post(
+      "/billing/change-plan",
+      { planId, billingCycle },
+      { ...(organizationId ? { organizationId } : {}) }
+    );
     return data;
   },
-  async cancelSubscription(immediate = false) {
-    const { data } = await apiClient.post("/billing/cancel", { immediate });
+  async cancelSubscription(immediate = false, organizationId?: string | null) {
+    const { data } = await apiClient.post(
+      "/billing/cancel",
+      { immediate },
+      { ...(organizationId ? { organizationId } : {}) }
+    );
     return data;
   },
-  async resumeSubscription() {
-    const { data } = await apiClient.post("/billing/resume");
+  async resumeSubscription(organizationId?: string | null) {
+    const { data } = await apiClient.post("/billing/resume", undefined, {
+      ...(organizationId ? { organizationId } : {}),
+    });
     return data;
   },
   async listAdminPlans(): Promise<Plan[]> {
