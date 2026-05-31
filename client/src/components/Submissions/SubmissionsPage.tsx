@@ -5,7 +5,7 @@ import DataTable from "../Reusable/DataTable";
 import Input from "../Reusable/Inputs/Input";
 import Modal from "../Reusable/Modal";
 import { prettyDate } from "../../utils/date";
-import { FiEdit2, FiPlus } from "react-icons/fi";
+import { FiEdit2, FiFileText, FiPlus } from "react-icons/fi";
 import { useNavigate } from "react-router";
 import { Submission } from "../../types/extraction.types";
 import PageHeader from "../Reusable/PageHeader";
@@ -241,6 +241,17 @@ const SubmissionsPage: React.FC = () => {
               <span className="inline-flex items-center gap-2">
                 <FiEdit2 className="h-4 w-4 shrink-0" aria-hidden />
                 Edit
+              </span>
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`${row._id}/documents`)}
+              disabled={!canOpenClientDetail}
+              disabledTooltip={!canOpenClientDetail ? PERMISSION_TOOLTIPS.manageClient : undefined}
+            >
+              <span className="inline-flex items-center gap-2">
+                <FiFileText className="h-4 w-4 shrink-0" aria-hidden />
+                View documents
               </span>
             </Button>
             <Button

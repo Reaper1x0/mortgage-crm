@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import Button from "../../components/Reusable/Button";
 import Modal from "../../components/Reusable/Modal";
 import Input from "../../components/Reusable/Inputs/Input";
+import FileUploadZone from "../Reusable/Inputs/FileUploadZone";
 import DataTable from "../../components/Reusable/DataTable";
 import { TemplateService } from "../../service/templateService";
 import { TemplateDoc } from "../../types/template.types";
@@ -197,15 +198,14 @@ function CreateTemplateModal({
           required
         />
 
-        <div className="space-y-1">
-          <label className="text-sm text-card-text">PDF File</label>
-          <input
-            type="file"
-            accept="application/pdf"
-            className="w-full text-sm text-text"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-        </div>
+        <FileUploadZone
+          label="PDF File"
+          name="template-pdf"
+          accept="application/pdf"
+          hint="Upload a PDF template file"
+          selectedFileName={file?.name ?? null}
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
 
         <div className="flex gap-2">
           <Button variant="secondary" type="button" onClick={onClose}>

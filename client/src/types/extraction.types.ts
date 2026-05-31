@@ -73,7 +73,8 @@ export type FileRef = {
   extension?: string;
   size_in_bytes?: number;
   status?: "uploaded" | "failed" | "deleted";
-  uploaded_by?: string | { _id: string; name?: string; email?: string };
+  checksum_md5?: string;
+  uploaded_by?: string | { _id: string; name?: string; email?: string; fullName?: string; username?: string };
   uploaded_at?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -82,9 +83,11 @@ export type FileRef = {
 export type SubmissionDocument = {
   _id?: string;
   userId: string;
-  document: FileRef; // ref to File (id or populated object)
+  document: FileRef | string; // ref to File (id or populated object)
   extracted_fields: FieldItem[]; // fields extracted for THIS document
   uploadDate?: string; // ISO string (backend Date)
+  document_name?: string;
+  document_type?: string;
 };
 
 export type GeneratedDocument = {

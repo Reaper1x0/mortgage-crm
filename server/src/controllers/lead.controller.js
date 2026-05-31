@@ -176,6 +176,24 @@ const LeadController = {
     });
   }),
 
+  downloadLeadsSampleTemplate: catchAsync(async (req, res) => {
+    const headers = ["Full Name", "Email", "Phone", "Company", "Source", "Notes"];
+    const sampleRows = [
+      ["Jane Doe", "jane.doe@example.com", "555-0100", "Acme Mortgage", "Website", "Interested in refinance"],
+      ["John Smith", "john@example.com", "555-0199", "", "Referral", ""],
+    ];
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", 'attachment; filename="leads-import-template.xlsx"');
+    return res.status(200).send(buffer);
+  }),
+
   bulkPreviewLeads: catchAsync(async (req, res) => {
     const file = req.file;
     if (!file) return R4XX(res, 400, "Upload a CSV or XLSX file");

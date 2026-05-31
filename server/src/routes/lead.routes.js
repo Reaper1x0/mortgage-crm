@@ -43,6 +43,14 @@ router.post(
   leadController.bulkMoveLeadsToClients
 );
 
+router.get(
+  "/bulk/sample-template",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.leads.read"),
+  leadController.downloadLeadsSampleTemplate
+);
+
 router.post(
   "/bulk/preview",
   isAuth,

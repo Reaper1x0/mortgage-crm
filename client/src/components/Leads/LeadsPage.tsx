@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FiEdit2, FiPlus, FiTrash2, FiUpload } from "react-icons/fi";
+import { FiDownload, FiEdit2, FiPlus, FiTrash2, FiUpload } from "react-icons/fi";
 import PageHeader from "../Reusable/PageHeader";
 import Button from "../Reusable/Button";
 import DataTable from "../Reusable/DataTable";
 import Modal from "../Reusable/Modal";
 import Input from "../Reusable/Inputs/Input";
+import FileUploadZone from "../Reusable/Inputs/FileUploadZone";
 import TextArea from "../Reusable/Inputs/TextArea";
 import IconButton from "../Reusable/IconButton";
 import Select from "../Reusable/Inputs/Select";
@@ -77,6 +78,7 @@ export default function LeadsPage() {
   const [companyFilter, setCompanyFilter] = useState("");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
+  const [downloadingSample, setDownloadingSample] = useState(false);
 
   const fetchLeads = useCallback(
     async (p = page, ps = pageSize) => {
@@ -206,6 +208,15 @@ export default function LeadsPage() {
     }
   };
 
+  const handleDownloadSampleTemplate = useCallback(async () => {
+    setDownloadingSample(true);
+    try {
+      await LeadService.downloadLeadsImportTemplate();
+    } finally {
+      setDownloadingSample(false);
+    }
+  }, []);
+
   const columns = useMemo(
     () => [
       {
@@ -303,6 +314,12 @@ export default function LeadsPage() {
         description="Manage your leads and import them from spreadsheets."
         right={
           <div className="flex gap-2">
+            <Button variant="secondary" onClick={handleDownloadSampleTemplate} disabled={downloadingSample}>
+              <span className="inline-flex items-center gap-2">
+                <FiDownload className="h-4 w-4 shrink-0" aria-hidden />
+                {downloadingSample ? "Preparing…" : "Sample leads format (XLSX)"}
+              </span>
+            </Button>
             <Button
               variant="secondary"
               onClick={() => setBulkOpen(true)}
@@ -426,7 +443,6 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
-
       <DataTable
         loading={loading}
         data={leads}
@@ -779,11 +795,12 @@ function BulkUploadModal({
 
       {step === 1 && (
         <div className="mt-4 space-y-4">
-          <Input
+          <FileUploadZone
             label="Spreadsheet File"
             name="bulkFile"
-            type="file"
             accept=".csv,.xlsx"
+            hint="CSV or Excel (.xlsx) — columns will be mapped in the next step"
+            selectedFileName={file?.name ?? null}
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
           <div className="flex gap-2">

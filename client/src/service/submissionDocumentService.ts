@@ -3,7 +3,7 @@ import apiClient from "../api/apiClient";
 export const SubmissionDocumentsService = {
   list: async (submissionId: string) => {
     const resp = await apiClient.get(`/submissions/${submissionId}/documents`);
-    return resp.data?.data; // { documents }
+    return resp.data; // { success, message, submissionId, documents }
   },
 
   replace: async (submissionId: string, docEntryId: string, file: File) => {
@@ -15,13 +15,13 @@ export const SubmissionDocumentsService = {
       fd,
       { headers: { "Content-Type": "multipart/form-data" } }
     );
-    return resp.data?.data; // { submission, replaced, warnings }
+    return resp.data; // { success, message, submission, replaced, warnings }
   },
 
   remove: async (submissionId: string, docEntryId: string) => {
     const resp = await apiClient.delete(
       `/submissions/${submissionId}/documents/${docEntryId}`
     );
-    return resp.data; // { submission, deleted, warnings }
+    return resp.data; // { success, message, submission, deleted, warnings }
   },
 };

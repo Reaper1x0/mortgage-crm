@@ -1,6 +1,8 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ImCross } from "react-icons/im";
 import IconButton from "../IconButton";
+import FileUploadZone, { type FileUploadZoneHandle } from "./FileUploadZone";
+import { cn } from "../../../utils/cn";
 
 interface ImageUploadProps {
   label?: string;
@@ -11,6 +13,7 @@ interface ImageUploadProps {
   onChange: (file: File | undefined) => void;
   className?: string;
   accept?: string;
+  hint?: string;
 }
 
 const ImageUpload: React.FC<ImageUploadProps> = ({
@@ -22,11 +25,11 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   onChange,
   className = "",
   accept = "image/*",
+  hint = "PNG, JPG, or WebP",
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(
-    typeof value === "string" ? value : null
-  );
+  const uploadRef = useRef<FileUploadZoneHandle>(null);
+  const [preview, setPreview] = useState<string | null>(typeof value === "string" ? value : null);
+
   useEffect(() => {
     if (typeof value === "string") {
       setPreview(value);
@@ -37,66 +40,50 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      handleRemoveImage();
-      onChange(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setPreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    onChange(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setPreview(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
   const handleRemoveImage = () => {
     setPreview(null);
-    onChange(undefined); // clears the image in parent
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    onChange(undefined);
+    uploadRef.current?.clear();
   };
 
-  return (
-    <div className={`flex flex-col gap-2 text-text ${className}`}>
-      {label && <label className="font-medium">{label}</label>}
-      <div
-        className={`relative bg-card border border-dashed border-border p-4 rounded-lg cursor-pointer`}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        {preview ? (
-          <>
-            <img
-              src={preview}
-              alt="Preview"
-              className={`${width} ${height} object-contain rounded-lg`}
+  if (preview) {
+    return (
+      <div className={cn("flex flex-col gap-2 text-text", className)}>
+        {label ? <label className="font-medium">{label}</label> : null}
+        <div className="relative cursor-default rounded-2xl border border-card-border bg-card p-4">
+          <img src={preview} alt="Preview" className={cn(width, height, "mx-auto max-h-48 object-contain rounded-lg")} />
+          <div className="absolute top-2 right-2">
+            <IconButton
+              icon={ImCross}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemoveImage();
+              }}
             />
-            <div className="absolute top-2 right-2">
-              <IconButton
-                icon={ImCross}
-                onClick={(e) => {
-                  e.stopPropagation(); // prevent triggering file input
-                  handleRemoveImage();
-                }}
-              />
-            </div>
-          </>
-        ) : (
-          <div
-            className={`text-text text-center flex flex-col items-center justify-center`}
-          >
-            <div className="mt-2 text-base font-medium">
-              Click to upload image
-            </div>
           </div>
-        )}
+        </div>
       </div>
-      <input
-        type="file"
-        name={name}
-        accept={accept}
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        className="hidden"
-      />
-    </div>
+    );
+  }
+
+  return (
+    <FileUploadZone
+      ref={uploadRef}
+      name={name}
+      label={label}
+      hint={hint}
+      accept={accept}
+      className={className}
+      zoneClassName={cn("min-h-[10rem]", height)}
+      onChange={handleFileChange}
+    />
   );
 };
 

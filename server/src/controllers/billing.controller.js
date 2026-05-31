@@ -1,5 +1,6 @@
 const { R2XX, R4XX } = require("../Responses");
 const { catchAsync } = require("../utils");
+const { envConfig } = require("../config");
 const { billingService } = require("../services");
 const { OrganizationSubscription } = require("../models");
 const { constructWebhookEvent, getStripe } = require("../billing/stripe.service");
@@ -252,11 +253,19 @@ const BillingController = {
 
   handleStripeWebhook: catchAsync(async (req, res) => {
     const signature = req.headers["stripe-signature"];
+    const payload = Buffer.isBuffer(req.body) ? req.body : req.rawBody;
     let event;
     try {
-      event = constructWebhookEvent(req.rawBody || req.body, signature);
+      event = constructWebhookEvent(payload, signature);
     } catch (error) {
+      if (envConfig.NODE_ENV !== "production") {
+        console.error("[stripe webhook] signature verification failed:", error?.message);
+      }
       return R4XX(res, 400, "Invalid webhook signature.");
+    }
+
+    if (envConfig.NODE_ENV !== "production") {
+      console.log(`[stripe webhook] ${event.type} (${event.id})`);
     }
 
     const begin = await subscriptionService.beginWebhookEvent(event.id, event.type);

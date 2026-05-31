@@ -268,11 +268,21 @@ All API endpoints are prefixed with `/backend/api`.
 
 ### Stripe Webhook Local Testing
 
-Use Stripe CLI to forward events:
+The CLI must listen on the **same Stripe account** as `STRIPE_SECRET_KEY` in `.env`. If they differ, checkout completes but **no events appear** in `stripe listen`.
+
+Use Stripe CLI to forward events (replace port and API key to match your `.env`):
 
 ```bash
-stripe listen --forward-to http://localhost:3000/backend/api/billing/webhook/stripe
+stripe listen --api-key sk_test_YOUR_KEY_FROM_ENV --forward-to http://localhost:8080/backend/api/billing/webhook/stripe
 ```
+
+Copy the printed `whsec_...` into `STRIPE_WEBHOOK_SECRET`, restart the server, then complete checkout or run:
+
+```bash
+stripe trigger checkout.session.completed
+```
+
+You should see `-->` / `<-- [200]` lines in the CLI terminal and `POST /backend/api/billing/webhook/stripe` in server logs.
 
 ### Submissions
 

@@ -2,10 +2,12 @@ const cors = require("cors");
 const morgan = require("morgan");
 const express = require("express");
 const routes = require("./routes");
+const { billingController } = require("./controllers");
 const { R5XX, R4XX } = require("./Responses");
 const { envConfig } = require("./config");
 
 const app = express();
+const STRIPE_WEBHOOK_PATH = "/backend/api/billing/webhook/stripe";
 const normalizeOrigin = (value = "") =>
   String(value || "")
     .trim()
@@ -19,14 +21,16 @@ const allowedOrigins = envConfig.FRONTEND_URL.split(",")
 app.set("view engine", "ejs");
 app.set("trust proxy", true);
 
+// Stripe signature verification requires the raw request body (before JSON parsing).
+app.post(
+  STRIPE_WEBHOOK_PATH,
+  express.raw({ type: "application/json" }),
+  billingController.handleStripeWebhook
+);
+
 app.use(
   express.json({
     limit: "2mb",
-    verify(req, _res, buf) {
-      if (req.originalUrl.includes("/billing/webhook/stripe")) {
-        req.rawBody = buf;
-      }
-    },
   })
 );
 app.use(express.urlencoded({ extended: true }));

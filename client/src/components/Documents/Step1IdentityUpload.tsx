@@ -1,7 +1,8 @@
 // src/components/document-extraction/Step1IdentityUpload.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { FiUploadCloud, FiEdit3, FiArrowRight, FiFileText } from "react-icons/fi";
+import React, { useEffect, useMemo, useState } from "react";
+import { FiEdit3, FiArrowRight, FiFileText, FiUploadCloud } from "react-icons/fi";
 import Input from "../Reusable/Inputs/Input";
+import FileUploadZone from "../Reusable/Inputs/FileUploadZone";
 import Button from "../Reusable/Button";
 import PageHeader from "../Reusable/PageHeader";
 import Surface from "../Reusable/Surface";
@@ -35,9 +36,7 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
   onManualContinue,
 }) => {
   const [mode, setMode] = useState<"upload" | "manual">("upload");
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // keep user on upload mode if system already extracted a name
   useEffect(() => {
     if (cnicName) setMode("upload");
   }, [cnicName]);
@@ -45,7 +44,7 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
   const canManualContinue = manualName.trim().length >= 3;
 
   const extractedState = useMemo(() => {
-    if (cnicName === null) return "idle"; // not attempted yet
+    if (cnicName === null) return "idle";
     if (!cnicName) return "notfound";
     return "found";
   }, [cnicName]);
@@ -57,7 +56,6 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
         description="Choose one option: extract the legal name from an ID document, or enter it manually."
       />
 
-      {/* Mode selector */}
       <div className="w-full">
         <Segmented
           value={mode}
@@ -72,78 +70,49 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
             {
               key: "manual",
               label: "Enter Manually",
-              description: "Type the legal name if upload isn't available or name isn’t detected.",
+              description: "Type the legal name if upload isn't available or name isn't detected.",
               icon: <FiEdit3 className="h-5 w-5 text-text" />,
             },
           ]}
         />
       </div>
 
-      {/* Error */}
       {error ? (
         <Callout tone="danger" title="Something went wrong">
           {error}
         </Callout>
       ) : null}
 
-      {/* Upload mode */}
       {mode === "upload" && (
         <Surface className="p-4 sm:p-5 md:p-6" variant="card">
           <div className="flex flex-col gap-3 sm:gap-4">
-            {/* Upload drop-ish area */}
-            <div className="rounded-3xl border border-card-border bg-background p-4 sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl border border-card-border bg-card">
-                    <FiFileText className="h-5 w-5 text-text" />
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="text-sm font-bold text-text">Identification document</div>
-                    <div className="mt-1 text-sm text-card-text">
-                      Upload an image (CNIC/ID). Make sure the name area is sharp and readable.
-                    </div>
-                  </div>
+            <div className="rounded-3xl border border-card-border bg-background p-4 sm:p-5 space-y-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl border border-card-border bg-card">
+                  <FiFileText className="h-5 w-5 text-text" />
                 </div>
-
-                <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={onFileChange}
-                    className="hidden"
-                  />
-
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={loading}
-                    className="w-full sm:w-auto"
-                  >
-                    Choose file
-                  </Button>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-text">Identification document</div>
+                  <div className="mt-1 text-sm text-card-text">
+                    Upload an image (CNIC/ID). Make sure the name area is sharp and readable.
+                  </div>
                 </div>
               </div>
 
-              {/* Selected file */}
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <StatusBadge tone={cnicFile ? "primary" : "neutral"}>
-                  {cnicFile ? "File selected" : "No file selected"}
-                </StatusBadge>
+              <FileUploadZone
+                name="cnic-upload"
+                accept="image/*"
+                disabled={loading}
+                hint="CNIC or government ID image — JPG or PNG recommended"
+                selectedFileName={cnicFile?.name ?? null}
+                onChange={onFileChange}
+              />
 
-                {cnicFile ? (
-                  <div className="min-w-0 text-sm text-card-text">
-                    <span className="block min-w-0 truncate">
-                      <span className="font-semibold text-text">{cnicFile.name}</span>
-                    </span>
-                  </div>
-                ) : null}
-              </div>
+              <StatusBadge tone={cnicFile ? "primary" : "neutral"}>
+                {cnicFile ? "File selected" : "No file selected"}
+              </StatusBadge>
             </div>
 
-            {/* Extract result */}
             {cnicName !== null ? (
               extractedState === "found" ? (
                 <Callout tone="success" title="Extracted legal name">
@@ -151,12 +120,11 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
                 </Callout>
               ) : (
                 <Callout tone="warning" title="Name not found">
-                  We couldn’t detect a legal name from this image. Try a clearer photo or use manual entry.
+                  We couldn't detect a legal name from this image. Try a clearer photo or use manual entry.
                 </Callout>
               )
             ) : null}
 
-            {/* Action */}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
               <Button
                 variant="primary"
@@ -178,7 +146,6 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
         </Surface>
       )}
 
-      {/* Manual mode */}
       {mode === "manual" && (
         <Surface className="p-4 sm:p-5 md:p-6" variant="card">
           <div className="space-y-3 sm:space-y-4">

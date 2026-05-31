@@ -14,6 +14,7 @@ import PublicRoute from "./components/Auth/PublicRoute";
 import WorkspaceLayout from "./components/Layout/WorkspaceLayout";
 import SubmissionsPage from "./components/Submissions/SubmissionsPage";
 import SubmissionManagementPage from "./components/Submissions/SubmissionManagementPage";
+import ClientDocumentsPage from "./components/Submissions/ClientDocumentsPage";
 import TemplateMaker from "./components/TemplateMaker/TemplatesPage";
 import TemplateDesignerPage from "./components/TemplateMaker/TemplateDesignerPage";
 import WorkspaceUsersPage from "./components/Users/WorkspaceUsersPage";
@@ -132,7 +133,9 @@ function App() {
               }
             >
               <Route path="dashboard" element={<OrgDashboardRedirect />} />
-              <Route path="onboarding" element={<WorkspaceOnboarding />} />
+              <Route element={<WorkspaceLayout />}>
+                <Route path="onboarding" element={<WorkspaceOnboarding />} />
+              </Route>
               <Route
                 path="profile"
                 element={
@@ -168,6 +171,7 @@ function App() {
                     element={<ProtectedRoute workspacePermissionsAny={["workspace.submissions.read"]} />}
                   >
                     <Route index element={<SubmissionManagementPage />} />
+                    <Route path="documents" element={<ClientDocumentsPage />} />
                   </Route>
                   <Route
                     path="master-fields"

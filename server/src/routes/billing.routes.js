@@ -1,12 +1,11 @@
 const { Router } = require("express");
-const express = require("express");
 const { billingController } = require("../controllers");
 const { isAuth, requireOrganization, requirePermission, requireSystemRole, validate } = require("../middlewares");
 const { billingValidation } = require("../validations");
 
 const router = Router();
 
-router.post("/webhook/stripe", express.raw({ type: "application/json" }), billingController.handleStripeWebhook);
+// Webhook is registered in app.js (before express.json) for raw body signature verification.
 
 router.get("/plans/public", billingController.listPublicPlans);
 

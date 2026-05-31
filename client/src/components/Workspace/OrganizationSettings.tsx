@@ -8,6 +8,7 @@ import ColorPicker from "../Reusable/Inputs/ColorPicker";
 import DropdownMenu from "../Reusable/DropdownMenu";
 import Input from "../Reusable/Inputs/Input";
 import Button from "../Reusable/Button";
+import FileUploadZone, { type FileUploadZoneHandle } from "../Reusable/Inputs/FileUploadZone";
 
 const OrganizationSettings: React.FC = () => {
   const { organizationId } = useParams<{ organizationId: string }>();
@@ -26,7 +27,7 @@ const OrganizationSettings: React.FC = () => {
     );
   }, [workspaces, activeWorkspaceId, organizationId]);
   const [saving, setSaving] = React.useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const logoUploadRef = React.useRef<FileUploadZoneHandle | null>(null);
   const [showLogoPreview, setShowLogoPreview] = React.useState(false);
   const [logoFile, setLogoFile] = React.useState<File | undefined>(undefined);
   const [orgPrimaryColor, setOrgPrimaryColor] = React.useState(
@@ -130,7 +131,7 @@ const OrganizationSettings: React.FC = () => {
               }
             >
               <button type="button" onClick={() => setShowLogoPreview(true)} className="w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm text-text hover:bg-card-hover">View</button>
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm text-text hover:bg-card-hover">Upload / Update</button>
+              <button type="button" onClick={() => logoUploadRef.current?.open()} className="w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm text-text hover:bg-card-hover">Upload / Update</button>
               <button type="button" onClick={handleDeleteLogo} className="w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-card-hover">Delete</button>
             </DropdownMenu>
           </div>
@@ -148,11 +149,11 @@ const OrganizationSettings: React.FC = () => {
             Save Changes
           </Button>
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
+        <FileUploadZone
+          ref={logoUploadRef}
+          name="organization-logo"
           accept="image/*"
-          className="hidden"
+          hideDefaultZone
           onChange={(e) => setLogoFile(e.target.files?.[0])}
         />
       </div>

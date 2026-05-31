@@ -12,6 +12,7 @@ import Modal from "../Reusable/Modal";
 import { getUserDisplayName, normalizeUserForAvatar, getAvatarSource } from "../../utils/userUtils";
 import { useAuth } from "../../context/AuthContext";
 import StatusBadge from "../Reusable/StatusBadge";
+import FileUploadZone, { type FileUploadZoneHandle } from "../Reusable/Inputs/FileUploadZone";
 
 const Profile = () => {
   const { t } = useLanguage();
@@ -23,7 +24,7 @@ const Profile = () => {
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileUploadRef = useRef<FileUploadZoneHandle>(null);
 
   const handleChange = async (username: String) => {
     try {
@@ -60,9 +61,7 @@ const Profile = () => {
       await UserService.updateProfile(formData);
       // Refresh from API to get latest data (this will update all components via context)
       await refreshProfile();
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      fileUploadRef.current?.clear();
     } catch (error: any) {
       alert(error?.message || "Failed to upload profile picture");
     } finally {
@@ -153,7 +152,7 @@ const Profile = () => {
               <div className="relative group">
                 <div 
                   className="relative cursor-pointer"
-                  onClick={() => !uploadingPicture && fileInputRef.current?.click()}
+                  onClick={() => !uploadingPicture && fileUploadRef.current?.open()}
                 >
                   <div className="relative h-32 w-32 rounded-full overflow-hidden ring-4 ring-background shadow-lg">
                     {userInfo && (() => {
@@ -203,7 +202,7 @@ const Profile = () => {
               {/* Upload Picture Button */}
               <Button
                 variant="secondary"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => fileUploadRef.current?.open()}
                 disabled={uploadingPicture}
                 isLoading={uploadingPicture}
                 className="w-full"
@@ -213,12 +212,12 @@ const Profile = () => {
                   {uploadingPicture ? "Uploading..." : "Change Profile Picture"}
                 </span>
               </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
+              <FileUploadZone
+                ref={fileUploadRef}
+                name="profilePicture"
                 accept="image/*"
+                hideDefaultZone
                 onChange={handleProfilePictureChange}
-                className="hidden"
               />
             </div>
           </Surface>

@@ -16,6 +16,7 @@ import { resolveFileUrl } from "../../utils/fileUrl";
 
 import Button from "../Reusable/Button";
 import IconButton from "../Reusable/IconButton";
+import FileUploadZone from "../Reusable/Inputs/FileUploadZone";
 
 import { FiFileText, FiEye, FiRefreshCw, FiTrash2, FiPlus } from "react-icons/fi";
 
@@ -336,12 +337,13 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
           />
 
           <Surface variant="soft" className="p-4">
-            <input
-              type="file"
+            <FileUploadZone
+              name="add-documents"
               multiple
               accept=".pdf,.docx,image/*"
+              hint="PDF, DOCX, or images — select one or more files"
+              selectedFileNames={docFiles.map((f) => f.name)}
               onChange={onFileChange}
-              className="text-sm text-card-text"
             />
           </Surface>
 
@@ -366,11 +368,12 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
           />
 
           <Surface variant="soft" className="p-4 space-y-3">
-            <input
-              type="file"
+            <FileUploadZone
+              name="replace-document"
               accept=".pdf,.docx,image/*"
+              hint="PDF, DOCX, or image — replaces the current document"
+              selectedFileName={replaceFile?.name ?? null}
               onChange={(e) => setReplaceFile(e.target.files?.[0] || null)}
-              className="text-sm text-card-text"
             />
 
             {replaceFile ? (

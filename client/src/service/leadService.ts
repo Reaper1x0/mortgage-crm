@@ -123,6 +123,20 @@ export const LeadService = {
     return response.data;
   },
 
+  downloadLeadsImportTemplate: async () => {
+    const response = await apiClient.get<Blob>("/leads/bulk/sample-template", {
+      responseType: "blob",
+    });
+    const blob = response.data;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "leads-import-template.xlsx";
+    anchor.rel = "noopener";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
   bulkPreview: async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
