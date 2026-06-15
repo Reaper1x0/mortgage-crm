@@ -45,4 +45,9 @@ export const TemplateService = {
     const res = await apiClient.get("/templates", { params });
     return res.data;
   },
+
+  deleteTemplate: async (id: string) => {
+    const res = await apiClient.delete(`/templates/${id}`);
+    return res.data;
+  },
 };

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { FiPlus } from "react-icons/fi";
+import { FiPlus, FiTrash2 } from "react-icons/fi";
 import { useNavigate } from "react-router";
 import Button from "../../components/Reusable/Button";
 import Modal from "../../components/Reusable/Modal";
@@ -10,6 +10,8 @@ import { TemplateService } from "../../service/templateService";
 import { TemplateDoc } from "../../types/template.types";
 import { prettyDate } from "../../utils/date";
 import PageHeader from "../Reusable/PageHeader";
+import Callout from "../Reusable/Callout";
+import ActionBar from "../Reusable/ActionBar";
 import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
 import { usePermissions } from "../../context/PermissionContext";
 import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
@@ -23,6 +25,8 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(false);
 
   const [isCreateOpen, setCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<TemplateDoc | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // ✅ pagination state
   const [page, setPage] = useState<number>(1);
@@ -65,6 +69,21 @@ export default function TemplatesPage() {
     fetchTemplates(page, pageSize);
   }, [page, pageSize, fetchTemplates]);
 
+  const handleDeleteTemplate = async () => {
+    if (!deleteTarget?._id) return;
+    setDeleting(true);
+    try {
+      await TemplateService.deleteTemplate(deleteTarget._id);
+      showSuccessToast("Template deleted");
+      setDeleteTarget(null);
+      await fetchTemplates(page, pageSize);
+    } catch (err) {
+      console.error("Template delete error:", err);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const columns = useMemo(
     () => [
       { title: "Name", dataIndex: "name" },
@@ -91,11 +110,22 @@ export default function TemplatesPage() {
             >
               Manage
             </Button>
+            <Button
+              variant="danger"
+              onClick={() => setDeleteTarget(row)}
+              disabled={!canManageTemplates}
+              disabledTooltip={!canManageTemplates ? PERMISSION_TOOLTIPS.createTemplate : undefined}
+            >
+              <span className="inline-flex items-center gap-2">
+                <FiTrash2 className="h-4 w-4 shrink-0" aria-hidden />
+                Delete
+              </span>
+            </Button>
           </div>
         ),
       },
     ],
-    [navigate, canOpenTemplateManage],
+    [navigate, canOpenTemplateManage, canManageTemplates],
   );
 
   return (
@@ -142,6 +172,40 @@ export default function TemplatesPage() {
           await fetchTemplates(page, pageSize);
         }}
       />
+
+      <Modal isOpen={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)}>
+        <div className="space-y-4">
+          <PageHeader
+            title="Delete template?"
+            description={
+              deleteTarget ? (
+                <>
+                  This will permanently remove <span className="font-semibold text-text">{deleteTarget.name}</span> and
+                  its field placements.
+                </>
+              ) : (
+                "This action cannot be undone."
+              )
+            }
+          />
+          <Callout tone="danger" title="Warning">
+            Generated documents from this template will not be deleted, but you will no longer be able to use this
+            template.
+          </Callout>
+          <ActionBar
+            right={
+              <>
+                <Button variant="secondary" type="button" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+                  Cancel
+                </Button>
+                <Button variant="danger" type="button" isLoading={deleting} disabled={deleting} onClick={handleDeleteTemplate}>
+                  Delete template
+                </Button>
+              </>
+            }
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

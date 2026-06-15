@@ -82,6 +82,22 @@ const TemplateService = {
     );
   },
 
+  deleteTemplate: async (templateId, workspaceId) => {
+    const tpl = await Template.findOne({ _id: templateId, workspace: workspaceId });
+    if (!tpl) return null;
+
+    if (tpl.file?.storagePath) {
+      try {
+        await storageService.deleteByPath(tpl.file.storagePath);
+      } catch (err) {
+        console.error("Failed to delete template file from storage:", err);
+      }
+    }
+
+    await Template.deleteOne({ _id: templateId, workspace: workspaceId });
+    return tpl;
+  },
+
   renderTemplate: async ({ templateId, valuesByKey, submissionId = null, userId = null, workspaceId }) => {
     const tpl = await Template.findOne({ _id: templateId, workspace: workspaceId });
     if (!tpl) throw new Error("Template not found");

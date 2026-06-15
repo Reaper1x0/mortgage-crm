@@ -5,7 +5,7 @@ import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { LuBraces, LuInbox } from "react-icons/lu";
 import { RiFileEditFill } from "react-icons/ri";
-import { FiUsers, FiUser, FiUserPlus } from "react-icons/fi";
+import { FiUsers, FiUserPlus } from "react-icons/fi";
 import { GrDashboard } from "react-icons/gr";
 import { useEffect, useMemo } from "react";
 
@@ -41,13 +41,6 @@ export default function WorkspaceLayout() {
       }
       if (perm?.canAnyWorkspace(["workspace.leads.read"]) || perm?.effective?.isOrgOwner) {
         nav.push({ to: withWorkspace("leads"), label: "Leads", icon: FiUserPlus });
-      }
-      if (perm?.canAnyOrg(["organization.organization.read"]) || perm?.effective?.isOrgOwner) {
-        nav.push({
-          to: organizationId ? `/${organizationId}/profile` : "/profile",
-          label: "Profile",
-          icon: FiUser,
-        });
       }
       return nav;
     },

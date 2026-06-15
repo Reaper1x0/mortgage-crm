@@ -127,6 +127,28 @@ const TemplateController = {
     return R2XX(res, "Placements saved", 200, { template: updated });
   }),
 
+  deleteTemplate: catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user;
+
+    const deleted = await templateService.deleteTemplate(id, req.workspaceId);
+    if (!deleted) return R4XX(res, 404, "Template not found");
+
+    await AuditTrailService.log({
+      entity_type: "template",
+      entity_id: id,
+      user_id: userId,
+      workspace: req.workspaceId,
+      action: "template_deleted",
+      action_details: {
+        template_id: id,
+        template_name: deleted.name,
+      },
+    });
+
+    return R2XX(res, "Template deleted", 200, { templateId: id });
+  }),
+
   renderTemplate: catchAsync(async (req, res) => {
     const { id } = req.params;
     const { values, submissionId } = req.body; // { values: { key: value }, submissionId?: string }

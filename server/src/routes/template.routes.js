@@ -25,6 +25,9 @@ router.get("/:id/file", isAuth, requireWorkspace, requirePermission("workspace.t
 // Admin: Save placements
 router.put("/:id/placements", isAuth, requireWorkspace, requirePermission("workspace.templates.write"), TemplateController.savePlacements);
 
+// Admin: Delete template
+router.delete("/:id", isAuth, requireWorkspace, requirePermission("workspace.templates.manage"), TemplateController.deleteTemplate);
+
 // Admin: Render template
 router.post("/:id/render", isAuth, requireWorkspace, requirePermission("workspace.templates.write"), TemplateController.renderTemplate);
 

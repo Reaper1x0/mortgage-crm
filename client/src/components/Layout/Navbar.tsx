@@ -345,14 +345,15 @@ const Navbar = () => {
                       <button
                         type="button"
                         onClick={() =>
-                          activeOrganizationId && navigate(buildOrganizationPath(activeOrganizationId, "profile"))
+                          activeOrganizationId &&
+                          navigate(buildOrganizationPath(activeOrganizationId, "account/profile"))
                         }
                         className={cn(
                           "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
                           "transition-all duration-200 hover:bg-card-hover text-text"
                         )}
                       >
-                        {t("profile")}
+                        Account settings
                       </button>
 
                       <button

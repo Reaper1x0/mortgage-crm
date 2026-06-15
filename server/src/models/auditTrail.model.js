@@ -40,6 +40,7 @@ const auditTrailSchema = new mongoose.Schema(
         "submission_completed",
         "template_created",
         "template_updated",
+        "template_deleted",
         "document_generated",
         "document_downloaded",
       ],

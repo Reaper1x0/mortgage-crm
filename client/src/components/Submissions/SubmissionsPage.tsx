@@ -245,7 +245,7 @@ const SubmissionsPage: React.FC = () => {
             </Button>
             <Button
               variant="secondary"
-              onClick={() => navigate(`${row._id}/documents`)}
+              onClick={() => navigate(`${row._id}?step=2`)}
               disabled={!canOpenClientDetail}
               disabledTooltip={!canOpenClientDetail ? PERMISSION_TOOLTIPS.manageClient : undefined}
             >

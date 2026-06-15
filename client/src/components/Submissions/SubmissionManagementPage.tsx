@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useDispatch } from "react-redux";
 import { FiArrowLeft, FiTag } from "react-icons/fi";
 import type { Submission } from "../../types/extraction.types";
@@ -74,6 +74,7 @@ function buildDocsErrorMessage(resp: unknown) {
 export default function SubmissionManagementPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const dispatch = useDispatch<AppDispatch>();
 
   const [submission, setSubmission] = useState<Submission | null>(null);
@@ -96,7 +97,10 @@ export default function SubmissionManagementPage() {
 
     (async () => {
       setSubmissionLoading(true);
-      setCurrentStep(1);
+      const stepParam = searchParams.get("step");
+      const initialStep =
+        stepParam === "2" || stepParam === "documents" ? 2 : 1;
+      setCurrentStep(initialStep as Step);
       try {
         const res = await SubmissionService.getSubmissionById(id);
         if (cancelled) return;
@@ -117,7 +121,7 @@ export default function SubmissionManagementPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, searchParams]);
 
   const handleManualContinue = async () => {
     const name = manualLegalName.trim();
@@ -312,6 +316,8 @@ export default function SubmissionManagementPage() {
 
               {currentStep === 2 && (
                 <Step2DocumentsUpload
+                  clientTitle={submission?.submission_name}
+                  clientLegalName={submission?.legal_name}
                   docFiles={docFiles}
                   loading={docsLoading}
                   onFileChange={handleDocsChange}

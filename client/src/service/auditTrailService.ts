@@ -43,6 +43,7 @@ export interface AuditLog {
     | "submission_completed"
     | "template_created"
     | "template_updated"
+    | "template_deleted"
     | "document_generated"
     | "document_downloaded";
   action_details?: Record<string, any>;

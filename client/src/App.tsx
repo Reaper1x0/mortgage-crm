@@ -14,7 +14,6 @@ import PublicRoute from "./components/Auth/PublicRoute";
 import WorkspaceLayout from "./components/Layout/WorkspaceLayout";
 import SubmissionsPage from "./components/Submissions/SubmissionsPage";
 import SubmissionManagementPage from "./components/Submissions/SubmissionManagementPage";
-import ClientDocumentsPage from "./components/Submissions/ClientDocumentsPage";
 import TemplateMaker from "./components/TemplateMaker/TemplatesPage";
 import TemplateDesignerPage from "./components/TemplateMaker/TemplateDesignerPage";
 import WorkspaceUsersPage from "./components/Users/WorkspaceUsersPage";
@@ -22,6 +21,7 @@ import DashboardAnalytics from "./components/Dashboard/DashboardAnalytics";
 import LeadsPage from "./components/Leads/LeadsPage";
 import WorkspaceOnboarding from "./components/Workspace/WorkspaceOnboarding";
 import SettingsLayout from "./components/Layout/SettingsLayout";
+import AccountSettingsLayout from "./components/Layout/AccountSettingsLayout";
 import OrganizationSettings from "./components/Workspace/OrganizationSettings";
 import SuperAdminLayout from "./components/Layout/SuperAdminLayout";
 import SuperAdminUsersPage from "./components/SuperAdmin/SuperAdminUsersPage";
@@ -96,6 +96,19 @@ function LegacyWorkspaceRedirect() {
   return <Navigate to={buildOrganizationPath(orgId, "onboarding")} replace />;
 }
 
+function ClientDocumentsRedirect() {
+  const { organizationId, workspaceId, id } = useParams();
+  if (!organizationId || !workspaceId || !id) {
+    return <Navigate to="/" replace />;
+  }
+  return (
+    <Navigate
+      to={buildWorkspacePath(organizationId, workspaceId, `submissions/${id}?step=2`)}
+      replace
+    />
+  );
+}
+
 function WorkspaceScopedLayout() {
   const { workspaceId } = useParams();
   return <WorkspaceLayout key={workspaceId || "no-workspace"} />;
@@ -136,17 +149,11 @@ function App() {
               <Route element={<WorkspaceLayout />}>
                 <Route path="onboarding" element={<WorkspaceOnboarding />} />
               </Route>
-              <Route
-                path="profile"
-                element={
-                  <ProtectedRoute
-                    requireWorkspace={false}
-                    organizationPermissionsAny={["organization.organization.read"]}
-                  />
-                }
-              >
-                <Route element={<WorkspaceLayout />}>
-                  <Route index element={<Profile />} />
+              <Route path="profile" element={<Navigate to="account/profile" replace />} />
+              <Route path="account" element={<ProtectedRoute requireWorkspace={false} />}>
+                <Route element={<AccountSettingsLayout />}>
+                  <Route index element={<Navigate to="profile" replace />} />
+                  <Route path="profile" element={<Profile />} />
                 </Route>
               </Route>
               <Route
@@ -171,7 +178,7 @@ function App() {
                     element={<ProtectedRoute workspacePermissionsAny={["workspace.submissions.read"]} />}
                   >
                     <Route index element={<SubmissionManagementPage />} />
-                    <Route path="documents" element={<ClientDocumentsPage />} />
+                    <Route path="documents" element={<ClientDocumentsRedirect />} />
                   </Route>
                   <Route
                     path="master-fields"
