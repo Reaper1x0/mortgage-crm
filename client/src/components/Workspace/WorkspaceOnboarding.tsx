@@ -14,6 +14,8 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { FiRefreshCw } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
+import { AuthService } from "../../service/authService";
+import axios from "axios";
 import { WorkspaceService } from "../../service/workspaceService";
 import { OrganizationService, OnboardingSessionState } from "../../service/organizationService";
 import { BillingCycle, BillingService, Plan } from "../../service/billingService";
@@ -111,7 +113,13 @@ const WorkspaceOnboarding: React.FC = () => {
       const serverStep: Step =
         s.step === "complete" ? "workspace" : (s.step as Step) ?? "organization";
       setStep(serverStep);
-    } catch {
+    } catch (err: unknown) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      if (status === 401 || status === 403) {
+        setSessionError("Your session has expired. Redirecting to sign in…");
+        await AuthService.logout();
+        return;
+      }
       setSessionError("Could not reach the server. Check your connection and try again.");
     } finally {
       setSessionLoading(false);

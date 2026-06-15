@@ -172,6 +172,64 @@ class S3StorageService {
     );
     return streamToBuffer(response.Body);
   }
+
+  async uploadJson({ key, body }) {
+    if (!key) throw new Error("uploadJson: key is required");
+    const normalizedKey = String(key).replace(/\\/g, "/");
+    const jsonBody = typeof body === "string" ? body : JSON.stringify(body, null, 2);
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: normalizedKey,
+        Body: jsonBody,
+        ContentType: "application/json",
+      })
+    );
+    return { storage_path: normalizedKey, bucket: this.bucket };
+  }
+
+  async uploadToKey({ key, buffer, contentType = "application/octet-stream" }) {
+    if (!key) throw new Error("uploadToKey: key is required");
+    if (!buffer || !Buffer.isBuffer(buffer)) {
+      throw new Error("uploadToKey: buffer is required");
+    }
+
+    const normalizedKey = String(key).replace(/\\/g, "/");
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: normalizedKey,
+        Body: buffer,
+        ContentType: contentType,
+      })
+    );
+
+    return { storage_path: normalizedKey, bucket: this.bucket };
+  }
+
+  async listObjectsByPrefix(prefix, { maxKeys = 1000 } = {}) {
+    const { ListObjectsV2Command } = require("@aws-sdk/client-s3");
+    const normalizedPrefix = String(prefix).replace(/\\/g, "/");
+    const items = [];
+    let continuationToken;
+
+    do {
+      const response = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: normalizedPrefix,
+          ContinuationToken: continuationToken,
+          MaxKeys: maxKeys,
+        })
+      );
+      for (const obj of response.Contents || []) {
+        if (obj.Key) items.push({ key: obj.Key, size: obj.Size, lastModified: obj.LastModified });
+      }
+      continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+    } while (continuationToken);
+
+    return items;
+  }
 }
 
 const StorageService = new S3StorageService();
@@ -221,6 +279,18 @@ class UnifiedStorageService {
 
   async getObjectBuffer(storagePath) {
     return StorageService.getObjectBuffer(storagePath);
+  }
+
+  async uploadJson({ key, body }) {
+    return StorageService.uploadJson({ key, body });
+  }
+
+  async uploadToKey({ key, buffer, contentType }) {
+    return StorageService.uploadToKey({ key, buffer, contentType });
+  }
+
+  async listObjectsByPrefix(prefix, options) {
+    return StorageService.listObjectsByPrefix(prefix, options);
   }
 }
 

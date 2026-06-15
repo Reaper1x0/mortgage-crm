@@ -4,9 +4,14 @@ const mongoose = require("mongoose");
 const { File } = require("../models");
 const storageService = require("./storage.service");
 const AuditTrailService = require("./auditTrail.service");
+const documentArtifactsService = require("./document/documentArtifacts.service");
 
 function isObjectId(v) {
   return mongoose.Types.ObjectId.isValid(v);
+}
+
+function isSubmissionDocumentUpload(folder, meta = {}) {
+  return Boolean(meta.submissionId) && String(folder || "").includes("uploads/submissions/");
 }
 
 class FileService {
@@ -58,6 +63,35 @@ class FileService {
       status: "uploaded",
       meta: { ...(storageInfo.meta || {}), ...(meta || {}) },
     });
+
+    if (isSubmissionDocumentUpload(folder, meta)) {
+      try {
+        const artifactMeta = await documentArtifactsService.attachToSubmissionDocument({
+          fileDoc: doc,
+          file: { ...file, buffer, originalname: originalName, mimetype: contentType },
+          context: {
+            submissionId: meta.submissionId,
+            workspaceId: meta.workspaceId,
+            organizationId: meta.organizationId,
+          },
+        });
+
+        const { plainText, ...persistedArtifactMeta } = artifactMeta;
+        doc.meta = { ...(doc.meta || {}), ...persistedArtifactMeta };
+        await doc.save();
+        if (plainText) {
+          doc.extracted_plain_text = plainText;
+        }
+      } catch (artifactErr) {
+        try {
+          await storageService.deleteByPath(doc.storage_path);
+        } catch (deleteErr) {
+          console.error("Failed to roll back original upload after artifact error:", deleteErr);
+        }
+        await File.deleteOne({ _id: doc._id });
+        throw artifactErr;
+      }
+    }
 
     // Log audit trail only for actual documents (not profile pictures or other non-document files)
     // Skip audit logging for profile pictures, system files, etc.
@@ -205,6 +239,10 @@ class FileService {
     // Delete from storage using unified service
     try {
       await storageService.deleteByPath(file.storage_path);
+      await documentArtifactsService.deleteSidecarsForStoragePath(
+        file.storage_path,
+        file.meta || {}
+      );
     } catch (err) {
       console.error("Storage delete failed (continuing with DB delete):", err);
     }
@@ -268,6 +306,10 @@ class FileService {
     // Delete old file from storage
     try {
       await storageService.deleteByPath(oldFile.storage_path);
+      await documentArtifactsService.deleteSidecarsForStoragePath(
+        oldFile.storage_path,
+        oldFile.meta || {}
+      );
     } catch (err) {
       console.error("Storage delete failed for old file (continuing):", err);
     }

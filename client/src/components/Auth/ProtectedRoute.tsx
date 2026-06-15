@@ -50,8 +50,11 @@ export default function ProtectedRoute({
   const isWorkspaceScopedRoute = location.pathname.includes("/workspaces/");
   const isTenantScopedRoute = /^\/[a-f\d]{24}(\/|$)/i.test(location.pathname);
 
+  const permissionsPending =
+    perm?.loading && perm.effective === null && perm.organizationPermissions.size === 0;
+
   if (!isOnboarding && isTenantScopedRoute && organizationPermissionsAny.length > 0) {
-    if (perm?.loading) {
+    if (permissionsPending) {
       return (
         <div className="min-h-[50vh] flex items-center justify-center">
           <div className="text-sm text-slate-500">Loading permissions…</div>
@@ -70,7 +73,7 @@ export default function ProtectedRoute({
     if (roles.includes("superAdmin") && user?.role === "superAdmin") {
       // ok
     } else if (workspacePermissionsAny.length > 0) {
-      if (perm?.loading) {
+      if (permissionsPending) {
         return (
           <div className="min-h-[50vh] flex items-center justify-center">
             <div className="text-sm text-slate-500">Loading permissions…</div>

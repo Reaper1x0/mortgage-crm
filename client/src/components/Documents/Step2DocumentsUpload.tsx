@@ -6,25 +6,26 @@ import ExtractedFieldsGrid from "./ExtractedFieldsGrid";
 import PageHeader from "../Reusable/PageHeader";
 import Surface from "../Reusable/Surface";
 import ActionBar from "../Reusable/ActionBar";
-import FileList from "../Reusable/FileList";
 import Callout from "../Reusable/Callout";
 import StatusBadge from "../Reusable/StatusBadge";
-import Avatar from "../Reusable/Avatar";
-import { timeAgo } from "../../utils/date";
-import { getUserDisplayName, normalizeUserForAvatar } from "../../utils/userUtils";
+import Card from "../Reusable/Card";
+import { DocumentUploaderMeta } from "../Reusable/UserActionAvatar";
 import { resolveFileUrl } from "../../utils/fileUrl";
+import { prettyDate } from "../../utils/date";
 
 import Button from "../Reusable/Button";
 import IconButton from "../Reusable/IconButton";
 import FileUploadZone from "../Reusable/Inputs/FileUploadZone";
 
-import { FiFileText, FiEye, FiRefreshCw, FiTrash2, FiPlus } from "react-icons/fi";
+import { FiFile, FiFileText, FiImage, FiEye, FiRefreshCw, FiTrash2, FiPlus, FiX } from "react-icons/fi";
+import type { IconType } from "react-icons";
 
 export type Step2Props = {
   docFiles: File[];
   loading: boolean;
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onSubmit: () => void;
+  onRemoveDocFile?: (index: number) => void;
+  onSubmit: () => Promise<boolean>;
   onBack: () => void;
   existingDocuments: SubmissionDocument[];
   onReplaceExisting: (docEntryId: string, file: File) => Promise<void>;
@@ -42,10 +43,39 @@ const getFileUrl = (fileRef: FileRef): string | null => {
   return resolveFileUrl(fileRef.url || null);
 };
 
+const formatBytes = (bytes?: number | null): string => {
+  if (bytes == null || bytes < 0 || Number.isNaN(bytes)) return "—";
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let v = bytes;
+  let u = 0;
+  while (v >= 1024 && u < units.length - 1) {
+    v /= 1024;
+    u += 1;
+  }
+  return `${u === 0 ? Math.round(v) : v.toFixed(v >= 10 || u === 0 ? 0 : 1)} ${units[u]}`;
+};
+
+const fileKindIcon = (contentType?: string | null, ext?: string | null): IconType => {
+  const ct = (contentType || "").toLowerCase();
+  const e = (ext || "").toLowerCase().replace(/^\./, "");
+  if (ct.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "tif", "tiff", "heic"].includes(e)) {
+    return FiImage;
+  }
+  if (ct.includes("pdf") || e === "pdf") return FiFileText;
+  return FiFile;
+};
+
+const getPopulatedFileRef = (fileRef: FileRef): FileRef | null => {
+  if (!fileRef || typeof fileRef === "string") return null;
+  return fileRef;
+};
+
 const Step2DocumentsUpload: React.FC<Step2Props> = ({
   docFiles,
   loading,
   onFileChange,
+  onRemoveDocFile,
   onSubmit,
   onBack,
   existingDocuments,
@@ -138,129 +168,130 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
     setFieldsForId(null);
   };
 
+  const handleExtract = async () => {
+    const success = await onSubmit();
+    if (success) setAddOpen(false);
+  };
+
+  const renderPendingFileRow = (file: File, index: number) => (
+    <div
+      key={`${file.name}-${index}`}
+      className="flex items-center justify-between gap-3 border-b border-card-border py-2 last:border-0"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <FiFileText className="h-4 w-4 shrink-0 text-card-text" />
+        <span className="truncate text-sm text-text">{file.name}</span>
+      </div>
+
+      {onRemoveDocFile ? (
+        <IconButton
+          icon={FiX as any}
+          size="sm"
+          outline={false}
+          fillBg={false}
+          hoverable
+          title="Remove"
+          disabled={loading}
+          onClick={() => onRemoveDocFile(index)}
+        />
+      ) : null}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <PageHeader
         title="Step 2: Upload Documents"
-        description="Upload documents for extraction. You can manage previously uploaded documents below."
-        right={
-          <>
-            <StatusBadge tone="neutral">
-              New selected: <span className="ml-1 text-text">{docFiles?.length || 0}</span>
-            </StatusBadge>
-
-            <Button variant="secondary" type="button" onClick={() => setAddOpen(true)}>
-              <span className="inline-flex items-center gap-2">
-                <FiPlus /> Add Documents
-              </span>
-            </Button>
-
-            <Button
-              variant="primary"
-              type="button"
-              onClick={onSubmit}
-              isLoading={loading}
-              disabled={loading}
-            >
-              Extract Fields
-            </Button>
-          </>
-        }
+        description="Upload documents to extract fields. Manage uploaded files below."
       />
 
-      {/* Back */}
       <ActionBar
         left={
           <Button variant="secondary" type="button" onClick={onBack}>
             Back
           </Button>
         }
+        right={
+          <Button variant="primary" type="button" onClick={() => setAddOpen(true)}>
+            <span className="inline-flex items-center gap-2">
+              <FiPlus /> Upload Documents
+            </span>
+          </Button>
+        }
       />
 
-      {/* Uploaded documents list */}
       <Surface variant="soft" className="p-5">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="text-lg font-extrabold text-text">Uploaded Documents</div>
-            <div className="mt-1 text-sm text-card-text">
-              Replace updates extracted fields for that document. Delete removes it completely.
-            </div>
-          </div>
-
-          <StatusBadge tone="neutral">{sortedDocs.length} document(s)</StatusBadge>
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-lg font-extrabold text-text">Uploaded Documents</div>
+          <StatusBadge tone="neutral">{sortedDocs.length}</StatusBadge>
         </div>
 
         {sortedDocs.length === 0 ? (
           <div className="mt-4">
-            <Callout tone="info" title="No documents yet">
-              Upload your first document using <span className="font-semibold text-text">Add Documents</span>.
+            <Callout tone="info">
+              No documents yet. Click <span className="font-semibold text-text">Upload Documents</span> to get started.
             </Callout>
           </div>
         ) : (
-          <div className="mt-4 grid gap-3">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {sortedDocs.map((d: any) => {
               const id = d?._id as string;
+              const file = getPopulatedFileRef(d.document);
               const name = getFileName(d.document);
-              console.log(d)
               const url = getFileUrl(d.document);
               const extractedCount = Array.isArray(d.extracted_fields) ? d.extracted_fields.length : 0;
-              
-              // Get uploader info
-              const uploaderInfo = d.document?.uploaded_by;
-              const uploaderName = uploaderInfo ? getUserDisplayName(uploaderInfo) : null;
-              const uploadedAtTimeAgo = d.document?.uploaded_at ? timeAgo(d.document.uploaded_at) : null;
-              const createdAtRaw = d.document?.uploaded_at || d.uploadDate || d.document?.createdAt;
-              const createdAtLabel = createdAtRaw
-                ? new Date(createdAtRaw).toLocaleString()
-                : "Unknown";
-
               const isBusy = actionLoadingId === id;
+              const uploadedAt = d.uploadDate || file?.uploaded_at || file?.createdAt;
+              const ext = file?.extension ? String(file.extension).replace(/^\./, "").toUpperCase() : "FILE";
+              const Icon = fileKindIcon(file?.content_type, file?.extension);
 
               return (
-                <Surface key={id} variant="card" className="p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    {/* Left info */}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-card-border bg-background">
-                          <FiFileText />
-                        </span>
-
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-extrabold text-text">{name}</div>
-                          <div className="mt-1 flex items-center gap-2 text-xs text-card-text">
-                            {uploaderInfo ? (
-                              <Avatar
-                                user={normalizeUserForAvatar(uploaderInfo)}
-                                size="xs"
-                                showTooltip={true}
-                                tooltipText={`Uploaded by ${uploaderName || "Unknown"}${uploadedAtTimeAgo ? ` ${uploadedAtTimeAgo}` : ""}`}
-                              />
-                            ) : (
-                              <span className="text-card-text">by Unknown</span>
-                            )}
-                          </div>
-                          <div className="mt-1 text-xs text-card-text">
-                            Created: {createdAtLabel}
-                          </div>
-                        </div>
+                <Card key={id} containerClassName="h-full">
+                  <div className="flex h-full flex-col gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-card-border bg-background text-primary">
+                        <Icon className="h-5 w-5" aria-hidden />
                       </div>
 
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <StatusBadge tone={extractedCount > 0 ? "success" : "warning"}>
-                          Fields: {extractedCount}
-                        </StatusBadge>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-base font-semibold text-text" title={name}>
+                          {name}
+                        </h3>
+                        <DocumentUploaderMeta
+                          uploadedBy={file?.uploaded_by}
+                          tooltipUploadedAt={file?.uploaded_at}
+                          uploadDate={d.uploadDate}
+                          createdAt={file?.createdAt}
+                        />
+                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-card-text">{ext}</p>
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-card-border pt-3 text-xs">
+                      <div>
+                        <dt className="text-card-text">Fields</dt>
+                        <dd>
+                          <StatusBadge tone={extractedCount > 0 ? "success" : "warning"}>
+                            {extractedCount}
+                          </StatusBadge>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-card-text">Uploaded</dt>
+                        <dd className="font-medium text-text">{uploadedAt ? prettyDate(uploadedAt) : "—"}</dd>
+                      </div>
+                      <div className="col-span-2">
+                        <dt className="text-card-text">Size</dt>
+                        <dd className="font-medium text-text">{formatBytes(file?.size_in_bytes)}</dd>
+                      </div>
+                    </dl>
+
+                    <div className="mt-auto flex items-center justify-end gap-1 border-t border-card-border pt-3">
                       {url ? (
                         <a href={url} target="_blank" rel="noreferrer">
                           <IconButton
                             icon={FiEye as any}
-                            size="md"
+                            size="sm"
                             outline
                             fillBg
                             hoverable
@@ -271,7 +302,7 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
                       ) : (
                         <IconButton
                           icon={FiEye as any}
-                          size="md"
+                          size="sm"
                           outline
                           fillBg
                           hoverable
@@ -282,7 +313,7 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
 
                       <IconButton
                         icon={FiFileText as any}
-                        size="md"
+                        size="sm"
                         outline
                         fillBg
                         hoverable
@@ -293,7 +324,7 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
 
                       <IconButton
                         icon={FiRefreshCw as any}
-                        size="md"
+                        size="sm"
                         outline
                         fillBg
                         hoverable
@@ -304,7 +335,7 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
 
                       <IconButton
                         icon={FiTrash2 as any}
-                        size="md"
+                        size="sm"
                         outline
                         fillBg
                         hoverable
@@ -314,7 +345,7 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
                       />
                     </div>
                   </div>
-                </Surface>
+                </Card>
               );
             })}
           </div>
@@ -323,37 +354,44 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
 
       {/* ===================== MODALS ===================== */}
 
-      {/* Add Documents Modal */}
-      <Modal isOpen={addOpen} onClose={() => setAddOpen(false)}>
+      {/* Upload & extract modal */}
+      <Modal isOpen={addOpen} onClose={() => !loading && setAddOpen(false)}>
         <div className="space-y-4">
           <PageHeader
-            title="Add Documents"
-            description={
-              <>
-                Upload new documents (PDF / DOCX / Images). After selecting, click{" "}
-                <span className="font-semibold text-text">Extract Fields</span>.
-              </>
-            }
+            title="Upload Documents"
+            description="Select files, then extract fields."
           />
 
-          <Surface variant="soft" className="p-4">
-            <FileUploadZone
-              name="add-documents"
-              multiple
-              accept=".pdf,.docx,image/*"
-              hint="PDF, DOCX, or images — select one or more files"
-              selectedFileNames={docFiles.map((f) => f.name)}
-              onChange={onFileChange}
-            />
-          </Surface>
+          <FileUploadZone
+            name="add-documents"
+            multiple
+            accept=".pdf,.docx,image/*"
+            hint="PDF, DOCX, or images"
+            onChange={onFileChange}
+          />
 
-          <FileList title="Selected" files={docFiles || []} />
+          {docFiles.length > 0 ? (
+            <div className="rounded-xl border border-card-border px-3">
+              {docFiles.map((file, index) => renderPendingFileRow(file, index))}
+            </div>
+          ) : null}
 
           <ActionBar
             right={
-              <Button variant="secondary" type="button" onClick={() => setAddOpen(false)}>
-                Done
-              </Button>
+              <>
+                <Button variant="secondary" type="button" disabled={loading} onClick={() => setAddOpen(false)}>
+                  Close
+                </Button>
+                <Button
+                  variant="primary"
+                  type="button"
+                  onClick={handleExtract}
+                  isLoading={loading}
+                  disabled={loading || docFiles.length === 0}
+                >
+                  Extract Fields
+                </Button>
+              </>
             }
           />
         </div>
@@ -367,20 +405,14 @@ const Step2DocumentsUpload: React.FC<Step2Props> = ({
             description="Select a new file to replace this document. Extracted fields will be updated."
           />
 
-          <Surface variant="soft" className="p-4 space-y-3">
+          <Surface variant="soft" className="p-4">
             <FileUploadZone
               name="replace-document"
               accept=".pdf,.docx,image/*"
-              hint="PDF, DOCX, or image — replaces the current document"
+              hint="PDF, DOCX, or image"
               selectedFileName={replaceFile?.name ?? null}
               onChange={(e) => setReplaceFile(e.target.files?.[0] || null)}
             />
-
-            {replaceFile ? (
-              <Callout tone="info" title="Selected file">
-                <span className="font-semibold text-text">{replaceFile.name}</span>
-              </Callout>
-            ) : null}
           </Surface>
 
           <ActionBar

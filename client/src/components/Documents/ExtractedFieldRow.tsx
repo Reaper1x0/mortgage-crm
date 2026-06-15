@@ -3,7 +3,8 @@ import { FiChevronDown, FiChevronUp, FiFileText } from "react-icons/fi";
 import StatusBadge from "../Reusable/StatusBadge";
 import Button from "../Reusable/Button";
 import Surface from "../Reusable/Surface";
-import AvatarGroup, { AvatarAction } from "../Reusable/AvatarGroup";
+import AvatarGroup from "../Reusable/AvatarGroup";
+import { auditTrailToUserActions } from "../Reusable/UserActionAvatar";
 
 type MasterField = {
   _id: string;
@@ -249,42 +250,9 @@ const ExtractedFieldRow: React.FC<ExtractedFieldRowProps> = ({
               {auditTrail && auditTrail.length > 0 && (
                 <div className="flex items-center mt-2">
                   {(() => {
-                    // Convert audit trail to avatar actions
-                    const avatarActions: AvatarAction[] = auditTrail
-                      .filter((entry) => entry.user_id || entry.user_name || entry.user_email)
-                      .map((entry) => {
-                        const actionText = 
-                          entry.action === "field_extracted" ? "extracted by" :
-                          entry.action === "field_edited" ? "edited by" :
-                          entry.action === "field_reviewed" ? "reviewed by" :
-                          entry.action === "field_approved" ? "approved by" :
-                          "action by";
-                        
-                        // Use denormalized user info if available, otherwise use populated user_id
-                        const user = entry.user_id || {
-                          _id: entry._id,
-                          fullName: entry.user_name,
-                          email: entry.user_email,
-                        };
-                        
-                        return {
-                          user,
-                          action: actionText,
-                          timestamp: entry.timestamp,
-                        };
-                      });
-                    
-                    // Remove duplicates (same user, same action type)
-                    const uniqueActions = avatarActions.reduce((acc, action) => {
-                      const key = `${action.user?._id || action.user?.email}_${action.action}`;
-                      if (!acc.find((a) => `${a.user?._id || a.user?.email}_${a.action}` === key)) {
-                        acc.push(action);
-                      }
-                      return acc;
-                    }, [] as AvatarAction[]);
-                    
-                    return uniqueActions.length > 0 ? (
-                      <AvatarGroup actions={uniqueActions} size="sm" overlap={true} />
+                    const actions = auditTrailToUserActions(auditTrail);
+                    return actions.length > 0 ? (
+                      <AvatarGroup actions={actions} size="sm" overlap={true} />
                     ) : null;
                   })()}
                 </div>

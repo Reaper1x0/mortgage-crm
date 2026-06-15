@@ -6,8 +6,6 @@ export interface AvatarProps {
   user: UserInfo | null | undefined;
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   className?: string;
-  showTooltip?: boolean;
-  tooltipText?: string;
 }
 
 const sizeClasses = {
@@ -18,7 +16,8 @@ const sizeClasses = {
   xl: "h-12 w-12 text-lg",
 };
 
-export default function Avatar({ user, size = "md", className, showTooltip = false, tooltipText }: AvatarProps) {
+/** Profile circle (image or initials). For action tooltips use `UserActionAvatar`. */
+export default function Avatar({ user, size = "md", className }: AvatarProps) {
   const displayName = getUserDisplayName(user);
   const avatarSource = getAvatarSource(user);
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
@@ -33,8 +32,8 @@ export default function Avatar({ user, size = "md", className, showTooltip = fal
     className
   );
 
-  const avatarContent = (
-    <>
+  return (
+    <div className={baseClasses}>
       {avatarSource.type === "url" && !imageLoadFailed ? (
         <img
           src={avatarSource.value}
@@ -45,21 +44,6 @@ export default function Avatar({ user, size = "md", className, showTooltip = fal
       ) : (
         <span className="select-none">{getUserInitials(user)}</span>
       )}
-    </>
+    </div>
   );
-
-  if (showTooltip && tooltipText) {
-    return (
-      <div className="group relative inline-block">
-        <div className={baseClasses}>{avatarContent}</div>
-        <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-text bg-card border border-card-border rounded-md shadow-lg whitespace-nowrap z-50">
-          {tooltipText}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-card-border"></div>
-        </div>
-      </div>
-    );
-  }
-
-  return <div className={baseClasses}>{avatarContent}</div>;
 }
-

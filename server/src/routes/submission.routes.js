@@ -3,6 +3,7 @@ const { isAuth, requireWorkspace, requirePermission, requireActiveSubscription, 
 const SubmissionController = require("../controllers/submission.controller");
 const SubmissionFieldsController = require("../controllers/submissionFields.controller");
 const ExtractionController = require("../controllers/extraction.controller");
+
 const router = express.Router();
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });

@@ -213,6 +213,12 @@ const AuthController = {
   refresh: catchAsync(async (req, res, next) => {
     try {
       const refreshToken = req.headers["refresh-token"];
+      if (!refreshToken) {
+        return R4XX(res, 401, "Invalid/expired refresh token.", {
+          message: "Please login again",
+        });
+      }
+
       const { sub } = await jwtUtils.verifyToken(refreshToken, TOKENS.REFRESH);
       const user = await userService.getUserById(sub);
 
@@ -248,10 +254,16 @@ const AuthController = {
         refreshToken: newRefreshToken,
       });
     } catch (error) {
-      if (error.message === "Un-authorized")
-        return R4XX(res, 401, "Invaild/expired refresh token.", {
+      const jwtExpiredOrInvalid =
+        error?.name === "TokenExpiredError" ||
+        error?.name === "JsonWebTokenError" ||
+        error?.name === "NotBeforeError";
+
+      if (error.message === "Un-authorized" || jwtExpiredOrInvalid) {
+        return R4XX(res, 401, "Invalid/expired refresh token.", {
           message: "Please login again",
         });
+      }
       next(error);
     }
   }),

@@ -1,16 +1,11 @@
-import Avatar from "./Avatar";
-import { UserInfo, normalizeUserForAvatar } from "../../utils/userUtils";
+import UserActionAvatar, { type UserAction } from "./UserActionAvatar";
 import { cn } from "../../utils/cn";
-import { timeAgo } from "../../utils/date";
 
-export interface AvatarAction {
-  user: UserInfo | null | undefined;
-  action: string; // e.g., "uploaded by", "extracted by", "edited by"
-  timestamp?: string | Date;
-}
+export type { UserAction };
+export type AvatarAction = UserAction;
 
 export interface AvatarGroupProps {
-  actions: AvatarAction[];
+  actions: UserAction[];
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   maxVisible?: number;
   className?: string;
@@ -29,36 +24,26 @@ export default function AvatarGroup({
   const visibleActions = actions.slice(0, maxVisible);
   const remainingCount = Math.max(0, actions.length - maxVisible);
 
-  const formatTooltip = (action: AvatarAction): string => {
-    const userName = action.user?.fullName || action.user?.name || action.user?.username || action.user?.email || "Unknown";
-    let tooltip = `${action.action} ${userName}`;
-    if (action.timestamp) {
-      const timeAgoStr = timeAgo(action.timestamp);
-      tooltip += ` ${timeAgoStr}`;
-    }
-    return tooltip;
-  };
-
   return (
     <div className={cn("inline-flex items-center", overlap && "-space-x-1", className)}>
       {visibleActions.map((action, index) => (
         <div
-          key={index}
+          key={`${index}-${action.action}`}
           className={cn(
             "relative z-10",
             overlap && index > 0 && "rounded-full",
             !overlap && index > 0 && "ml-1"
           )}
         >
-          <Avatar
-            user={normalizeUserForAvatar(action.user)}
+          <UserActionAvatar
+            user={action.user}
+            action={action.action}
+            timestamp={action.timestamp}
             size={size}
-            showTooltip={true}
-            tooltipText={formatTooltip(action)}
           />
         </div>
       ))}
-      {remainingCount > 0 && (
+      {remainingCount > 0 ? (
         <div
           className={cn(
             "relative z-10 inline-flex items-center justify-center rounded-full font-semibold text-text border border-card-border bg-card-hover",
@@ -73,8 +58,7 @@ export default function AvatarGroup({
         >
           +{remainingCount}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
-

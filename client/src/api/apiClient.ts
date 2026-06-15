@@ -116,13 +116,15 @@ apiClient.interceptors.response.use(
         console.error("Token refresh error:", refreshError);
         // Logout if refresh token endpoint returns 401 (both tokens are invalid) or 404 (endpoint not found/invalid session)
         // Also logout on 403 (forbidden) as it indicates invalid/expired tokens
-        const shouldLogout = 
-          refreshError?.response?.status === 401 || 
-          refreshError?.response?.status === 404 || 
-          refreshError?.response?.status === 403;
-        
+        const refreshStatus = refreshError?.response?.status;
+        const shouldLogout =
+          refreshStatus === 401 ||
+          refreshStatus === 403 ||
+          refreshStatus === 404 ||
+          refreshStatus === 500;
+
         if (shouldLogout) {
-          AuthService.logout();
+          await AuthService.logout();
         }
         // For other errors (network, 500, etc.), just reject the original request without logging out
         return Promise.reject(error);

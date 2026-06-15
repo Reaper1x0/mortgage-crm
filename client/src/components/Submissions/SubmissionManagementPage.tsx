@@ -1,24 +1,31 @@
-import React, { useEffect, useState } from "react";
-import { Submission } from "../../types/extraction.types";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router";
+import { useDispatch } from "react-redux";
+import { FiArrowLeft, FiTag } from "react-icons/fi";
+import type { Submission } from "../../types/extraction.types";
+import { AppDispatch } from "../../redux/store";
+import { addToast } from "../../redux/slices/toasterSlice";
+import { SubmissionService } from "../../service/submissionService";
+import { SubmissionDocumentsService } from "../../service/submissionDocumentService";
 import {
   uploadCnicForName,
   uploadDocumentsForFields,
 } from "../../service/extractionService";
-
 import Stepper from "../Reusable/Stepper";
-import { useNavigate, useParams } from "react-router";
-import { SubmissionService } from "../../service/submissionService";
+import PageHeader from "../Reusable/PageHeader";
 import Step1IdentityUpload from "../Documents/Step1IdentityUpload";
 import Step2DocumentsUpload from "../Documents/Step2DocumentsUpload";
 import Step3ReviewFields from "../Documents/Step3ReviewFields";
-
-import { FiArrowLeft, FiTag } from "react-icons/fi";
-import { useDispatch } from "react-redux";
-import { AppDispatch } from "../../redux/store";
-import { addToast } from "../../redux/slices/toasterSlice";
-import { SubmissionDocumentsService } from "../../service/submissionDocumentService";
 import Step4GenerateDocument from "../Documents/Step4GenerateDocument";
-import PageHeader from "../Reusable/PageHeader";
+
+type Step = 1 | 2 | 3 | 4;
+
+const STEPS = [
+  { step: 1, label: "Legal name" },
+  { step: 2, label: "Documents" },
+  { step: 3, label: "Review fields" },
+  { step: 4, label: "Generate" },
+] as const;
 
 const pillBase =
   "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium";
@@ -29,86 +36,108 @@ function statusPill(status?: string) {
     return `${pillBase} bg-success border-success-border text-success-text`;
   if (["rejected", "failed", "error"].includes(s))
     return `${pillBase} bg-danger border-danger-border text-danger-text`;
-  if (
-    ["in_review", "review", "pending", "processing", "in_progress"].includes(s)
-  )
+  if (["in_review", "review", "pending", "processing", "in_progress"].includes(s))
     return `${pillBase} bg-warning border-warning-border text-warning-text`;
   return `${pillBase} bg-info border-info-border text-info-text`;
 }
 
-const SubmissionManagementPage = () => {
+type DocProcessResult = {
+  original_name?: string;
+  ok?: boolean;
+  reason?: string;
+};
+
+function buildDocsErrorMessage(resp: unknown) {
+  const r = resp as Record<string, unknown>;
+  const lines: string[] = [];
+
+  if (typeof r?.reason === "string") lines.push(r.reason);
+  else if (typeof r?.message === "string") lines.push(r.message);
+
+  const results = Array.isArray(r?.results) ? (r.results as DocProcessResult[]) : [];
+  const failed = results.filter((item) => item && item.ok === false);
+
+  if (failed.length) {
+    const max = 6;
+    failed.slice(0, max).forEach((item) => {
+      const name = item.original_name || "Document";
+      const reason = item.reason || "Failed to process.";
+      lines.push(`• ${name}: ${reason}`);
+    });
+    if (failed.length > max) lines.push(`• ...and ${failed.length - max} more`);
+  }
+
+  if (!lines.length) lines.push("Failed to process documents.");
+  return lines.join("\n");
+}
+
+export default function SubmissionManagementPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const dispatch = useDispatch<AppDispatch>();
 
   const [submission, setSubmission] = useState<Submission | null>(null);
-  const [submissionLoading, setSubmissionLoading] = useState<boolean>(true);
+  const [submissionLoading, setSubmissionLoading] = useState(true);
+  const [currentStep, setCurrentStep] = useState<Step>(1);
 
-  useEffect(() => {
-    const fetchSubmission = async () => {
-      if (!id) return;
-      try {
-        setSubmissionLoading(true);
-        const p = await SubmissionService.getSubmissionById(id);
-        setSubmission(p?.submission || null);
-        if (p?.submission?.legal_name) {
-          setManualLegalName(p?.submission?.legal_name);
-          setCnicName(p?.submission?.legal_name);
-          setCurrentStep(2);
-          setMaxUnlockedStep(2);
-        }
-        if (
-          p?.submission?.documents?.length &&
-          p?.submission?.documents?.length > 0
-        ) {
-          setCurrentStep(3);
-          setMaxUnlockedStep(4);
-        }
-      } catch (e) {
-        console.error(e);
-        setSubmission(null);
-      } finally {
-        setSubmissionLoading(false);
-      }
-    };
-    fetchSubmission();
-  }, [id]);
-
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
-  const [maxUnlockedStep, setMaxUnlockedStep] = useState<1 | 2 | 3 | 4>(4);
   const [cnicFile, setCnicFile] = useState<File | null>(null);
   const [cnicName, setCnicName] = useState<string | null>(null);
   const [cnicLoading, setCnicLoading] = useState(false);
   const [cnicError, setCnicError] = useState<string | null>(null);
+  const [manualLegalName, setManualLegalName] = useState("");
 
   const [docFiles, setDocFiles] = useState<File[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
-  const [manualLegalName, setManualLegalName] = useState("");
+
+  useEffect(() => {
+    if (!id) return;
+
+    let cancelled = false;
+
+    (async () => {
+      setSubmissionLoading(true);
+      setCurrentStep(1);
+      try {
+        const res = await SubmissionService.getSubmissionById(id);
+        if (cancelled) return;
+        const sub = res?.submission ?? null;
+        setSubmission(sub);
+        if (sub?.legal_name) {
+          setManualLegalName(sub.legal_name);
+          setCnicName(sub.legal_name);
+        }
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setSubmission(null);
+      } finally {
+        if (!cancelled) setSubmissionLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const handleManualContinue = async () => {
     const name = manualLegalName.trim();
+    if (!id) return;
 
     try {
       setCnicLoading(true);
-      const resp = await SubmissionService.updateSubmission(id, {
-        legal_name: name,
-      });
-      if (!resp?.success) {
-        throw new Error(resp?.message);
-      }
-      setCnicName(resp.submission?.legal_name!);
-      setSubmission(resp.submission);
-      setCurrentStep(2);
-      setMaxUnlockedStep(2);
-    } catch (e: any) {
+      const resp = await SubmissionService.updateSubmission(id, { legal_name: name });
+      if (!resp?.success) throw new Error(resp?.message);
+      setCnicName(resp.submission?.legal_name ?? name);
+      setSubmission(resp.submission ?? null);
+    } catch (e) {
       console.error(e);
     } finally {
       setCnicLoading(false);
     }
   };
+
   const handleCnicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setCnicFile(file);
+    setCnicFile(e.target.files?.[0] ?? null);
     setCnicName(null);
     setCnicError(null);
   };
@@ -118,154 +147,96 @@ const SubmissionManagementPage = () => {
       setCnicError("Please select an identification document first.");
       return;
     }
+    if (!submission?._id) return;
+
     try {
       setCnicLoading(true);
       setCnicError(null);
-      const resp = await uploadCnicForName(submission?._id, cnicFile);
+      const resp = await uploadCnicForName(submission._id, cnicFile);
       if (!resp.legalName) {
         dispatch(
-          addToast({
-            message: resp.message,
-            type: "success",
-            duration: 7000,
-          }),
+          addToast({ message: resp.message, type: "success", duration: 7000 })
         );
         return;
       }
       setCnicName(resp.legalName);
       setSubmission(resp.submission);
-      setCurrentStep(2);
-      if (maxUnlockedStep < 2) setMaxUnlockedStep(2);
-    } catch (err: any) {
-      setCnicError(
-        err?.message || "Failed to process identification document.",
-      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to process identification document.";
+      setCnicError(message);
     } finally {
       setCnicLoading(false);
     }
   };
 
   const handleDocsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files) : [];
-    setDocFiles(files);
+    setDocFiles(e.target.files ? Array.from(e.target.files) : []);
   };
 
-  type DocProcessResult = {
-    original_name?: string;
-    ok?: boolean;
-    reason?: string;
+  const handleRemoveDocFile = (index: number) => {
+    setDocFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  function buildDocsErrorMessage(resp: any) {
-    const lines: string[] = [];
-
-    // top-level reason/message
-    if (resp?.reason) lines.push(resp.reason);
-    else if (resp?.message) lines.push(resp.message);
-
-    // per-document errors
-    const results: DocProcessResult[] = Array.isArray(resp?.results)
-      ? resp.results
-      : [];
-
-    const failed = results.filter((r) => r && r.ok === false);
-
-    if (failed.length) {
-      const MAX = 6; // avoid huge toast
-      failed.slice(0, MAX).forEach((r) => {
-        const name = r.original_name || "Document";
-        const reason = r.reason || "Failed to process.";
-        lines.push(`• ${name}: ${reason}`);
-      });
-
-      if (failed.length > MAX) {
-        lines.push(`• ...and ${failed.length - MAX} more`);
-      }
-    }
-
-    // final fallback
-    if (!lines.length) lines.push("Failed to process documents.");
-
-    return lines.join("\n");
-  }
-
-  const handleDocsSubmit = async () => {
+  const handleDocsSubmit = async (): Promise<boolean> => {
     if (!docFiles.length) {
-      dispatch(
-        addToast({
-          message: "Please select at least one document.",
-          type: "error",
-        }),
-      );
-      return;
+      dispatch(addToast({ message: "Please select at least one document.", type: "error" }));
+      return false;
     }
 
     try {
       setDocsLoading(true);
-
-      const resp: any = await uploadDocumentsForFields(
+      const resp = (await uploadDocumentsForFields(
         docFiles,
         submission?._id,
-        cnicName,
-      );
+        cnicName
+      )) as Record<string, unknown>;
 
-      // ✅ Case 1: backend explicitly says failure (your sample response)
       if (resp?.success === false) {
-        const msg = buildDocsErrorMessage(resp);
-
         dispatch(
           addToast({
             type: "error",
-            message: msg,
+            message: buildDocsErrorMessage(resp),
             duration: 9000,
-          }),
+          })
         );
-
-        return; // don't move to next step
+        return false;
       }
 
-      // ✅ Case 2: partial failures but overall success (if your API does that)
-      // Show errors for failed docs, but still continue.
       if (Array.isArray(resp?.results)) {
-        const failed = resp.results.filter((r: any) => r?.ok === false);
+        const failed = (resp.results as DocProcessResult[]).filter((r) => r?.ok === false);
         if (failed.length) {
           dispatch(
             addToast({
               type: "error",
               message: buildDocsErrorMessage(resp),
               duration: 9000,
-            }),
+            })
           );
         }
       }
 
-      // normal success flow
       if (resp?.submission) {
-        setSubmission(resp.submission);
-        setCurrentStep(3);
-        setMaxUnlockedStep(4);
-      } else {
-        // fallback if submission not returned
-        dispatch(
-          addToast({
-            type: "error",
-            message: "Documents processed but submission payload is missing.",
-            duration: 7000,
-          }),
-        );
+        setSubmission(resp.submission as Submission);
+        setDocFiles([]);
+        return true;
       }
-    } catch (err: any) {
-      // try to read backend error payload too (axios-style)
-      const backend = err?.response?.data;
-      const msg = backend ? buildDocsErrorMessage(backend) : null;
 
       dispatch(
         addToast({
           type: "error",
-          message: msg || err?.message || "Failed to process documents.",
-          duration: 9000,
-        }),
+          message: "Documents processed but submission payload is missing.",
+          duration: 7000,
+        })
       );
+      return false;
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: unknown }; message?: string };
+      const msg = axiosErr.response?.data
+        ? buildDocsErrorMessage(axiosErr.response.data)
+        : axiosErr.message || "Failed to process documents.";
+      dispatch(addToast({ type: "error", message: msg, duration: 9000 }));
+      return false;
     } finally {
       setDocsLoading(false);
     }
@@ -273,137 +244,104 @@ const SubmissionManagementPage = () => {
 
   const handleReplaceExisting = async (docEntryId: string, file: File) => {
     if (!submission?._id) return;
-
-    const resp = await SubmissionDocumentsService.replace(
-      submission._id,
-      docEntryId,
-      file,
-    );
-
-    // backend returns updated submission (after recompute)
-    if (resp?.submission) {
-      setSubmission(resp.submission);
-    }
+    const resp = await SubmissionDocumentsService.replace(submission._id, docEntryId, file);
+    if (resp?.submission) setSubmission(resp.submission);
   };
 
   const handleDeleteExisting = async (docEntryId: string) => {
     if (!submission?._id) return;
-
-    const resp = await SubmissionDocumentsService.remove(
-      submission._id,
-      docEntryId,
-    );
-    if (resp?.submission) {
-      setSubmission(resp.submission);
-    }
+    const resp = await SubmissionDocumentsService.remove(submission._id, docEntryId);
+    if (resp?.submission) setSubmission(resp.submission);
   };
 
-  const submissionName = submission?.submission_name || "Client";
-  const submissionStatus = submission?.status || "In Progress";
+  const goToStep = (step: number) => {
+    if (step >= 1 && step <= 4) setCurrentStep(step as Step);
+  };
 
   return (
     <div className="font-sora min-h-screen bg-background text-text">
       <div className="mx-auto max-w-6xl space-y-4">
-        {/* Title + Overview */}
-        <div>
-          {submissionLoading ? (
-            <div className="space-y-3 animate-pulse">
-              <div className="h-6 w-64 rounded-full bg-card-hover" />
-              <div className="h-4 w-96 rounded-full bg-card-hover" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-16 rounded-xl border border-card-border bg-background"
-                  />
-                ))}
-              </div>
+        {submissionLoading ? (
+          <div className="space-y-3 animate-pulse">
+            <div className="h-6 w-64 rounded-full bg-card-hover" />
+            <div className="h-10 w-full rounded-xl bg-card-hover" />
+            <div className="h-64 rounded-2xl border border-card-border bg-card" />
+          </div>
+        ) : (
+          <>
+            <PageHeader
+              title={submission?.submission_name || "Client"}
+              left={
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-card-border bg-card px-3 py-2 text-sm text-text hover:bg-card-hover transition-colors"
+                >
+                  <FiArrowLeft />
+                  Back
+                </button>
+              }
+              right={
+                <span className={statusPill(submission?.status)}>
+                  <FiTag className="h-3.5 w-3.5" />
+                  {submission?.status || "In Progress"}
+                </span>
+              }
+            />
+
+            <Stepper
+              currentStep={currentStep}
+              onStepChange={goToStep}
+              steps={[...STEPS]}
+            />
+
+            <div className="rounded-2xl border border-card-border bg-card p-5 shadow-sm">
+              {currentStep === 1 && (
+                <Step1IdentityUpload
+                  cnicFile={cnicFile}
+                  cnicName={cnicName}
+                  loading={cnicLoading}
+                  error={cnicError}
+                  onFileChange={handleCnicChange}
+                  onSubmit={handleCnicSubmit}
+                  manualName={manualLegalName}
+                  setManualName={setManualLegalName}
+                  onManualContinue={handleManualContinue}
+                />
+              )}
+
+              {currentStep === 2 && (
+                <Step2DocumentsUpload
+                  docFiles={docFiles}
+                  loading={docsLoading}
+                  onFileChange={handleDocsChange}
+                  onRemoveDocFile={handleRemoveDocFile}
+                  onSubmit={handleDocsSubmit}
+                  onBack={() => setCurrentStep(1)}
+                  existingDocuments={submission?.documents || []}
+                  onReplaceExisting={handleReplaceExisting}
+                  onDeleteExisting={handleDeleteExisting}
+                />
+              )}
+
+              {currentStep === 3 && submission?._id && (
+                <Step3ReviewFields
+                  submissionId={submission._id}
+                  onBack={() => setCurrentStep(2)}
+                  onSubmissionUpdated={setSubmission}
+                />
+              )}
+
+              {currentStep === 4 && submission?._id && (
+                <Step4GenerateDocument
+                  submissionId={submission._id}
+                  onBack={() => setCurrentStep(3)}
+                />
+              )}
             </div>
-          ) : (
-            <>
-              <PageHeader
-                title={submissionName}
-                left={
-                  <button
-                    type="button"
-                    onClick={() => navigate(-1)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-card-border bg-card px-3 py-2 text-sm text-text hover:bg-card-hover transition-colors"
-                    title="Back"
-                  >
-                    <FiArrowLeft />
-                    Back
-                  </button>
-                }
-                right={
-                  <span className={statusPill(submissionStatus)}>
-                    <FiTag className="h-3.5 w-3.5" />
-                    {submissionStatus}
-                  </span>
-                }
-              />
-            </>
-          )}
-        </div>
-
-        <Stepper
-          currentStep={currentStep}
-          maxUnlockedStep={maxUnlockedStep}
-          onStepChange={(step) => setCurrentStep(step as 1 | 2 | 3)}
-          steps={[
-            { step: 1, label: "Upload Identification Document" },
-            { step: 2, label: "Upload Documents" },
-            { step: 3, label: "Review Fields" },
-            { step: 4, label: "Populations" },
-          ]}
-        />
-
-        {/* Step Content (same as your code) */}
-        <div className="rounded-2xl border border-card-border bg-card p-5 shadow-sm">
-          {currentStep === 1 && (
-            <Step1IdentityUpload
-              cnicFile={cnicFile}
-              cnicName={cnicName}
-              loading={cnicLoading}
-              error={cnicError}
-              onFileChange={handleCnicChange}
-              onSubmit={handleCnicSubmit}
-              manualName={manualLegalName}
-              setManualName={setManualLegalName}
-              onManualContinue={handleManualContinue}
-            />
-          )}
-
-          {currentStep === 2 && (
-            <Step2DocumentsUpload
-              docFiles={docFiles}
-              loading={docsLoading}
-              onFileChange={handleDocsChange}
-              onSubmit={handleDocsSubmit}
-              onBack={() => setCurrentStep(1)}
-              existingDocuments={submission?.documents || []}
-              onReplaceExisting={handleReplaceExisting}
-              onDeleteExisting={handleDeleteExisting}
-            />
-          )}
-
-          {currentStep === 3 && (
-            <Step3ReviewFields
-              submissionId={submission?._id!}
-              onBack={() => setCurrentStep(2)}
-              onSubmissionUpdated={(s) => setSubmission(s)}
-            />
-          )}
-
-          {currentStep === 4 && (
-            <Step4GenerateDocument
-              submissionId={submission?._id!}
-              onBack={() => setCurrentStep(3)}
-            />
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
-};
-
-export default SubmissionManagementPage;
+}

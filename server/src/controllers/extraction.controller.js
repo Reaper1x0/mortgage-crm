@@ -17,6 +17,17 @@ const { attachSignedUrlsDeep, getSignedFileUrl } = require("../utils/fileUrl.uti
 const llmService = require("../services/llm/llm.service");
 const { billingService } = require("../services");
 
+async function resolveExtractedText(savedFile, file) {
+  if (savedFile?.extracted_plain_text) {
+    return savedFile.extracted_plain_text;
+  }
+
+  return extractTextFromFile(
+    { ...file, buffer: file.buffer },
+    { storagePath: savedFile.storage_path }
+  );
+}
+
 /**
  * Small helper to call OpenAI for CNIC name extraction
  */
@@ -591,18 +602,13 @@ const ExtractionController = {
             file,
             displayName: file.originalname,
             folder: `uploads/submissions/${submissionId}`,
-            meta: { submissionId, workspaceId: req.workspaceId },
+            meta: { submissionId, workspaceId: req.workspaceId, organizationId: req.organizationId },
           },
           userId,
           userId // uploaded_by
         );
 
-        const text = await extractTextFromFile({
-          ...file,
-          buffer: file.buffer,
-        }, {
-          storagePath: savedFile.storage_path,
-        });
+        const text = await resolveExtractedText(savedFile, file);
 
         if (!text || !text.trim()) {
           results.push({
@@ -715,21 +721,11 @@ const ExtractionController = {
     const userId = req.user;
     const submissionId = req.params.id;
 
-    const submission = await Submission.findOne({ _id: submissionId, workspace: req.workspaceId })
-      .populate({
-        path: "documents.document",
-        populate: {
-          path: "uploaded_by",
-          select: "fullName email username",
-          populate: {
-            path: "profile_picture",
-            select: "url storage_path display_name"
-          }
-        }
-      });
+    const submission = await SubmissionService.getSubmissionByKey(submissionId, req.workspaceId);
     if (!submission) return R4XX(res, 404, "Submission not found.");
 
-    const signedDocuments = await attachSignedUrlsDeep(submission.documents || []);
+    const signedSubmission = await attachSignedUrlsDeep(submission);
+    const signedDocuments = signedSubmission?.documents || [];
     return R2XX(res, "Documents fetched successfully.", 200, {
       submissionId: submission._id,
       documents: signedDocuments,
@@ -763,6 +759,7 @@ const ExtractionController = {
         meta: {
           submissionId,
           workspaceId: req.workspaceId,
+          organizationId: req.organizationId,
           replaced_docEntryId: docEntryId,
           replaced_oldFileId: String(oldFileId),
         },
@@ -771,12 +768,7 @@ const ExtractionController = {
       userId // uploaded_by
     );
 
-    const text = await extractTextFromFile({
-      ...file,
-      buffer: file.buffer,
-    }, {
-      storagePath: savedFile.storage_path,
-    });
+    const text = await resolveExtractedText(savedFile, file);
 
     if (!text || !text.trim()) {
       await FileService.hardDelete(savedFile._id, userId);

@@ -1,82 +1,73 @@
-// src/components/Reusable/Stepper.tsx
 import React from "react";
-import { FiCheck, FiLock } from "react-icons/fi";
+import { cn } from "../../utils/cn";
 
 export type StepperStep = {
   step: number;
   label: string;
-  helper?: string; // optional small subtext
+  helper?: string;
 };
 
 type StepperProps = {
   currentStep: number;
-  maxUnlockedStep: number;             // controls what's clickable
-  onStepChange: (step: number) => void; // called when user clicks
+  onStepChange: (step: number) => void;
   steps: StepperStep[];
+  /** When set, steps above this number are disabled. Omit to allow any step. */
+  maxUnlockedStep?: number;
 };
 
 const Stepper: React.FC<StepperProps> = ({
   currentStep,
-  maxUnlockedStep,
   onStepChange,
   steps,
+  maxUnlockedStep,
 }) => {
   return (
     <div className="mb-6 flex flex-wrap gap-3">
       {steps.map((s) => {
         const isActive = currentStep === s.step;
-        const isDone = currentStep > s.step;
-        const isUnlocked = s.step <= maxUnlockedStep;
+        const isLocked = maxUnlockedStep != null && s.step > maxUnlockedStep;
 
         return (
           <button
             key={s.step}
             type="button"
-            onClick={() => isUnlocked && onStepChange(s.step)}
-            disabled={!isUnlocked}
-            className={[
+            onClick={() => !isLocked && onStepChange(s.step)}
+            disabled={isLocked}
+            className={cn(
               "group flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
               "bg-card shadow-sm",
               isActive
                 ? "border-primary"
-                : isUnlocked
-                ? "border-card-border hover:bg-card-hover"
-                : "border-card-border opacity-60 cursor-not-allowed",
-            ].join(" ")}
+                : isLocked
+                  ? "cursor-not-allowed border-card-border opacity-60"
+                  : "border-card-border hover:bg-card-hover"
+            )}
             aria-current={isActive ? "step" : undefined}
-            aria-disabled={!isUnlocked}
-            title={!isUnlocked ? "Complete previous steps to unlock" : undefined}
+            aria-disabled={isLocked}
           >
-            {/* Circle */}
             <div
-              className={[
+              className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold",
-                isDone
-                  ? "border-success-border bg-success text-success-text"
-                  : isActive
+                isActive
                   ? "border-primary-border bg-primary text-primary-text"
-                  : isUnlocked
-                  ? "border-card-border bg-background text-text"
-                  : "border-card-border bg-background text-text/60",
-              ].join(" ")}
+                  : "border-card-border bg-background text-text"
+              )}
             >
-              {isDone ? <FiCheck /> : !isUnlocked ? <FiLock /> : s.step}
+              {s.step}
             </div>
 
-            {/* Text */}
             <div className="min-w-0">
               <div
-                className={[
+                className={cn(
                   "text-xs font-medium",
-                  isActive ? "text-text" : "text-card-text",
-                ].join(" ")}
+                  isActive ? "text-text" : "text-card-text"
+                )}
               >
                 {s.label}
               </div>
-
-              {s.helper && (
+              {s.helper ? (
                 <div className="text-[11px] text-card-text/80">{s.helper}</div>
-              )}
+              ) : null}
             </div>
           </button>
         );

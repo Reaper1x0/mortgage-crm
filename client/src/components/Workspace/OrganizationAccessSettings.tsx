@@ -398,7 +398,7 @@ type Tab = "organization" | "workspace";
 
 export default function OrganizationAccessSettings() {
   const { organizationId } = useParams();
-  const { canOrg, loading: permLoading } = usePermissions();
+  const { canOrg, loading: permLoading, refreshPermissions } = usePermissions();
 
   const [orgRoles, setOrgRoles] = useState<RoleRow[]>([]);
   const [wsRoles, setWsRoles] = useState<RoleRow[]>([]);
@@ -412,7 +412,7 @@ export default function OrganizationAccessSettings() {
   const [deletingRole, setDeletingRole] = useState<(RoleRow & { scope: Tab }) | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const load = useCallback(async () => {
+  const loadRoles = useCallback(async () => {
     setLoading(true);
     try {
       const [o, w] = await Promise.all([
@@ -428,9 +428,14 @@ export default function OrganizationAccessSettings() {
     }
   }, []);
 
+  const handleRolesChanged = useCallback(async () => {
+    await loadRoles();
+    await refreshPermissions();
+  }, [loadRoles, refreshPermissions]);
+
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadRoles();
+  }, [loadRoles]);
 
   const stats = useMemo(
     () => ({
@@ -466,7 +471,7 @@ export default function OrganizationAccessSettings() {
         await OrganizationService.deleteWorkspaceRole(deletingRole._id);
       }
       setDeletingRole(null);
-      void load();
+      void handleRolesChanged();
     } catch (e) {
       showWarningToast(extractErrorMessage(e));
     } finally {
@@ -474,7 +479,12 @@ export default function OrganizationAccessSettings() {
     }
   };
 
-  if (!permLoading && !canOrg("organization.rbac.manage") && organizationId) {
+  if (
+    !permLoading &&
+    !canOrg("organization.rbac.manage") &&
+    organizationId &&
+    !loading
+  ) {
     return <Navigate to={`/${organizationId}/settings/organization`} replace />;
   }
 
@@ -539,7 +549,7 @@ export default function OrganizationAccessSettings() {
         scope={editorScope}
         role={editingRole}
         onClose={() => setEditorOpen(false)}
-        onSaved={load}
+        onSaved={handleRolesChanged}
       />
 
       <Modal
