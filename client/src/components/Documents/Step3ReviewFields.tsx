@@ -48,13 +48,9 @@ const Step3ReviewFields: React.FC<Step3Props> = ({
   return (
     <div className="space-y-5">
       <PageHeader
+        back={{ label: "Back to documents", onClick: onBack }}
         title="Step 3: Review & Complete Fields"
         description="Complete required fields to pass eligibility, then optionally review the rest."
-        right={
-          <Button variant="secondary" type="button" onClick={onBack}>
-            Back to Documents
-          </Button>
-        }
       />
 
       {loading ? (

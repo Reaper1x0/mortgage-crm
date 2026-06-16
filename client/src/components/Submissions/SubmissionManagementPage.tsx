@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useDispatch } from "react-redux";
-import { FiArrowLeft, FiTag } from "react-icons/fi";
+import { FiTag } from "react-icons/fi";
 import type { Submission } from "../../types/extraction.types";
 import { AppDispatch } from "../../redux/store";
 import { addToast } from "../../redux/slices/toasterSlice";
@@ -13,6 +13,8 @@ import {
 } from "../../service/extractionService";
 import Stepper from "../Reusable/Stepper";
 import PageHeader from "../Reusable/PageHeader";
+import StatusBadge from "../Reusable/StatusBadge";
+import type { StatusBadgeTone } from "../Reusable/StatusBadge";
 import Step1IdentityUpload from "../Documents/Step1IdentityUpload";
 import Step2DocumentsUpload from "../Documents/Step2DocumentsUpload";
 import Step3ReviewFields from "../Documents/Step3ReviewFields";
@@ -27,18 +29,12 @@ const STEPS = [
   { step: 4, label: "Generate" },
 ] as const;
 
-const pillBase =
-  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium";
-
-function statusPill(status?: string) {
+function statusTone(status?: string): StatusBadgeTone {
   const s = (status || "").toLowerCase();
-  if (["approved", "completed", "success", "done"].includes(s))
-    return `${pillBase} bg-success border-success-border text-success-text`;
-  if (["rejected", "failed", "error"].includes(s))
-    return `${pillBase} bg-danger border-danger-border text-danger-text`;
-  if (["in_review", "review", "pending", "processing", "in_progress"].includes(s))
-    return `${pillBase} bg-warning border-warning-border text-warning-text`;
-  return `${pillBase} bg-info border-info-border text-info-text`;
+  if (["approved", "completed", "success", "done"].includes(s)) return "success";
+  if (["rejected", "failed", "error"].includes(s)) return "danger";
+  if (["in_review", "review", "pending", "processing", "in_progress"].includes(s)) return "warning";
+  return "info";
 }
 
 type DocProcessResult = {
@@ -263,7 +259,7 @@ export default function SubmissionManagementPage() {
   };
 
   return (
-    <div className="font-sora min-h-screen bg-background text-text">
+    <div className="min-h-screen bg-background text-text">
       <div className="mx-auto max-w-6xl space-y-4">
         {submissionLoading ? (
           <div className="space-y-3 animate-pulse">
@@ -274,22 +270,13 @@ export default function SubmissionManagementPage() {
         ) : (
           <>
             <PageHeader
+              back={{ label: "Back", onClick: () => navigate(-1) }}
               title={submission?.submission_name || "Client"}
-              left={
-                <button
-                  type="button"
-                  onClick={() => navigate(-1)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-card-border bg-card px-3 py-2 text-sm text-text hover:bg-card-hover transition-colors"
-                >
-                  <FiArrowLeft />
-                  Back
-                </button>
-              }
-              right={
-                <span className={statusPill(submission?.status)}>
+              actions={
+                <StatusBadge tone={statusTone(submission?.status)}>
                   <FiTag className="h-3.5 w-3.5" />
                   {submission?.status || "In Progress"}
-                </span>
+                </StatusBadge>
               }
             />
 

@@ -40,7 +40,7 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
     // State styles
     if (error) {
       textareaStyles +=
-        "border-danger-border bg-danger/5 text-danger-text " +
+        "border-danger-border bg-danger-muted text-danger " +
         "focus:border-danger-border focus:ring-danger-shadow ";
     } else if (disabled) {
       textareaStyles += "opacity-60 cursor-not-allowed ";

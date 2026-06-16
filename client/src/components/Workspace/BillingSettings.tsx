@@ -114,7 +114,7 @@ export default function BillingSettings() {
             </span>
           </div>
           {!canUseProduct ? (
-            <div className="mt-3 rounded-xl border border-warning-border bg-warning/10 px-3 py-2 text-xs text-warning-text">
+            <div className="mt-3 rounded-xl border border-warning-border bg-warning-muted px-3 py-2 text-xs text-warning">
               Access is currently restricted. Complete payment or update billing details to restore full access.
             </div>
           ) : null}

@@ -5,6 +5,7 @@ const { File } = require("../models");
 const storageService = require("./storage.service");
 const AuditTrailService = require("./auditTrail.service");
 const documentArtifactsService = require("./document/documentArtifacts.service");
+const documentIndexService = require("./rag/documentIndex.service");
 
 function isObjectId(v) {
   return mongoose.Types.ObjectId.isValid(v);
@@ -82,6 +83,12 @@ class FileService {
         if (plainText) {
           doc.extracted_plain_text = plainText;
         }
+
+        documentIndexService.triggerIndexSubmissionDocument({
+          fileDoc: doc,
+          submissionId: meta.submissionId,
+          workspaceId: meta.workspaceId,
+        });
       } catch (artifactErr) {
         try {
           await storageService.deleteByPath(doc.storage_path);
@@ -235,6 +242,12 @@ class FileService {
     if (!file) return null;
 
     const deleterId = deletedBy && isObjectId(deletedBy) ? deletedBy : ownerId;
+
+    try {
+      await documentIndexService.deleteChunksForFile(fileId);
+    } catch (err) {
+      console.error("Chunk delete failed (continuing with file delete):", err);
+    }
 
     // Delete from storage using unified service
     try {

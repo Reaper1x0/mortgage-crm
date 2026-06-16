@@ -218,20 +218,15 @@ export default function TemplateDesignerPage() {
   return (
     <div className="px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-5">
       <PageHeader
-        title={<span className="break-words">Manage "{template?.name || "-"}" Template</span>}
-        left={
-          <Button
-            variant="secondary"
-            onClick={() =>
-              organizationId && workspaceId
-                ? navigate(`/${organizationId}/workspaces/${workspaceId}/template-maker`)
-                : navigate("/onboarding")
-            }
-          >
-            Back
-          </Button>
-        }
-        right={
+        back={{
+          label: "Back to templates",
+          onClick: () =>
+            organizationId && workspaceId
+              ? navigate(`/${organizationId}/workspaces/${workspaceId}/template-maker`)
+              : navigate("/onboarding"),
+        }}
+        title={<span className="break-words">Manage &ldquo;{template?.name || "-"}&rdquo; template</span>}
+        actions={
           <div className="flex items-center gap-2">
             <KeyboardShortcutsHelp />
             <Button variant="secondary" onClick={savePlacements}>

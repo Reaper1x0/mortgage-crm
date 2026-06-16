@@ -43,6 +43,22 @@ const envVarsSchema = Joi.object({
   OPENAI_TEMPERATURE: Joi.number().min(0).max(2).optional().label("OPENAI_TEMPERATURE"),
   OPENAI_TIMEOUT_MS: Joi.number().integer().min(1000).optional().label("OPENAI_TIMEOUT_MS"),
   OPENAI_MAX_RETRIES: Joi.number().integer().min(0).optional().label("OPENAI_MAX_RETRIES"),
+  OPENAI_EMBEDDING_MODEL: Joi.string()
+    .allow("")
+    .optional()
+    .default("text-embedding-3-small")
+    .label("OPENAI_EMBEDDING_MODEL"),
+  OPENAI_ASSISTANT_MODEL: Joi.string().allow("").optional().label("OPENAI_ASSISTANT_MODEL"),
+  RAG_CHUNK_SIZE: Joi.number().integer().min(200).optional().default(1000).label("RAG_CHUNK_SIZE"),
+  RAG_CHUNK_OVERLAP: Joi.number().integer().min(0).optional().default(150).label("RAG_CHUNK_OVERLAP"),
+  RAG_TOP_K: Joi.number().integer().min(1).max(50).optional().default(8).label("RAG_TOP_K"),
+  RAG_MIN_SIMILARITY: Joi.number().min(0).max(1).optional().default(0.2).label("RAG_MIN_SIMILARITY"),
+  RAG_EMBED_BATCH_SIZE: Joi.number().integer().min(1).max(100).optional().default(50).label("RAG_EMBED_BATCH_SIZE"),
+  RAG_VECTOR_INDEX_NAME: Joi.string()
+    .allow("")
+    .optional()
+    .default("document_chunks_vector_index")
+    .label("RAG_VECTOR_INDEX_NAME"),
   BEDROCK_MODEL_ID: Joi.string().allow("").optional().label("BEDROCK_MODEL_ID"),
   BEDROCK_MAX_TOKENS: Joi.number().integer().min(1).optional().label("BEDROCK_MAX_TOKENS"),
   BEDROCK_TEMPERATURE: Joi.number().min(0).max(2).optional().label("BEDROCK_TEMPERATURE"),
@@ -86,6 +102,14 @@ module.exports = {
   OPENAI_TEMPERATURE: envVars.OPENAI_TEMPERATURE,
   OPENAI_TIMEOUT_MS: envVars.OPENAI_TIMEOUT_MS,
   OPENAI_MAX_RETRIES: envVars.OPENAI_MAX_RETRIES,
+  OPENAI_EMBEDDING_MODEL: envVars.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+  OPENAI_ASSISTANT_MODEL: envVars.OPENAI_ASSISTANT_MODEL || "",
+  RAG_CHUNK_SIZE: Number(envVars.RAG_CHUNK_SIZE || 1000),
+  RAG_CHUNK_OVERLAP: Number(envVars.RAG_CHUNK_OVERLAP || 150),
+  RAG_TOP_K: Number(envVars.RAG_TOP_K || 8),
+  RAG_MIN_SIMILARITY: Number(envVars.RAG_MIN_SIMILARITY || 0.2),
+  RAG_EMBED_BATCH_SIZE: Number(envVars.RAG_EMBED_BATCH_SIZE || 50),
+  RAG_VECTOR_INDEX_NAME: envVars.RAG_VECTOR_INDEX_NAME || "document_chunks_vector_index",
   BEDROCK_MODEL_ID: envVars.BEDROCK_MODEL_ID,
   BEDROCK_MAX_TOKENS: envVars.BEDROCK_MAX_TOKENS,
   BEDROCK_TEMPERATURE: envVars.BEDROCK_TEMPERATURE,

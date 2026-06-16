@@ -10,15 +10,18 @@ function parseJsonPayload(content) {
   }
 }
 
-function buildResponse({ provider, model, content, usage = null, raw = null }) {
-  return {
+function buildResponse({ provider, model, content, usage = null, raw = null, parseJson = true }) {
+  const result = {
     provider,
     model: model || null,
     content,
-    parsed: parseJsonPayload(content),
     usage,
     raw,
   };
+  if (parseJson) {
+    result.parsed = parseJsonPayload(content);
+  }
+  return result;
 }
 
 module.exports = {

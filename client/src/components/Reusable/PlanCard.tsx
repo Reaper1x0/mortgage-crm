@@ -51,7 +51,7 @@ export default function PlanCard({
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-text">{name}</h3>
             {recommended ? (
-              <span className="rounded-full border border-primary-border bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+              <span className="rounded-full border border-primary-border bg-primary-muted px-2 py-0.5 text-xs font-semibold text-primary">
                 Recommended
               </span>
             ) : null}

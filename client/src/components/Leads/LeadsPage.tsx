@@ -312,7 +312,7 @@ export default function LeadsPage() {
       <PageHeader
         title="Leads"
         description="Manage your leads and import them from spreadsheets."
-        right={
+        actions={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={handleDownloadSampleTemplate} disabled={downloadingSample}>
               <span className="inline-flex items-center gap-2">

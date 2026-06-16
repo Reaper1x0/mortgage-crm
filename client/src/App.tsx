@@ -14,6 +14,7 @@ import PublicRoute from "./components/Auth/PublicRoute";
 import WorkspaceLayout from "./components/Layout/WorkspaceLayout";
 import SubmissionsPage from "./components/Submissions/SubmissionsPage";
 import SubmissionManagementPage from "./components/Submissions/SubmissionManagementPage";
+import ClientAssistantPage from "./components/Assistant/ClientAssistantPage";
 import TemplateMaker from "./components/TemplateMaker/TemplatesPage";
 import TemplateDesignerPage from "./components/TemplateMaker/TemplateDesignerPage";
 import WorkspaceUsersPage from "./components/Users/WorkspaceUsersPage";
@@ -178,6 +179,7 @@ function App() {
                     element={<ProtectedRoute workspacePermissionsAny={["workspace.submissions.read"]} />}
                   >
                     <Route index element={<SubmissionManagementPage />} />
+                    <Route path="assistant" element={<ClientAssistantPage />} />
                     <Route path="documents" element={<ClientDocumentsRedirect />} />
                   </Route>
                   <Route

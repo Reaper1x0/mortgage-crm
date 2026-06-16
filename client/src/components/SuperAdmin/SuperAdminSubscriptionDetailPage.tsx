@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { FiAlertTriangle, FiArrowLeft, FiClock, FiRefreshCw, FiShield, FiXCircle } from "react-icons/fi";
+import { FiAlertTriangle, FiClock, FiRefreshCw, FiShield, FiXCircle } from "react-icons/fi";
 import Button from "../Reusable/Button";
 import Callout from "../Reusable/Callout";
 import DataTable from "../Reusable/DataTable";
@@ -90,17 +90,10 @@ export default function SuperAdminSubscriptionDetailPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        back={{ label: "Back to subscriptions", onClick: () => navigate("/super-admin/subscriptions") }}
         title="Subscription Detail"
         description="Lifecycle, webhook sync history, risk posture, and org-level operational actions."
-        left={
-          <Button variant="secondary" onClick={() => navigate("/super-admin/subscriptions")}>
-            <span className="inline-flex items-center gap-2">
-              <FiArrowLeft size={14} />
-              Back to subscriptions
-            </span>
-          </Button>
-        }
-        right={
+        actions={
           <Button
             variant="secondary"
             isLoading={actionLoading === "sync"}
@@ -168,7 +161,7 @@ export default function SuperAdminSubscriptionDetailPage() {
               ) : (
                 <div className="space-y-2">
                   {riskFlags.map((flag) => (
-                    <div key={flag.code} className="rounded-xl border border-card-border bg-background/40 p-3">
+                    <div key={flag.code} className="rounded-xl border border-card-border bg-background-muted p-3">
                       <div className="text-sm font-semibold text-text">{flag.label}</div>
                       <div className="mt-1 text-xs uppercase tracking-wide text-card-text">
                         {flag.code} • {flag.severity}
@@ -228,7 +221,7 @@ export default function SuperAdminSubscriptionDetailPage() {
             <h3 className="text-base font-semibold text-text">Lifecycle Timeline</h3>
             <div className="space-y-2">
               {(detail?.lifecycleEvents || []).map((event) => (
-                <div key={event.key} className="rounded-xl border border-card-border bg-background/40 p-3">
+                <div key={event.key} className="rounded-xl border border-card-border bg-background-muted p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-semibold text-text">{event.title}</div>
                     <div className="text-xs text-card-text">{prettyDateTime(event.date)}</div>
