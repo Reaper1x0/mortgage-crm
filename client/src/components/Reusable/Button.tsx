@@ -1,9 +1,28 @@
 import React, { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "../../utils/cn";
+import {
+  semanticMutedClasses,
+  semanticMutedHoverClasses,
+  semanticSolidClasses,
+  type SemanticTone,
+} from "../../utils/semanticTokens";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: ReactNode;
-  variant?: "primary" | "secondary" | "success" | "warning" | "danger" | "link";
+  variant?:
+    | "primary"
+    | "secondary"
+    | "success"
+    | "warning"
+    | "danger"
+    | "info"
+    | "link"
+    | "primary-soft"
+    | "secondary-soft"
+    | "success-soft"
+    | "warning-soft"
+    | "danger-soft"
+    | "info-soft";
   rounded?: boolean;
   isLoading?: boolean;
   disabled?: boolean;
@@ -43,21 +62,22 @@ const Button: React.FC<ButtonProps> = ({
     "hover:before:opacity-100";
 
   let variantCls = "";
-  if (variant === "primary")
-    variantCls =
-      "border-primary-border bg-primary text-primary-text hover:bg-primary-hover";
-  if (variant === "secondary")
-    variantCls =
-      "border-secondary-border bg-secondary text-secondary-text hover:bg-secondary-hover";
-  if (variant === "success")
-    variantCls =
-      "border-success-border bg-success text-success-text hover:bg-success-hover";
-  if (variant === "warning")
-    variantCls =
-      "border-warning-border bg-warning text-warning-text hover:bg-warning-hover";
-  if (variant === "danger")
-    variantCls =
-      "border-danger-border bg-danger text-danger-text hover:bg-danger-hover";
+  const solidTone = (tone: SemanticTone) => semanticSolidClasses[tone];
+  const softTone = (tone: SemanticTone) =>
+    `${semanticMutedClasses[tone]} ${semanticMutedHoverClasses[tone]}`;
+
+  if (variant === "primary") variantCls = solidTone("primary");
+  if (variant === "secondary") variantCls = solidTone("secondary");
+  if (variant === "success") variantCls = solidTone("success");
+  if (variant === "warning") variantCls = solidTone("warning");
+  if (variant === "danger") variantCls = solidTone("danger");
+  if (variant === "info") variantCls = solidTone("info");
+  if (variant === "primary-soft") variantCls = softTone("primary");
+  if (variant === "secondary-soft") variantCls = softTone("secondary");
+  if (variant === "success-soft") variantCls = softTone("success");
+  if (variant === "warning-soft") variantCls = softTone("warning");
+  if (variant === "danger-soft") variantCls = softTone("danger");
+  if (variant === "info-soft") variantCls = softTone("info");
   if (variant === "link")
     variantCls =
       "border-none bg-transparent text-link underline px-1 py-0 hover:text-link-hover shadow-none";

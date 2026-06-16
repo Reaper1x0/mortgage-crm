@@ -188,7 +188,7 @@ const Navbar = () => {
                                   location.pathname.startsWith(
                                     buildOrganizationPath(activeOrganizationId, "settings/organization")
                                   )
-                                  ? "bg-primary/15 text-text border border-primary/30"
+                                  ? "bg-primary-muted text-text border border-primary-border"
                                   : "text-text hover:bg-card-hover border border-transparent"
                               )}
                             >
@@ -380,7 +380,7 @@ const Navbar = () => {
         <h2 className="text-lg font-semibold mb-2 text-text">New workspace</h2>
         <p className="text-sm text-card-text mb-4">Create another workspace. You will be switched to it after creation.</p>
         {!canCreateWorkspace ? (
-          <p className="mb-4 rounded-xl border border-warning-border bg-warning/10 px-3 py-2 text-sm text-warning-text">
+          <p className="mb-4 rounded-xl border border-warning-border bg-warning-muted px-3 py-2 text-sm text-warning">
             You do not have permission to create workspaces in this organization.
           </p>
         ) : null}

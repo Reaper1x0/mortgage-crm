@@ -133,7 +133,7 @@ export default function TemplatesPage() {
       <PageHeader
         title="Templates"
         description="Create templates and manage field placements on PDFs."
-        right={
+        actions={
           <Button
             variant="primary"
             onClick={() => setCreateOpen(true)}
@@ -176,6 +176,7 @@ export default function TemplatesPage() {
       <Modal isOpen={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)}>
         <div className="space-y-4">
           <PageHeader
+            variant="section"
             title="Delete template?"
             description={
               deleteTarget ? (

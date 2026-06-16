@@ -205,7 +205,7 @@ export default function WorkspaceUsersPage() {
       <PageHeader
         title="Workspace Users"
         description="Manage workspace membership and roles with consistent role-based controls."
-        right={
+        actions={
           <Button
             variant="primary"
             onClick={() => setCreateOpen(true)}

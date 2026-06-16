@@ -206,7 +206,7 @@ const DashboardAnalytics: React.FC = () => {
       <PageHeader
         title="Dashboard Analytics"
         description="View analytics and metrics for submissions and processing"
-        right={
+        actions={
           <div className="flex flex-wrap gap-2">
             <Button
               variant={range === "daily" ? "primary" : "secondary"}
@@ -266,12 +266,14 @@ const DashboardAnalytics: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6 items-stretch">
         {/* Trends Chart */}
-        <Card>
-          <div className="p-3 sm:p-4">
-            <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4">
+        <Card containerClassName="h-full">
+          <div className="p-3 sm:p-4 flex h-full flex-col">
+            <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4 flex-shrink-0">
               Cases Processed Trends
             </h3>
-            <LineTrendChart data={trendsData} loading={loading} />
+            <div className="min-h-0 flex-1">
+              <LineTrendChart data={trendsData} loading={loading} className="h-full" />
+            </div>
           </div>
         </Card>
 
@@ -281,9 +283,9 @@ const DashboardAnalytics: React.FC = () => {
             <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4 flex-shrink-0">
               Workload Distribution
             </h3>
-            <div className="flex-1 flex flex-col justify-center">
-              <DonutWorkloadChart data={workloadData} loading={loading} />
-              {!loading && data.workload && (
+            <div className="min-h-0 flex-1 flex flex-col">
+              <DonutWorkloadChart data={workloadData} loading={loading} className="h-full" />
+              {!loading && data.workload && workloadData.length > 0 && (
                 <div className="mt-3 sm:mt-4 flex justify-center gap-4 sm:gap-6 flex-shrink-0">
                   <div className="text-center">
                     <div className="text-xl sm:text-2xl font-bold text-text">

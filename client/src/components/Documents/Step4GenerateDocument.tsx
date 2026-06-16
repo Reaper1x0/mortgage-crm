@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Button from "../Reusable/Button";
+import PageHeader from "../Reusable/PageHeader";
 import { TemplateService } from "../../service/templateService";
 import { SubmissionFieldStatusService } from "../../service/submissionFieldsStatusService";
 import { SubmissionService } from "../../service/submissionService";
@@ -162,24 +163,14 @@ export default function Step4GenerateDocument({
 
   return (
     <div className="space-y-4">
-      <div className="mb-1 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-text">Step 4: Generate Document</h2>
-          <p className="mt-1 text-sm text-card-text">
-            Select a template to generate a filled PDF using the reviewed field values.
-          </p>
-        </div>
-
-        <button
-          onClick={onBack}
-          className="rounded-md border border-card-border bg-card px-3 py-1.5 text-xs text-card-text hover:bg-card-hover"
-        >
-          Back to Review
-        </button>
-      </div>
+      <PageHeader
+        back={{ label: "Back to review", onClick: onBack }}
+        title="Step 4: Generate document"
+        description="Select a template to generate a filled PDF using the reviewed field values."
+      />
 
       {error && (
-        <div className="rounded-xl border border-danger-border bg-danger/10 px-3 py-2 text-xs text-danger-text">
+        <div className="rounded-xl border border-danger-border bg-danger-muted px-3 py-2 text-xs text-danger-text">
           {error}
         </div>
       )}
@@ -218,7 +209,7 @@ export default function Step4GenerateDocument({
                     className={[
                       "w-full rounded-2xl border p-3 text-left transition-colors",
                       isActive
-                        ? "border-primary bg-primary/10"
+                        ? "border-primary-border bg-primary-muted"
                         : "border-card-border bg-card hover:bg-card-hover",
                     ].join(" ")}
                   >
@@ -234,8 +225,8 @@ export default function Step4GenerateDocument({
                         className={[
                           "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
                           missing === 0
-                            ? "bg-success text-success-text border-success-border"
-                            : "bg-warning text-warning-text border-warning-border",
+                            ? "bg-success-muted text-success border-success-border"
+                            : "bg-warning-muted text-warning border-warning-border",
                         ].join(" ")}
                       >
                         {missing === 0 ? "Ready" : `Missing ${missing}`}

@@ -20,6 +20,7 @@ import {
 } from "react-icons/fi";
 import IconButton from "../Reusable/IconButton";
 import { CgClose } from "react-icons/cg";
+import StatusBadge from "../Reusable/StatusBadge";
 import PageHeader from "../Reusable/PageHeader";
 import { usePermissions } from "../../context/PermissionContext";
 import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
@@ -327,22 +328,10 @@ const MasterFieldTable: React.FC = () => {
         render: (_: any, row: MasterField) => {
           const isReq = !!row.required;
           return (
-            <span
-              className={[
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-                "border",
-                isReq
-                  ? "bg-danger border-danger-border text-danger-text"
-                  : "bg-success border-success-border text-success-text",
-              ].join(" ")}
-            >
-              {isReq ? (
-                <FiXCircle className="h-3.5 w-3.5" />
-              ) : (
-                <FiCheckCircle className="h-3.5 w-3.5" />
-              )}
+            <StatusBadge tone={isReq ? "danger" : "success"}>
+              {isReq ? <FiXCircle className="h-3.5 w-3.5" /> : <FiCheckCircle className="h-3.5 w-3.5" />}
               {isReq ? "Required" : "Optional"}
-            </span>
+            </StatusBadge>
           );
         },
       },
@@ -404,7 +393,7 @@ const MasterFieldTable: React.FC = () => {
       <PageHeader
         title="Manage Master Fields"
         description="Define your master schema keys and validation rules for mapping and form population."
-        right={
+        actions={
           <div className="flex flex-wrap gap-2">
             <Button
               variant="primary"
@@ -448,29 +437,25 @@ const MasterFieldTable: React.FC = () => {
 
       {/* Add/Edit Modal */}
       <Modal isOpen={isAddModalOpen || isEditModalOpen} onClose={closeAddEdit}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-extrabold text-text">
-              {isEditModalOpen ? "Edit" : "Add"} Field
-            </h2>
-            <p className="mt-1 text-sm text-card-text">
-              Configure the schema key, type, and validation rules.
-            </p>
-          </div>
-
-          {selectedField && (
-            <IconButton
-              icon={FiCopy as any}
-              size="md"
-              outline
-              fillBg
-              hoverable
-              title="Copy field JSON"
-              onClick={() => onCopyFieldJson(selectedField)}
-              disabled={!selectedField.key && !isAddModalOpen}
-            />
-          )}
-        </div>
+        <PageHeader
+          variant="section"
+          title={`${isEditModalOpen ? "Edit" : "Add"} field`}
+          description="Configure the schema key, type, and validation rules."
+          actions={
+            selectedField ? (
+              <IconButton
+                icon={FiCopy as any}
+                size="md"
+                outline
+                fillBg
+                hoverable
+                title="Copy field JSON"
+                onClick={() => onCopyFieldJson(selectedField)}
+                disabled={!selectedField.key && !isAddModalOpen}
+              />
+            ) : null
+          }
+        />
 
         <div className="mt-6">
           <form
@@ -667,14 +652,17 @@ const MasterFieldTable: React.FC = () => {
         isOpen={deletedModalOpen}
         onClose={() => setDeletedModalOpen(false)}
       >
-        <h2 className="text-2xl font-extrabold text-text">Confirm Delete</h2>
-        <p className="mt-3 text-sm text-card-text">
-          Are you sure you want to delete the{" "}
-          <span className="font-semibold text-text">
-            {selectedFieldsForDeletion.length}
-          </span>{" "}
-          selected fields?
-        </p>
+        <PageHeader
+          variant="section"
+          title="Confirm delete"
+          description={
+            <>
+              Are you sure you want to delete the{" "}
+              <span className="font-semibold text-text">{selectedFieldsForDeletion.length}</span>{" "}
+              selected fields?
+            </>
+          }
+        />
         <div className="mt-5 flex gap-2">
           <Button
             variant="secondary"

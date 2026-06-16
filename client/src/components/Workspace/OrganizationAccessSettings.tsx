@@ -212,7 +212,7 @@ function RoleEditorModal({ isOpen, scope, role, onClose, onSaved }: RoleEditorMo
                   variant="soft"
                   className={cn(
                     "cursor-pointer p-3 transition-colors hover:border-primary-border/40",
-                    selected.has(p.key) ? "border-primary-border bg-primary/10 ring-1 ring-primary-border/30" : ""
+                    selected.has(p.key) ? "border-primary-border bg-primary-muted ring-1 ring-primary-border" : ""
                   )}
                 >
                   <div className="flex items-start gap-3">
@@ -353,7 +353,7 @@ function RolesPanel({
     <Surface className="overflow-hidden shadow-sm">
       <div className="flex flex-col gap-4 border-b border-card-border p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-muted text-primary">
             {scope === "organization" ? <FiShield size={18} /> : <FiLayers size={18} />}
           </div>
           <div>
@@ -376,7 +376,7 @@ function RolesPanel({
       <div className="p-2 sm:p-4">
         <StateHandler loading={loading}>
           {!loading && roles.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-card-border bg-background/50 px-6 py-12 text-center">
+            <div className="rounded-xl border border-dashed border-card-border bg-background-muted px-6 py-12 text-center">
               <p className="mx-auto max-w-md text-sm text-card-text">{emptyCopy}</p>
               <Button className="mt-6" onClick={onCreate}>
                 <FiPlus className="mr-2 inline" />

@@ -3,10 +3,35 @@ const { isAuth, requireWorkspace, requirePermission, requireActiveSubscription, 
 const SubmissionController = require("../controllers/submission.controller");
 const SubmissionFieldsController = require("../controllers/submissionFields.controller");
 const ExtractionController = require("../controllers/extraction.controller");
+const AssistantController = require("../controllers/assistant.controller");
 
 const router = express.Router();
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
+
+router.post(
+  "/:id/assistant/query",
+  isAuth,
+  requireWorkspace,
+  requireActiveSubscription,
+  requirePermission("workspace.submissions.read"),
+  AssistantController.query
+);
+router.get(
+  "/:id/assistant/status",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.submissions.read"),
+  AssistantController.getStatus
+);
+router.post(
+  "/:id/assistant/reindex",
+  isAuth,
+  requireWorkspace,
+  requireActiveSubscription,
+  requirePermission("workspace.submissions.write"),
+  AssistantController.reindex
+);
 
 router.get(
   "/:id/documents",

@@ -205,7 +205,7 @@ export default function OrganizationUsersSettings() {
       <PageHeader
         title="Organization Users"
         description="Manage organization members, workspace access, and roles with centralized controls."
-        right={
+        actions={
           <Button
             variant="primary"
             onClick={() => setCreateOpen(true)}

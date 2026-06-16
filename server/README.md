@@ -80,6 +80,15 @@ STRIPE_CANCEL_URL=http://localhost:5173/pricing
 OPENAI_API_KEY=your-openai-api-key
 GPT_MODEL=gpt-4
 
+# RAG Document Assistant (Optional)
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_ASSISTANT_MODEL=gpt-4o-mini
+RAG_CHUNK_SIZE=1000
+RAG_CHUNK_OVERLAP=150
+RAG_TOP_K=8
+RAG_MIN_SIMILARITY=0.2
+RAG_VECTOR_INDEX_NAME=document_chunks_vector_index
+
 # Google Generative AI (Optional - alternative AI text extraction)
 GOOGLE_GENERATIVE_AI_API_KEY=your-google-ai-api-key
 
@@ -355,6 +364,39 @@ The system supports three user roles:
 - **Profile Management** - User profile with profile picture upload
 - **Master Fields** - Centralized field definitions with validation rules
 - **Submission Management** - Complete workflow for document processing and field extraction
+- **RAG Document Assistant** - Per-submission Q&A over uploaded client documents using OpenAI embeddings + chat
+
+## RAG Document Assistant
+
+Each submission (client) has an assistant that answers questions **only** from that client's uploaded documents.
+
+### Flow
+
+1. On document upload/replace, the server reads the Markdown sidecar from S3, chunks it, generates OpenAI embeddings, and stores chunks in the `documentchunks` collection.
+2. On query, the question is embedded, similar chunks are retrieved (scoped by `workspace` + `submission`), and OpenAI chat generates a grounded answer.
+3. If no relevant context is found, the assistant responds: *"The information was not found in the client documents."*
+
+### API Endpoints
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `POST` | `/backend/api/submissions/:id/assistant/query` | `workspace.submissions.read` |
+| `GET` | `/backend/api/submissions/:id/assistant/status` | `workspace.submissions.read` |
+| `POST` | `/backend/api/submissions/:id/assistant/reindex` | `workspace.submissions.write` |
+
+### Vector Search
+
+- **MongoDB Atlas (production):** create a vector search index on `documentchunks.embedding` (1536 dimensions, cosine similarity). Run:
+
+```bash
+node scripts/createVectorIndex.js
+```
+
+- **Local MongoDB (development):** vector search index is not required. The server automatically falls back to in-app cosine similarity over submission-scoped chunks.
+
+### Backfill
+
+Documents uploaded before this feature was deployed can be indexed via the reindex endpoint or the **Reindex** button in the client UI (step 5: Ask documents).
 
 ## Development Notes
 

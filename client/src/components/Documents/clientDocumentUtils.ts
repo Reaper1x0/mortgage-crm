@@ -16,6 +16,13 @@ export const formatBytes = (bytes?: number | null): string => {
   return `${u === 0 ? Math.round(v) : v.toFixed(v >= 10 || u === 0 ? 0 : 1)} ${units[u]}`;
 };
 
+export const getFileId = (doc: SubmissionDocument): string | null => {
+  const d = doc.document;
+  if (!d) return null;
+  if (typeof d === "string") return d;
+  return d._id ? String(d._id) : null;
+};
+
 export const getFileRef = (doc: SubmissionDocument): FileRef | null => {
   const d = doc.document;
   if (!d || typeof d === "string") return null;

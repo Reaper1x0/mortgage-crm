@@ -5,7 +5,7 @@ import DataTable from "../Reusable/DataTable";
 import Input from "../Reusable/Inputs/Input";
 import Modal from "../Reusable/Modal";
 import { prettyDate } from "../../utils/date";
-import { FiEdit2, FiFileText, FiPlus } from "react-icons/fi";
+import { FiEdit2, FiMessageCircle, FiPlus } from "react-icons/fi";
 import { useNavigate } from "react-router";
 import { Submission } from "../../types/extraction.types";
 import PageHeader from "../Reusable/PageHeader";
@@ -244,14 +244,14 @@ const SubmissionsPage: React.FC = () => {
               </span>
             </Button>
             <Button
-              variant="secondary"
-              onClick={() => navigate(`${row._id}?step=2`)}
+              variant="primary"
+              onClick={() => navigate(`${row._id}/assistant`)}
               disabled={!canOpenClientDetail}
               disabledTooltip={!canOpenClientDetail ? PERMISSION_TOOLTIPS.manageClient : undefined}
             >
               <span className="inline-flex items-center gap-2">
-                <FiFileText className="h-4 w-4 shrink-0" aria-hidden />
-                View documents
+                <FiMessageCircle className="h-4 w-4 shrink-0" aria-hidden />
+                Ask assistant
               </span>
             </Button>
             <Button
@@ -274,7 +274,7 @@ const SubmissionsPage: React.FC = () => {
       <PageHeader
         title="Clients"
         description="Manage clients and continue extraction/document workflows."
-        right={
+        actions={
           <Button
             variant="primary"
             onClick={openCreate}

@@ -155,7 +155,7 @@ export default function SuperAdminPlansPage() {
   };
 
   const renderEntitlementEditor = () => (
-    <div className="space-y-3 rounded-2xl border border-card-border bg-background/40 p-4">
+    <div className="space-y-3 rounded-2xl border border-card-border bg-background-muted p-4">
       <h3 className="text-sm font-semibold text-text">Plan Entitlements</h3>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {ENTITLEMENT_CATALOG.map((item) => {
@@ -221,7 +221,7 @@ export default function SuperAdminPlansPage() {
           <Input name={`${action}-description`} label="Description" value={form.description || ""} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
         </div>
       </div>
-      <div className="rounded-2xl border border-card-border bg-background/40 p-4 space-y-3">
+      <div className="rounded-2xl border border-card-border bg-background-muted p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-text">Stripe Price Validation</h3>
           <Button variant="secondary" onClick={() => void validateStripePrices()} isLoading={validatingPrices}>
@@ -252,7 +252,7 @@ export default function SuperAdminPlansPage() {
           </p>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-card-border bg-background/40 p-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-card-border bg-background-muted p-4 sm:grid-cols-3">
         <Checkbox size="sm" checked={Boolean(form.active)} onChange={(e) => setForm((p) => ({ ...p, active: e.target.checked }))} label="Active" />
         <Checkbox size="sm" checked={Boolean(form.visible)} onChange={(e) => setForm((p) => ({ ...p, visible: e.target.checked }))} label="Visible" />
         <Checkbox size="sm" checked={Boolean(form.recommended)} onChange={(e) => setForm((p) => ({ ...p, recommended: e.target.checked }))} label="Recommended" />
@@ -280,15 +280,15 @@ export default function SuperAdminPlansPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader
-          title="Plans"
-          description="Manage plan visuals, Stripe mapping, and entitlement limits."
-        />
-        <Button onClick={openCreate} disabled={loading}>
-          Create Plan
-        </Button>
-      </div>
+      <PageHeader
+        title="Plans"
+        description="Manage plan visuals, Stripe mapping, and entitlement limits."
+        actions={
+          <Button onClick={openCreate} disabled={loading}>
+            Create Plan
+          </Button>
+        }
+      />
 
       {loading ? <div className="rounded-2xl border border-card-border bg-card p-6 text-sm text-card-text">Loading plans...</div> : null}
 
@@ -330,7 +330,7 @@ export default function SuperAdminPlansPage() {
                 {ENTITLEMENT_CATALOG.map((item) => {
                   const val = plan.entitlements?.[item.key];
                   return (
-                    <div key={item.key} className="rounded-lg border border-card-border bg-background/50 px-3 py-2">
+                    <div key={item.key} className="rounded-lg border border-card-border bg-background-muted px-3 py-2">
                       <div className="text-[11px] text-card-text">{item.label}</div>
                       <div className="text-sm font-semibold text-text">
                         {isUnlimited(val as number | null) ? "Unlimited" : String(val ?? 0)}

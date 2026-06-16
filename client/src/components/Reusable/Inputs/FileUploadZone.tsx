@@ -143,7 +143,7 @@ const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZoneProps>(fun
           className={cn(
             "group relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-8 text-center transition-all duration-200",
             "border-card-border bg-background hover:border-primary-border hover:bg-card/50",
-            isDragging && "border-primary-border bg-primary/5 ring-2 ring-primary-shadow",
+            isDragging && "border-primary-border bg-primary-muted ring-2 ring-primary-shadow",
             disabled && "cursor-not-allowed opacity-60 hover:border-card-border hover:bg-background",
             zoneClassName
           )}

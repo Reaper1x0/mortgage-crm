@@ -7,6 +7,7 @@ import DataTable from "../Reusable/DataTable";
 import { UserService, User } from "../../service/userService";
 import { prettyDate } from "../../utils/date";
 import PageHeader from "../Reusable/PageHeader";
+import StatusBadge from "../Reusable/StatusBadge";
 import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
 import IconButton from "../Reusable/IconButton";
 import Avatar from "../Reusable/Avatar";
@@ -111,32 +112,18 @@ export default function UsersPage() {
         title: "Role",
         dataIndex: "role",
         render: (role: string) => (
-          <span
-            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
-              role === "Admin"
-                ? "bg-danger border-danger-border text-danger-text"
-                : role === "Agent"
-                ? "bg-primary border-primary-border text-primary-text"
-                : "bg-info border-info-border text-info-text"
-            }`}
-          >
+          <StatusBadge tone={role === "Admin" ? "danger" : role === "Agent" ? "primary" : "info"}>
             {role}
-          </span>
+          </StatusBadge>
         ),
       },
       {
         title: "Email Verified",
         dataIndex: "isEmailVerified",
         render: (verified: boolean) => (
-          <span
-            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
-              verified
-                ? "bg-success border-success-border text-success-text"
-                : "bg-warning border-warning-border text-warning-text"
-            }`}
-          >
+          <StatusBadge tone={verified ? "success" : "warning"}>
             {verified ? "Verified" : "Not Verified"}
-          </span>
+          </StatusBadge>
         ),
       },
       {
@@ -189,7 +176,7 @@ export default function UsersPage() {
       <PageHeader
         title="User Management"
         description="Manage users, roles, and permissions."
-        right={
+        actions={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             Create User
           </Button>

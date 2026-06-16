@@ -43,6 +43,39 @@ async function extractJson({
   return result;
 }
 
+async function embedTexts(texts) {
+  const openaiAdapter = require("./openai.adapter");
+  const batchSize = Number(llmConfig.rag?.embedBatchSize || 50);
+  const allTexts = Array.isArray(texts) ? texts : [texts];
+  if (!allTexts.length) return [];
+
+  const embeddings = [];
+  for (let i = 0; i < allTexts.length; i += batchSize) {
+    const batch = allTexts.slice(i, i + batchSize);
+    const startedAt = Date.now();
+    const batchEmbeddings = await withTimeout(
+      openaiAdapter.createEmbeddings({ input: batch }),
+      Number(llmConfig.openai.timeoutMs || 60000)
+    );
+    console.log("[LLM] embeddings batch:", batch.length, "duration_ms:", Date.now() - startedAt);
+    embeddings.push(...batchEmbeddings);
+  }
+  return embeddings;
+}
+
+async function chat({ messages, temperature, maxTokens }) {
+  const openaiAdapter = require("./openai.adapter");
+  const startedAt = Date.now();
+  const result = await withTimeout(
+    openaiAdapter.createChatCompletion({ messages, temperature, maxTokens }),
+    Number(llmConfig.openai.timeoutMs || 60000)
+  );
+  console.log("[LLM] chat model:", result.model, "duration_ms:", Date.now() - startedAt);
+  return result;
+}
+
 module.exports = {
   extractJson,
+  embedTexts,
+  chat,
 };

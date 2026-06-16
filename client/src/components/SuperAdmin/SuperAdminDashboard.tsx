@@ -112,7 +112,7 @@ export default function SuperAdminDashboard() {
       />
 
       {error ? (
-        <div className="rounded-2xl border border-danger-border bg-danger/10 px-4 py-3 text-sm text-danger-text">
+        <div className="rounded-2xl border border-danger-border bg-danger-muted px-4 py-3 text-sm text-danger">
           {error}
         </div>
       ) : null}
