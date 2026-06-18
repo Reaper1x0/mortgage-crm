@@ -9,13 +9,18 @@ const { envConfig } = require("../../config");
 const POLL_INTERVAL_MS = Number(envConfig.TEXTRACT_POLL_INTERVAL_MS || 2000);
 const MAX_POLLS = Number(envConfig.TEXTRACT_MAX_POLLS || 120);
 
-const textractClient = new TextractClient({
+const awsClientConfig = {
   region: envConfig.AWS_REGION,
-  credentials: {
+};
+
+if (envConfig.AWS_ACCESS_KEY_ID && envConfig.AWS_SECRET_ACCESS_KEY) {
+  awsClientConfig.credentials = {
     accessKeyId: envConfig.AWS_ACCESS_KEY_ID,
     secretAccessKey: envConfig.AWS_SECRET_ACCESS_KEY,
-  },
-});
+  };
+}
+
+const textractClient = new TextractClient(awsClientConfig);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

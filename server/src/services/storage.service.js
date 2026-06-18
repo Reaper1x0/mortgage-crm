@@ -48,18 +48,30 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks);
 }
 
+function getAwsClientConfig(region) {
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+
+  if (accessKeyId && secretAccessKey) {
+    return {
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    };
+  }
+
+  // In ECS, this falls back to task-role credentials from metadata.
+  return { region };
+}
+
 class S3StorageService {
   constructor() {
     this.region = getRequiredEnv("AWS_REGION");
     this.bucket = getRequiredEnv("S3_BUCKET_NAME");
 
-    this.client = new S3Client({
-      region: this.region,
-      credentials: {
-        accessKeyId: getRequiredEnv("AWS_ACCESS_KEY_ID"),
-        secretAccessKey: getRequiredEnv("AWS_SECRET_ACCESS_KEY"),
-      },
-    });
+    this.client = new S3Client(getAwsClientConfig(this.region));
   }
 
   async uploadBuffer({ buffer, originalName, displayName, folder = "uploads", contentType, customMetadata = {} }) {
