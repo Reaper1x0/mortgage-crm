@@ -11,12 +11,6 @@ type CnicResponse = {
   submission: Submission;
 };
 
-type DocumentsResponse = {
-  success: boolean;
-  personName: string | null;
-  submission: Submission;
-};
-
 export async function uploadCnicForName(submissionId: string | undefined, file: File) {
   const formData = new FormData();
   formData.append("cnic", file);
@@ -27,30 +21,6 @@ export async function uploadCnicForName(submissionId: string | undefined, file: 
     {
       headers: {
         // let browser set boundary
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
-
-  return res.data;
-}
-
-export async function uploadDocumentsForFields(
-  files: File[],
-  submissionId: string | undefined,
-  personName?: string | null
-) {
-  const formData = new FormData();
-  files.forEach((f) => formData.append("documents", f));
-  if (personName) {
-    formData.append("personName", personName);
-  }
-
-  const res = await apiClient.post<DocumentsResponse>(
-    `extraction/documents/extract-fields/${submissionId}`,
-    formData,
-    {
-      headers: {
         "Content-Type": "multipart/form-data",
       },
     }

@@ -66,6 +66,19 @@ const DocumentSchema = new mongoose.Schema({
   // Document metadata for traceability
   document_name: { type: String, default: "" },
   document_type: { type: String, default: "" },
+  upload_status: {
+    type: String,
+    enum: ["uploaded", "upload_failed"],
+    default: "uploaded",
+  },
+  extraction_status: {
+    type: String,
+    enum: ["pending", "extracting", "extracted", "extract_failed"],
+    default: "pending",
+  },
+  upload_error: { type: String, default: null },
+  extraction_error: { type: String, default: null },
+  extracted_at: { type: Date, default: null },
 });
 
 /* -------------------- Submission-level aggregated fields -------------------- */

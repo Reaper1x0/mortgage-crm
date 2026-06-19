@@ -61,6 +61,17 @@ async function attachSignedUrlsDeep(input, expiresInMinutes = 60, visited = new 
     normalizedInput.url = signedUrl;
   }
 
+  if (
+    normalizedInput.meta &&
+    typeof normalizedInput.meta === "object" &&
+    typeof normalizedInput.meta.thumbnail_storage_path === "string" &&
+    normalizedInput.meta.thumbnail_storage_path.trim()
+  ) {
+    const thumbPath = normalizedInput.meta.thumbnail_storage_path;
+    const thumbUrl = await getSignedFileUrl(thumbPath, expiresInMinutes);
+    normalizedInput.meta.thumbnail_url = thumbUrl;
+  }
+
   const keys = Object.keys(normalizedInput);
   await Promise.all(
     keys.map((key) =>

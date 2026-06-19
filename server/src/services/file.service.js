@@ -83,12 +83,6 @@ class FileService {
         if (plainText) {
           doc.extracted_plain_text = plainText;
         }
-
-        documentIndexService.triggerIndexSubmissionDocument({
-          fileDoc: doc,
-          submissionId: meta.submissionId,
-          workspaceId: meta.workspaceId,
-        });
       } catch (artifactErr) {
         try {
           await storageService.deleteByPath(doc.storage_path);

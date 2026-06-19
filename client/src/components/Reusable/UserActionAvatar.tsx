@@ -148,7 +148,7 @@ export type DocumentUploaderMetaProps = {
   size?: AvatarProps["size"];
 };
 
-/** Document card header: uploader avatar + created line. */
+/** Document card header: uploader avatar + uploaded time ago. */
 export function DocumentUploaderMeta({
   uploadedBy,
   tooltipUploadedAt,
@@ -156,19 +156,18 @@ export function DocumentUploaderMeta({
   createdAt,
   size = "xs",
 }: DocumentUploaderMetaProps) {
-  const createdLabel = formatDocumentCreatedLabel(tooltipUploadedAt, uploadDate, createdAt);
+  const uploadedAt = tooltipUploadedAt || uploadDate || createdAt;
+  const agoLabel = uploadedAt ? timeAgo(uploadedAt) : null;
 
   return (
-    <>
-      <div className="mt-1 flex items-center gap-2 text-xs text-card-text">
-        <UserActionAvatar
-          user={isResolvableUser(uploadedBy) ? uploadedBy : null}
-          action="uploaded by"
-          timestamp={tooltipUploadedAt}
-          size={size}
-        />
-      </div>
-      <div className="mt-1 text-xs text-card-text">Created: {createdLabel}</div>
-    </>
+    <div className="mt-1 flex items-center gap-2 text-xs text-card-text">
+      <UserActionAvatar
+        user={isResolvableUser(uploadedBy) ? uploadedBy : null}
+        action="uploaded by"
+        timestamp={uploadedAt}
+        size={size}
+      />
+      {agoLabel ? <span>Uploaded {agoLabel}</span> : null}
+    </div>
   );
 }

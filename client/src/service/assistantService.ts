@@ -33,4 +33,16 @@ export const AssistantService = {
       status: AssistantIndexStatusResponse;
     };
   },
+
+  indexDocument: async (submissionId: string, fileId: string) => {
+    const resp = await apiClient.post(
+      `/submissions/${submissionId}/assistant/documents/${fileId}/index`
+    );
+    return resp.data as {
+      success: boolean;
+      message: string;
+      result: { fileId: string; ok: boolean; chunkCount?: number };
+      status: AssistantIndexStatusResponse;
+    };
+  },
 };

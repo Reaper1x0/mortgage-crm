@@ -1,23 +1,27 @@
 import type { SubmissionDocument } from "../../types/extraction.types";
 import Card from "../Reusable/Card";
 import StatusBadge from "../Reusable/StatusBadge";
-import Button from "../Reusable/Button";
 import IconButton from "../Reusable/IconButton";
 import { DocumentUploaderMeta } from "../Reusable/UserActionAvatar";
-import { prettyDate } from "../../utils/date";
-import { FiExternalLink, FiFileText, FiRefreshCw, FiTrash2 } from "react-icons/fi";
+import { FiFileText, FiRefreshCw, FiTrash2, FiZap } from "react-icons/fi";
+import DocumentFileThumbnail from "./DocumentFileThumbnail";
 import {
+  canExtractDocument,
+  canReExtractDocument,
   extractedFieldCount,
-  fileKindIcon,
+  extractionStatusMeta,
   formatBytes,
   getFileName,
   getFileRef,
-  getFileUrl,
+  resolveExtractionStatus,
+  resolveUploadStatus,
 } from "./clientDocumentUtils";
 
 export type ClientDocumentCardProps = {
   doc: SubmissionDocument;
   isBusy?: boolean;
+  isExtracting?: boolean;
+  onExtract?: (docEntryId: string) => void;
   onViewFields?: (docEntryId: string) => void;
   onReplace?: (docEntryId: string) => void;
   onDelete?: (docEntryId: string) => void;
@@ -26,6 +30,8 @@ export type ClientDocumentCardProps = {
 export default function ClientDocumentCard({
   doc,
   isBusy = false,
+  isExtracting = false,
+  onExtract,
   onViewFields,
   onReplace,
   onDelete,
@@ -33,112 +39,107 @@ export default function ClientDocumentCard({
   const id = doc._id as string;
   const file = getFileRef(doc);
   const name = getFileName(doc, file);
-  const url = getFileUrl(file);
   const fieldCount = extractedFieldCount(doc);
-  const uploadedAt = doc.uploadDate || file?.uploaded_at || file?.createdAt;
   const ext = file?.extension ? String(file.extension).replace(/^\./, "").toUpperCase() : "FILE";
-  const rawDocType = doc.document_type?.trim() || null;
-  const docType = rawDocType && !rawDocType.includes("/") ? rawDocType : null;
-  const Icon = fileKindIcon(file?.content_type, file?.extension);
+
+  const uploadStatus = resolveUploadStatus(doc);
+  const extractionStatus = isExtracting ? "extracting" : resolveExtractionStatus(doc);
+  const extractionMeta = extractionStatusMeta(extractionStatus);
+  const showExtract = canExtractDocument(doc) && !isExtracting;
+  const showReExtract = canReExtractDocument(doc) && !isExtracting;
+  const cardBusy = isBusy || isExtracting;
 
   return (
-    <Card containerClassName="h-full">
-      <div className="flex h-full flex-col gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/15 to-primary/5 text-primary shadow-sm">
-            <Icon className="h-5 w-5" aria-hidden />
-          </div>
-          <div className="min-w-0 flex-1">
+    <Card containerClassName="h-full" className="!p-0 overflow-hidden">
+      <div className="flex h-full flex-col">
+        <DocumentFileThumbnail
+          file={file}
+          fileName={name}
+          disabled={cardBusy}
+          variant="hero"
+          formatLabel={ext}
+        />
+
+        <div className="flex flex-1 flex-col gap-3 p-4">
+          <div className="min-w-0 space-y-2">
             <h3 className="line-clamp-2 text-base font-semibold leading-snug text-text" title={name}>
               {name}
             </h3>
+
             <DocumentUploaderMeta
               uploadedBy={file?.uploaded_by}
               tooltipUploadedAt={file?.uploaded_at}
               uploadDate={doc.uploadDate}
               createdAt={file?.createdAt}
             />
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <StatusBadge tone="neutral">{ext}</StatusBadge>
-              {docType ? <StatusBadge tone="primary">{docType}</StatusBadge> : null}
+
+            <p className="text-xs text-card-text">{formatBytes(file?.size_in_bytes)}</p>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {uploadStatus === "uploaded" ? (
+                <StatusBadge tone="success">Uploaded</StatusBadge>
+              ) : (
+                <StatusBadge tone="danger">Upload failed</StatusBadge>
+              )}
+              <StatusBadge tone={extractionMeta.tone}>{extractionMeta.label}</StatusBadge>
+              {fieldCount > 0 ? (
+                <StatusBadge tone="neutral">{fieldCount} fields</StatusBadge>
+              ) : null}
             </div>
-          </div>
-        </div>
 
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5 rounded-xl border border-card-border bg-background/60 px-3 py-2.5 text-xs">
-          <div>
-            <dt className="text-card-text">Uploaded</dt>
-            <dd className="font-medium text-text">{uploadedAt ? prettyDate(uploadedAt) : "—"}</dd>
+            {doc.extraction_error ? (
+              <p className="text-xs text-danger">{doc.extraction_error}</p>
+            ) : null}
           </div>
-          <div>
-            <dt className="text-card-text">Size</dt>
-            <dd className="font-medium text-text">{formatBytes(file?.size_in_bytes)}</dd>
-          </div>
-          <div className="col-span-2">
-            <dt className="text-card-text">Extracted fields</dt>
-            <dd>
-              <button
-                type="button"
-                className="font-semibold text-primary underline-offset-2 transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-shadow"
-                onClick={() => onViewFields?.(id)}
-                disabled={isBusy || fieldCount === 0}
-              >
-                {fieldCount} field{fieldCount !== 1 ? "s" : ""}
-                {fieldCount > 0 ? " — View" : ""}
-              </button>
-            </dd>
-          </div>
-        </dl>
 
-        <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-card-border pt-3">
-          {url ? (
-            <Button
-              variant="primary"
-              type="button"
-              className="min-w-0 flex-1 sm:flex-none"
-              disabled={isBusy}
-              onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-            >
-              <span className="inline-flex items-center gap-2">
-                <FiExternalLink className="h-4 w-4 shrink-0" />
-                Open file
-              </span>
-            </Button>
-          ) : (
-            <span className="text-xs text-card-text">Download link unavailable</span>
-          )}
+          <div className="mt-auto flex items-center gap-1 border-t border-card-border pt-3">
+            {(showExtract || showReExtract) && (
+              <IconButton
+                icon={FiZap}
+                size="sm"
+                outline
+                fillBg
+                hoverable
+                title={showReExtract ? "Re-extract fields" : "Extract fields"}
+                disabled={cardBusy || uploadStatus !== "uploaded"}
+                isLoading={isExtracting}
+                onClick={() => onExtract?.(id)}
+              />
+            )}
 
-          <div className="ml-auto flex items-center gap-1">
             <IconButton
               icon={FiFileText}
               size="sm"
               outline
               fillBg
               hoverable
-              title="View extracted fields"
-              disabled={isBusy || fieldCount === 0}
+              title={fieldCount > 0 ? `View ${fieldCount} extracted fields` : "No extracted fields"}
+              disabled={cardBusy || fieldCount === 0}
               onClick={() => onViewFields?.(id)}
             />
-            <IconButton
-              icon={FiRefreshCw}
-              size="sm"
-              outline
-              fillBg
-              hoverable
-              title="Replace document"
-              disabled={isBusy}
-              onClick={() => onReplace?.(id)}
-            />
-            <IconButton
-              icon={FiTrash2}
-              size="sm"
-              outline
-              fillBg
-              hoverable
-              title="Delete document"
-              disabled={isBusy}
-              onClick={() => onDelete?.(id)}
-            />
+
+            <div className="ml-auto flex items-center gap-1">
+              <IconButton
+                icon={FiRefreshCw}
+                size="sm"
+                outline
+                fillBg
+                hoverable
+                title="Replace document"
+                disabled={cardBusy}
+                onClick={() => onReplace?.(id)}
+              />
+              <IconButton
+                icon={FiTrash2}
+                size="sm"
+                outline
+                fillBg
+                hoverable
+                title="Delete document"
+                disabled={cardBusy}
+                onClick={() => onDelete?.(id)}
+              />
+            </div>
           </div>
         </div>
       </div>

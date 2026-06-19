@@ -65,6 +65,31 @@ const AssistantController = {
 
     return R2XX(res, "Reindex completed.", 200, { results, status });
   }),
+
+  indexDocument: catchAsync(async (req, res) => {
+    const submissionId = req.params.id;
+    const fileId = req.params.fileId;
+
+    const submission = await Submission.findOne({ _id: submissionId, workspace: req.workspaceId });
+    if (!submission) return R4XX(res, 404, "Submission not found.");
+
+    try {
+      const result = await documentIndexService.indexDocumentByFileId({
+        submissionId,
+        workspaceId: req.workspaceId,
+        fileId,
+      });
+
+      const status = await documentIndexService.getSubmissionIndexStatus({
+        submissionId,
+        workspaceId: req.workspaceId,
+      });
+
+      return R2XX(res, "Document indexed successfully.", 200, { result, status });
+    } catch (err) {
+      return R4XX(res, 400, err?.message || "Failed to index document.");
+    }
+  }),
 };
 
 module.exports = AssistantController;

@@ -46,6 +46,7 @@ export default function ClientAssistantPage() {
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [loading, setLoading] = useState(true);
   const [reindexing, setReindexing] = useState(false);
+  const [indexingFileId, setIndexingFileId] = useState<string | null>(null);
   const [indexStatus, setIndexStatus] = useState<AssistantIndexStatusResponse | null>(null);
   const [scopeFileId, setScopeFileId] = useState<string | null>(searchParams.get("file"));
 
@@ -138,6 +139,17 @@ export default function ClientAssistantPage() {
     }
   };
 
+  const handleIndexDocument = async (fileId: string) => {
+    if (!id || indexingFileId) return;
+    try {
+      setIndexingFileId(fileId);
+      const resp = await AssistantService.indexDocument(id, fileId);
+      if (resp.status) setIndexStatus(resp.status);
+    } finally {
+      setIndexingFileId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="animate-pulse space-y-4 p-6">
@@ -220,6 +232,8 @@ export default function ClientAssistantPage() {
                 scopeFileId={scopeFileId}
                 onSelect={selectScope}
                 indexStatusByFileId={indexStatusByFileId}
+                indexingFileId={indexingFileId}
+                onIndexDocument={handleIndexDocument}
               />
             </div>
           )}

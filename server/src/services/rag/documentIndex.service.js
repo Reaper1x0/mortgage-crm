@@ -179,6 +179,33 @@ async function reindexSubmission({ submissionId, workspaceId }) {
   return results;
 }
 
+async function indexDocumentByFileId({ submissionId, workspaceId, fileId }) {
+  if (!fileId || !isObjectId(fileId)) {
+    throw new Error("indexDocumentByFileId: valid fileId is required");
+  }
+
+  const submission = await Submission.findOne({ _id: submissionId, workspace: workspaceId });
+  if (!submission) throw new Error("Submission not found");
+
+  const linked = (submission.documents || []).some(
+    (entry) => String(entry.document) === String(fileId)
+  );
+  if (!linked) throw new Error("Document is not attached to this submission");
+
+  const fileDoc = await File.findById(fileId);
+  if (!fileDoc || fileDoc.status === "deleted") {
+    throw new Error("File not found");
+  }
+
+  const result = await indexSubmissionDocument({
+    fileDoc,
+    submissionId,
+    workspaceId,
+  });
+
+  return { fileId: String(fileId), ok: true, chunkCount: result.chunkCount };
+}
+
 async function getSubmissionIndexStatus({ submissionId, workspaceId }) {
   const submission = await Submission.findOne({ _id: submissionId, workspace: workspaceId }).lean();
   if (!submission) throw new Error("Submission not found");
@@ -214,8 +241,10 @@ async function getSubmissionIndexStatus({ submissionId, workspaceId }) {
 }
 
 module.exports = {
+  readMarkdownFromFile,
   indexSubmissionDocument,
   triggerIndexSubmissionDocument,
+  indexDocumentByFileId,
   deleteChunksForFile,
   reindexSubmission,
   getSubmissionIndexStatus,

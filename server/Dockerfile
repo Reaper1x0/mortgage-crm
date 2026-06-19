@@ -2,6 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# sharp + pdf/canvas thumbnail rendering on Alpine
+RUN apk add --no-cache libc6-compat fontconfig ttf-dejavu
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 

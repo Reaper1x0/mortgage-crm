@@ -1,7 +1,7 @@
 // backend/routes/extractionRoutes.js
 const express = require("express");
 const multer = require("multer");
-const { handleCnicUpload, handleDocumentsUpload } = require("../controllers/extraction.controller");
+const { handleCnicUpload } = require("../controllers/extraction.controller");
 const { isAuth, requireWorkspace, requirePermission, requireActiveSubscription, enforcePlanLimit } = require("../middlewares");
 
 const router = express.Router();
@@ -18,17 +18,6 @@ router.post(
   upload.single("cnic"),
   enforcePlanLimit("max_monthly_extractions", () => ({ incrementBy: 1 })),
   handleCnicUpload
-);
-
-router.post(
-  "/documents/extract-fields/:id",
-  isAuth,
-  requireWorkspace,
-  requireActiveSubscription,
-  requirePermission("workspace.extraction.run"),
-  upload.array("documents", 10),
-  enforcePlanLimit("max_monthly_extractions", (req) => ({ incrementBy: (req.files || []).length || 0 })),
-  handleDocumentsUpload
 );
 
 module.exports = router;

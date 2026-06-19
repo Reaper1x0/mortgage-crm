@@ -6,11 +6,11 @@ import type { Submission } from "../../types/extraction.types";
 import { AppDispatch } from "../../redux/store";
 import { addToast } from "../../redux/slices/toasterSlice";
 import { SubmissionService } from "../../service/submissionService";
-import { SubmissionDocumentsService } from "../../service/submissionDocumentService";
 import {
-  uploadCnicForName,
-  uploadDocumentsForFields,
-} from "../../service/extractionService";
+  SubmissionDocumentsService,
+  type FileUploadProgress,
+} from "../../service/submissionDocumentService";
+import { uploadCnicForName } from "../../service/extractionService";
 import Stepper from "../Reusable/Stepper";
 import PageHeader from "../Reusable/PageHeader";
 import StatusBadge from "../Reusable/StatusBadge";
@@ -63,7 +63,7 @@ function buildDocsErrorMessage(resp: unknown) {
     if (failed.length > max) lines.push(`• ...and ${failed.length - max} more`);
   }
 
-  if (!lines.length) lines.push("Failed to process documents.");
+  if (!lines.length) lines.push("Operation failed.");
   return lines.join("\n");
 }
 
@@ -83,8 +83,7 @@ export default function SubmissionManagementPage() {
   const [cnicError, setCnicError] = useState<string | null>(null);
   const [manualLegalName, setManualLegalName] = useState("");
 
-  const [docFiles, setDocFiles] = useState<File[]>([]);
-  const [docsLoading, setDocsLoading] = useState(false);
+  const [extractingDocId, setExtractingDocId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -170,62 +169,50 @@ export default function SubmissionManagementPage() {
     }
   };
 
-  const handleDocsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDocFiles(e.target.files ? Array.from(e.target.files) : []);
-  };
-
-  const handleRemoveDocFile = (index: number) => {
-    setDocFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleDocsSubmit = async (): Promise<boolean> => {
-    if (!docFiles.length) {
+  const handleUploadFiles = async (
+    files: File[],
+    onFileProgress: (fileName: string, progress: FileUploadProgress) => void
+  ): Promise<boolean> => {
+    if (!files.length) {
       dispatch(addToast({ message: "Please select at least one document.", type: "error" }));
       return false;
     }
+    if (!submission?._id) return false;
 
     try {
-      setDocsLoading(true);
-      const resp = (await uploadDocumentsForFields(
-        docFiles,
-        submission?._id,
-        cnicName
-      )) as Record<string, unknown>;
+      const resp = await SubmissionDocumentsService.uploadMany(
+        submission._id,
+        files,
+        onFileProgress
+      );
 
-      if (resp?.success === false) {
-        dispatch(
-          addToast({
-            type: "error",
-            message: buildDocsErrorMessage(resp),
-            duration: 9000,
-          })
-        );
-        return false;
-      }
-
-      if (Array.isArray(resp?.results)) {
-        const failed = (resp.results as DocProcessResult[]).filter((r) => r?.ok === false);
+      if (resp?.submission) {
+        setSubmission(resp.submission);
+        const failed = (resp.results || []).filter((r) => r?.ok === false);
         if (failed.length) {
           dispatch(
             addToast({
-              type: "error",
+              type: "warning",
               message: buildDocsErrorMessage(resp),
               duration: 9000,
             })
           );
+        } else {
+          dispatch(
+            addToast({
+              type: "success",
+              message: `${files.length} document${files.length === 1 ? "" : "s"} uploaded successfully.`,
+              duration: 5000,
+            })
+          );
         }
-      }
-
-      if (resp?.submission) {
-        setSubmission(resp.submission as Submission);
-        setDocFiles([]);
-        return true;
+        return (resp.results || []).some((r) => r.ok);
       }
 
       dispatch(
         addToast({
           type: "error",
-          message: "Documents processed but submission payload is missing.",
+          message: "Upload completed but submission payload is missing.",
           duration: 7000,
         })
       );
@@ -234,18 +221,73 @@ export default function SubmissionManagementPage() {
       const axiosErr = err as { response?: { data?: unknown }; message?: string };
       const msg = axiosErr.response?.data
         ? buildDocsErrorMessage(axiosErr.response.data)
-        : axiosErr.message || "Failed to process documents.";
+        : axiosErr.message || "Failed to upload documents.";
       dispatch(addToast({ type: "error", message: msg, duration: 9000 }));
       return false;
-    } finally {
-      setDocsLoading(false);
     }
   };
 
-  const handleReplaceExisting = async (docEntryId: string, file: File) => {
+  const handleExtractFields = async (docEntryId: string): Promise<boolean> => {
+    if (!submission?._id) return false;
+
+    try {
+      setExtractingDocId(docEntryId);
+      const resp = await SubmissionDocumentsService.extract(submission._id, docEntryId);
+
+      if (resp?.submission) {
+        setSubmission(resp.submission);
+        dispatch(
+          addToast({
+            type: "success",
+            message: `Extracted ${resp.extracted_fields_count} field${resp.extracted_fields_count === 1 ? "" : "s"}.`,
+            duration: 5000,
+          })
+        );
+        return true;
+      }
+
+      dispatch(
+        addToast({
+          type: "error",
+          message: "Extraction completed but submission payload is missing.",
+          duration: 7000,
+        })
+      );
+      return false;
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: unknown }; message?: string };
+      const msg = axiosErr.response?.data
+        ? buildDocsErrorMessage(axiosErr.response.data)
+        : axiosErr.message || "Failed to extract fields.";
+      dispatch(addToast({ type: "error", message: msg, duration: 9000 }));
+      return false;
+    } finally {
+      setExtractingDocId(null);
+    }
+  };
+
+  const handleReplaceExisting = async (
+    docEntryId: string,
+    file: File,
+    onProgress?: (p: FileUploadProgress) => void
+  ) => {
     if (!submission?._id) return;
-    const resp = await SubmissionDocumentsService.replace(submission._id, docEntryId, file);
-    if (resp?.submission) setSubmission(resp.submission);
+    const resp = await SubmissionDocumentsService.replace(
+      submission._id,
+      docEntryId,
+      file,
+      onProgress
+    );
+    if (resp?.submission) {
+      setSubmission(resp.submission);
+      dispatch(
+        addToast({
+          type: "success",
+          message: "Document replaced. Extract fields when ready.",
+          duration: 5000,
+        })
+      );
+    }
   };
 
   const handleDeleteExisting = async (docEntryId: string) => {
@@ -305,15 +347,13 @@ export default function SubmissionManagementPage() {
                 <Step2DocumentsUpload
                   clientTitle={submission?.submission_name}
                   clientLegalName={submission?.legal_name}
-                  docFiles={docFiles}
-                  loading={docsLoading}
-                  onFileChange={handleDocsChange}
-                  onRemoveDocFile={handleRemoveDocFile}
-                  onSubmit={handleDocsSubmit}
-                  onBack={() => setCurrentStep(1)}
                   existingDocuments={submission?.documents || []}
+                  onUploadFiles={handleUploadFiles}
+                  onExtractFields={handleExtractFields}
+                  extractingDocId={extractingDocId}
                   onReplaceExisting={handleReplaceExisting}
                   onDeleteExisting={handleDeleteExisting}
+                  onBack={() => setCurrentStep(1)}
                 />
               )}
 

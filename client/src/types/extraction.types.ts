@@ -74,6 +74,12 @@ export type FileRef = {
   size_in_bytes?: number;
   status?: "uploaded" | "failed" | "deleted";
   checksum_md5?: string;
+  meta?: {
+    thumbnail_url?: string | null;
+    thumbnail_storage_path?: string | null;
+    thumbnail_kind?: string | null;
+    document_type?: string | null;
+  };
   uploaded_by?: string | { _id: string; name?: string; email?: string; fullName?: string; username?: string };
   uploaded_at?: string;
   createdAt?: string;
@@ -88,6 +94,11 @@ export type SubmissionDocument = {
   uploadDate?: string; // ISO string (backend Date)
   document_name?: string;
   document_type?: string;
+  upload_status?: "uploaded" | "upload_failed";
+  extraction_status?: "pending" | "extracting" | "extracted" | "extract_failed";
+  upload_error?: string | null;
+  extraction_error?: string | null;
+  extracted_at?: string | null;
 };
 
 export type GeneratedDocument = {

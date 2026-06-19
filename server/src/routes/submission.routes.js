@@ -2,7 +2,7 @@ const express = require("express");
 const { isAuth, requireWorkspace, requirePermission, requireActiveSubscription, enforcePlanLimit } = require("../middlewares");
 const SubmissionController = require("../controllers/submission.controller");
 const SubmissionFieldsController = require("../controllers/submissionFields.controller");
-const ExtractionController = require("../controllers/extraction.controller");
+const SubmissionDocumentController = require("../controllers/submissionDocument.controller");
 const AssistantController = require("../controllers/assistant.controller");
 
 const router = express.Router();
@@ -32,13 +32,39 @@ router.post(
   requirePermission("workspace.submissions.write"),
   AssistantController.reindex
 );
+router.post(
+  "/:id/assistant/documents/:fileId/index",
+  isAuth,
+  requireWorkspace,
+  requireActiveSubscription,
+  requirePermission("workspace.submissions.write"),
+  AssistantController.indexDocument
+);
 
 router.get(
   "/:id/documents",
   isAuth,
   requireWorkspace,
   requirePermission("workspace.submissions.read"),
-  ExtractionController.listSubmissionDocuments
+  SubmissionDocumentController.listDocuments
+);
+router.post(
+  "/:id/documents",
+  isAuth,
+  requireWorkspace,
+  requireActiveSubscription,
+  requirePermission("workspace.submissions.write"),
+  upload.array("documents", 10),
+  SubmissionDocumentController.uploadDocuments
+);
+router.post(
+  "/:id/documents/:docEntryId/extract",
+  isAuth,
+  requireWorkspace,
+  requireActiveSubscription,
+  requirePermission("workspace.extraction.run"),
+  enforcePlanLimit("max_monthly_extractions", () => ({ incrementBy: 1 })),
+  SubmissionDocumentController.extractDocumentFields
 );
 router.put(
   "/:id/documents/:docEntryId",
@@ -46,14 +72,14 @@ router.put(
   requireWorkspace,
   requirePermission("workspace.submissions.write"),
   upload.single("file"),
-  ExtractionController.replaceSubmissionDocument
+  SubmissionDocumentController.replaceDocument
 );
 router.delete(
   "/:id/documents/:docEntryId",
   isAuth,
   requireWorkspace,
   requirePermission("workspace.submissions.manage"),
-  ExtractionController.deleteSubmissionDocument
+  SubmissionDocumentController.deleteDocument
 );
 
 router.post(
