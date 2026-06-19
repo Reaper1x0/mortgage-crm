@@ -134,7 +134,7 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
       </div>
       {onRemoveDocFile ? (
         <IconButton
-          icon={FiX as React.ComponentType<{ className?: string }>}
+          icon={FiX}
           size="sm"
           outline={false}
           fillBg={false}

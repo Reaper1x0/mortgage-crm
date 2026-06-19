@@ -123,12 +123,25 @@ async function searchSimilarChunks({
   const indexName = llmConfig.rag?.vectorIndexName || "document_chunks_vector_index";
 
   try {
-    return await searchWithAtlas({
+    const atlasResults = await searchWithAtlas({
       workspaceId,
       submissionId,
       queryEmbedding,
       topK,
       indexName,
+      fileIds,
+    });
+    if (atlasResults.length > 0) {
+      return atlasResults;
+    }
+    console.warn(
+      "[RAG] Atlas vector search returned 0 results; using cosine fallback (check vector index is ACTIVE in Atlas)"
+    );
+    return searchWithCosineFallback({
+      workspaceId,
+      submissionId,
+      queryEmbedding,
+      topK,
       fileIds,
     });
   } catch (error) {

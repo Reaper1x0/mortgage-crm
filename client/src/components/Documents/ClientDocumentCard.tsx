@@ -1,4 +1,3 @@
-import React from "react";
 import type { SubmissionDocument } from "../../types/extraction.types";
 import Card from "../Reusable/Card";
 import StatusBadge from "../Reusable/StatusBadge";
@@ -111,7 +110,7 @@ export default function ClientDocumentCard({
 
           <div className="ml-auto flex items-center gap-1">
             <IconButton
-              icon={FiFileText as React.ComponentType<{ className?: string }>}
+              icon={FiFileText}
               size="sm"
               outline
               fillBg
@@ -121,7 +120,7 @@ export default function ClientDocumentCard({
               onClick={() => onViewFields?.(id)}
             />
             <IconButton
-              icon={FiRefreshCw as React.ComponentType<{ className?: string }>}
+              icon={FiRefreshCw}
               size="sm"
               outline
               fillBg
@@ -131,7 +130,7 @@ export default function ClientDocumentCard({
               onClick={() => onReplace?.(id)}
             />
             <IconButton
-              icon={FiTrash2 as React.ComponentType<{ className?: string }>}
+              icon={FiTrash2}
               size="sm"
               outline
               fillBg
