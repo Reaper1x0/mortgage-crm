@@ -161,10 +161,6 @@ export interface SuperAdminWorkspaceRow {
 export interface BrandingInfo {
   logoUrl?: string | null;
   logoFile?: any;
-  primaryColor?: string | null;
-  secondaryColor?: string | null;
-  themeMode?: string | null;
-  customVars?: Record<string, any> | null;
 }
 
 export interface SuperAdminMiniUser {

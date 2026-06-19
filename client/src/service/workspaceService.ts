@@ -20,10 +20,6 @@ export interface WorkspaceSummary {
 
 export interface TenantBranding {
   logoUrl?: string | null;
-  primaryColor?: string | null;
-  secondaryColor?: string | null;
-  themeMode?: "light" | "dark" | "system" | null;
-  customVars?: Record<string, string> | null;
 }
 
 export const WorkspaceService = {

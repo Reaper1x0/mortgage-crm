@@ -22,7 +22,7 @@ import Segmented from "../Reusable/Segmented";
 import Surface from "../Reusable/Surface";
 import DataTable from "../Reusable/DataTable";
 import StateHandler from "../Reusable/StateHandler";
-import Badge from "../Reusable/Badge";
+import StatusBadge from "../Reusable/StatusBadge";
 import { OrganizationService, RoleRow, RolePayload } from "../../service/organizationService";
 import { usePermissions } from "../../context/PermissionContext";
 import { cn } from "../../utils/cn";
@@ -305,15 +305,9 @@ function RolesPanel({
         key: "kind",
         title: "Kind",
         render: (_: unknown, row: RoleRow) => (
-          <Badge
-            className={
-              row.kind === "system"
-                ? "border border-primary-border bg-primary text-primary-text"
-                : "border border-card-border bg-card-hover text-card-text"
-            }
-          >
+          <StatusBadge tone={row.kind === "system" ? "primary" : "neutral"}>
             {row.kind}
-          </Badge>
+          </StatusBadge>
         ),
       },
       {

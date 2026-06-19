@@ -22,7 +22,6 @@ import { BillingCycle, BillingService, Plan } from "../../service/billingService
 import Button from "../Reusable/Button";
 import Callout from "../Reusable/Callout";
 import Input from "../Reusable/Inputs/Input";
-import ColorPicker from "../Reusable/Inputs/ColorPicker";
 import ImageUpload from "../Reusable/Inputs/ImageUpload";
 import PlanCard from "../Reusable/PlanCard";
 import Segmented from "../Reusable/Segmented";
@@ -30,7 +29,7 @@ import Stepper from "../Reusable/Stepper";
 import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
 
 const ONBOARDING_STEPS = [
-  { step: 1, label: "Organization", helper: "Company profile and branding" },
+  { step: 1, label: "Organization", helper: "Company profile and logo" },
   { step: 2, label: "Billing", helper: "Choose a plan" },
   { step: 3, label: "Workspace", helper: "Create your first workspace" },
 ];
@@ -57,8 +56,6 @@ const WorkspaceOnboarding: React.FC = () => {
 
   const [companyName, setCompanyName] = useState("");
   const [logoFile, setLogoFile] = useState<File | undefined>(undefined);
-  const [orgPrimaryColor, setOrgPrimaryColor] = useState("#3b82f6");
-  const [orgSecondaryColor, setOrgSecondaryColor] = useState("#8b5cf6");
   const [workspaceName, setWorkspaceName] = useState("");
 
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -179,11 +176,11 @@ const WorkspaceOnboarding: React.FC = () => {
       if (!newOrgId) throw new Error("Organization not created");
       const id = String(newOrgId);
 
-      const brandingForm = new FormData();
-      brandingForm.append("primaryColor", orgPrimaryColor);
-      brandingForm.append("secondaryColor", orgSecondaryColor);
-      if (logoFile) brandingForm.append("logo", logoFile);
-      await OrganizationService.updateBranding(brandingForm, id);
+      if (logoFile) {
+        const brandingForm = new FormData();
+        brandingForm.append("logo", logoFile);
+        await OrganizationService.updateBranding(brandingForm, id);
+      }
 
       navigate(buildOrganizationPath(id, "onboarding"), { replace: true });
     } catch {
@@ -311,18 +308,6 @@ const WorkspaceOnboarding: React.FC = () => {
               onChange={setLogoFile}
               height="h-36"
             />
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <ColorPicker
-                label="Primary color"
-                value={orgPrimaryColor}
-                onChange={setOrgPrimaryColor}
-              />
-              <ColorPicker
-                label="Secondary color"
-                value={orgSecondaryColor}
-                onChange={setOrgSecondaryColor}
-              />
-            </div>
           </section>
 
           {error ? <Callout tone="danger">{error}</Callout> : null}

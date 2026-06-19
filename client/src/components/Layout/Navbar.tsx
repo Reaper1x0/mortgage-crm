@@ -13,7 +13,6 @@ import { RiBuildingLine } from "react-icons/ri";
 import { useAuth } from "../../context/AuthContext";
 import { usePermissionsOptional } from "../../context/PermissionContext";
 import { WorkspaceService } from "../../service/workspaceService";
-import { OrganizationService } from "../../service/organizationService";
 import { PopoverTrigger } from "../Reusable/PopoverTrigger";
 import { buildOrganizationPath, buildWorkspacePath, getTenantFromPath } from "../../utils/tenantRouting";
 
@@ -66,19 +65,8 @@ const Navbar = () => {
     perm?.canAnyOrg(["organization.workspaces.create"]) ||
     false;
 
-  const toggleTheme = async () => {
-    const next = mode === "dark" ? "light" : "dark";
-    setTheme(next);
-    const orgId = resolveOrganizationIdForApi();
-    if (!orgId) return;
-    try {
-      const form = new FormData();
-      form.append("themeMode", next);
-      await OrganizationService.updateBranding(form, orgId);
-      await refreshWorkspaces();
-    } catch (err) {
-      console.error("Failed to persist organization theme mode:", err);
-    }
+  const toggleTheme = () => {
+    setTheme(mode === "dark" ? "light" : "dark");
   };
 
   const handleWorkspaceChange = (id: string) => {

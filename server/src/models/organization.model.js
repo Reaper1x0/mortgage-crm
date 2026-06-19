@@ -4,10 +4,6 @@ const brandingSchema = new mongoose.Schema(
   {
     logoUrl: { type: String, trim: true, default: null },
     logoFile: { type: mongoose.Schema.Types.ObjectId, ref: "File", default: null },
-    primaryColor: { type: String, trim: true, default: "#3b82f6" },
-    secondaryColor: { type: String, trim: true, default: "#8b5cf6" },
-    themeMode: { type: String, enum: ["light", "dark", "system"], default: "system" },
-    customVars: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { _id: false }
 );

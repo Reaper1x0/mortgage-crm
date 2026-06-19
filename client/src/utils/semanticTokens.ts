@@ -41,3 +41,18 @@ export const semanticSolidClasses: Record<SemanticTone, string> = {
   danger: "bg-danger text-danger-text border-danger-border hover:bg-danger-hover",
   info: "bg-info text-info-text border-info-border hover:bg-info-hover",
 };
+
+/** Static pill badge surface (StatusBadge, read-only labels). */
+export const semanticBadgeClasses: Record<SemanticTone, string> = semanticMutedClasses;
+
+/** Interactive pill badge surface (Button, IconButton). */
+export const semanticBadgeInteractiveClasses: Record<SemanticTone, string> = {
+  neutral: `${semanticMutedClasses.neutral} ${semanticMutedHoverClasses.neutral}`,
+  primary: `${semanticMutedClasses.primary} ${semanticMutedHoverClasses.primary}`,
+  secondary: `${semanticMutedClasses.secondary} ${semanticMutedHoverClasses.secondary}`,
+  accent: `${semanticMutedClasses.accent} ${semanticMutedHoverClasses.accent}`,
+  success: `${semanticMutedClasses.success} ${semanticMutedHoverClasses.success}`,
+  warning: `${semanticMutedClasses.warning} ${semanticMutedHoverClasses.warning}`,
+  danger: `${semanticMutedClasses.danger} ${semanticMutedHoverClasses.danger}`,
+  info: `${semanticMutedClasses.info} ${semanticMutedHoverClasses.info}`,
+};

@@ -43,7 +43,7 @@ export default function DocumentFileThumbnail({
       className={cn(
         "group/thumb relative overflow-hidden bg-card-muted",
         isHero
-          ? "aspect-video w-full shrink-0"
+          ? "aspect-[3/1] w-full shrink-0"
           : "aspect-[4/5] w-[4.5rem] shrink-0 rounded-xl border border-card-border shadow-sm",
         canOpen && "cursor-pointer",
         className

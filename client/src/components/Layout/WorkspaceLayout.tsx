@@ -69,9 +69,13 @@ export default function WorkspaceLayout() {
       <div className="pt-14">
         <div className="flex w-full gap-4 px-4">
           {!isOnboarding && !isTemplateDesigner && <Sidebar links={links} />}
-          <main className="min-w-0 flex-1 py-4">
+          {isTemplateDesigner ? (
             <Outlet />
-          </main>
+          ) : (
+            <main className="min-w-0 flex-1 py-4">
+              <Outlet />
+            </main>
+          )}
         </div>
       </div>
     </div>

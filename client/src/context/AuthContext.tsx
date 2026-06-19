@@ -12,7 +12,6 @@ import { User } from "../types/auth.types";
 import { UserService } from "../service/userService";
 import { AuthService } from "../service/authService";
 import { WorkspaceService, WorkspaceSummary } from "../service/workspaceService";
-import { useTheme } from "./ThemeContext";
 import { getTenantFromPath } from "../utils/tenantRouting";
 
 interface AuthContextType {
@@ -44,7 +43,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
-  const { applyBranding, setTheme } = useTheme();
   const [activeOrganizationId, setActiveOrganizationIdState] = useState<string | null>(() =>
     getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "").organizationId
   );
@@ -282,7 +280,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const orgId = activeWorkspace.organization?.organizationId;
     if (orgId && orgId !== activeOrganizationId) setActiveOrganizationId(orgId);
     const orgBranding = activeWorkspace.branding?.organization || null;
-    applyBranding(orgBranding);
     const orgName = activeWorkspace.organization?.name || "Mortgage CRM";
     document.title = orgName;
     const orgLogo = orgBranding?.logoUrl || null;
@@ -299,10 +296,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       favicon.setAttribute("href", "/vite.svg");
       favicon.setAttribute("type", "image/svg+xml");
     }
-    if (orgBranding?.themeMode === "light" || orgBranding?.themeMode === "dark") {
-      setTheme(orgBranding.themeMode);
-    }
-  }, [activeWorkspaceId, activeOrganizationId, applyBranding, setActiveOrganizationId, setTheme, workspaces]);
+  }, [activeWorkspaceId, activeOrganizationId, setActiveOrganizationId, workspaces]);
 
   const value: AuthContextType = {
     user,

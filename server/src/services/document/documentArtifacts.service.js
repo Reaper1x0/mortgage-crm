@@ -62,10 +62,8 @@ async function attachToSubmissionDocument({ fileDoc, file, context = {} }) {
   try {
     thumbnail = await createAndUploadThumbnail({
       storagePath: fileDoc.storage_path,
-      buffer: file.buffer,
       mimetype: file.mimetype,
       originalname: file.originalname || fileDoc.original_name,
-      fallbackText: conversion.plainText,
     });
   } catch (thumbnailErr) {
     console.error(

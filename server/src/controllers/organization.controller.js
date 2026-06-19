@@ -237,22 +237,8 @@ const OrganizationController = {
   }),
 
   updateBranding: catchAsync(async (req, res) => {
-    const parseMaybeJson = (value) => {
-      if (!value) return undefined;
-      if (typeof value === "object") return value;
-      try {
-        return JSON.parse(value);
-      } catch (_err) {
-        return undefined;
-      }
-    };
-
     const patch = {
-      primaryColor: req.body.primaryColor,
-      secondaryColor: req.body.secondaryColor,
-      themeMode: req.body.themeMode,
       logoUrl: typeof req.body.logoUrl !== "undefined" ? req.body.logoUrl : undefined,
-      customVars: parseMaybeJson(req.body.customVars),
     };
 
     if (String(req.body.removeLogo || "").toLowerCase() === "true") {

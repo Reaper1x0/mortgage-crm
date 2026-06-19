@@ -28,6 +28,7 @@ export default function TemplateDesignerPage() {
   const [template, setTemplate] = useState<TemplateDoc | null>(null);
   const [templateUrl, setTemplateUrl] = useState<string>("");
   const [masterFields, setMasterFields] = useState<MasterField[]>([]);
+  const [masterFieldsLoading, setMasterFieldsLoading] = useState(true);
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [selectedPlacementId, setSelectedPlacementId] = useState<string>("");
   const [pdfNumPages, setPdfNumPages] = useState(1);
@@ -63,35 +64,38 @@ export default function TemplateDesignerPage() {
   useEffect(() => {
     if (!templateId) return;
     let activeBlobUrl: string | null = null;
+    setMasterFieldsLoading(true);
     (async () => {
-      const [tplRes, mfRes] = await Promise.all([
-        TemplateService.getTemplate(templateId),
-        MasterFieldService.getAllFields({ limit: -1 }),
-      ]);
-
-      const tpl: TemplateDoc = tplRes.template;
-      setTemplate(tpl);
-      setPlacements(tpl.placements || []);
-      setPdfNumPages(tpl.pageCount || 1);
-      setPageIndex(0);
-
       try {
-        const fileBytes = await TemplateService.getTemplateFile(templateId);
-        const header = new TextDecoder("ascii")
-          .decode(new Uint8Array(fileBytes).slice(0, 5))
-          .trim();
-        if (!header.startsWith("%PDF")) {
-          throw new Error("Template file response is not a PDF");
-        }
-        const blob = new Blob([fileBytes], { type: "application/pdf" });
-        activeBlobUrl = URL.createObjectURL(blob);
-        setTemplateUrl(activeBlobUrl);
-      } catch (err) {
-        // Fallback to URL-based loading if binary fetch fails
-        setTemplateUrl(tpl.file?.url || "");
-      }
+        const [tplRes, mfRes] = await Promise.all([
+          TemplateService.getTemplate(templateId),
+          MasterFieldService.getAllFields({ limit: -1 }),
+        ]);
 
-      setMasterFields(mfRes.fields || []);
+        const tpl: TemplateDoc = tplRes.template;
+        setTemplate(tpl);
+        setPlacements(tpl.placements || []);
+        setPdfNumPages(tpl.pageCount || 1);
+        setPageIndex(0);
+        setMasterFields(mfRes.fields || []);
+
+        try {
+          const fileBytes = await TemplateService.getTemplateFile(templateId);
+          const header = new TextDecoder("ascii")
+            .decode(new Uint8Array(fileBytes).slice(0, 5))
+            .trim();
+          if (!header.startsWith("%PDF")) {
+            throw new Error("Template file response is not a PDF");
+          }
+          const blob = new Blob([fileBytes], { type: "application/pdf" });
+          activeBlobUrl = URL.createObjectURL(blob);
+          setTemplateUrl(activeBlobUrl);
+        } catch (err) {
+          setTemplateUrl(tpl.file?.url || "");
+        }
+      } finally {
+        setMasterFieldsLoading(false);
+      }
     })();
 
     return () => {
@@ -216,91 +220,96 @@ export default function TemplateDesignerPage() {
   }
 
   return (
-    <div className="px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-5">
-      <PageHeader
-        back={{
-          label: "Back to templates",
-          onClick: () =>
-            organizationId && workspaceId
-              ? navigate(`/${organizationId}/workspaces/${workspaceId}/template-maker`)
-              : navigate("/onboarding"),
-        }}
-        title={<span className="break-words">Manage &ldquo;{template?.name || "-"}&rdquo; template</span>}
-        actions={
-          <div className="flex items-center gap-2">
-            <KeyboardShortcutsHelp />
-            <Button variant="secondary" onClick={savePlacements}>
-              Save Placements
-            </Button>
-          </div>
-        }
+    <>
+      <MasterFieldsPanel
+        masterFields={masterFields}
+        onFieldSelect={addPlacement}
+        loading={masterFieldsLoading}
       />
 
+      <div className="min-w-0 flex-1 space-y-4 py-4 sm:space-y-5">
+        <PageHeader
+          back={{
+            label: "Back to templates",
+            onClick: () =>
+              organizationId && workspaceId
+                ? navigate(`/${organizationId}/workspaces/${workspaceId}/template-maker`)
+                : navigate("/onboarding"),
+          }}
+          title={
+            <span className="break-words">Manage &ldquo;{template?.name || "-"}&rdquo; template</span>
+          }
+          actions={
+            <div className="flex items-center gap-2">
+              <KeyboardShortcutsHelp />
+              <Button variant="secondary" onClick={savePlacements}>
+                Save Placements
+              </Button>
+            </div>
+          }
+        />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 min-w-0">
-        {/* Left panel - Master Fields */}
-        <div className="lg:col-span-3 min-w-0 flex flex-col">
-          <MasterFieldsPanel
-            masterFields={masterFields}
-            onFieldSelect={addPlacement}
-            className="h-full"
-          />
-        </div>
+        <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:flex-row">
+          <div
+            ref={pdfContainerRef}
+            className="min-w-0 flex-1 overflow-hidden rounded-lg border border-card-border bg-card p-2 sm:p-3 md:p-4"
+          >
+            <ViewControls
+              pageIndex={pageIndex}
+              pdfNumPages={pdfNumPages}
+              onPrevPage={() => setPageIndex((p) => Math.max(0, p - 1))}
+              onNextPage={() => setPageIndex((p) => Math.min(pdfNumPages - 1, p + 1))}
+            />
 
-        {/* Center PDF Viewer */}
-        <div ref={pdfContainerRef} className="lg:col-span-7 min-w-0 rounded-lg border border-card-border bg-card p-2 sm:p-3 md:p-4 overflow-hidden">
-          <ViewControls
-            pageIndex={pageIndex}
-            pdfNumPages={pdfNumPages}
-            onPrevPage={() => setPageIndex((p) => Math.max(0, p - 1))}
-            onNextPage={() => setPageIndex((p) => Math.min(pdfNumPages - 1, p + 1))}
-          />
+            <PdfViewer
+              templateUrl={templateUrl}
+              pageIndex={pageIndex}
+              pageWidth={pageWidth}
+              pagePx={pagePx}
+              placements={placements}
+              selectedPlacementId={selectedPlacementId}
+              onSelectPlacement={setSelectedPlacementId}
+              onUpdatePlacementRect={updatePlacementRect}
+              onPageLoad={setPdfNumPages}
+              onRenderSuccess={syncPagePx}
+              onPageDimensions={onPageDimensions}
+              pdfHostRef={pdfHostRef}
+              pageWrapRef={pageWrapRef}
+            />
+          </div>
 
-          <PdfViewer
-            templateUrl={templateUrl}
-            pageIndex={pageIndex}
-            pageWidth={pageWidth}
-            pagePx={pagePx}
-            placements={placements}
-            selectedPlacementId={selectedPlacementId}
-            onSelectPlacement={setSelectedPlacementId}
-            onUpdatePlacementRect={updatePlacementRect}
-            onPageLoad={setPdfNumPages}
-            onRenderSuccess={syncPagePx}
-            onPageDimensions={onPageDimensions}
-            pdfHostRef={pdfHostRef}
-            pageWrapRef={pageWrapRef}
-          />
-        </div>
+          <div className="flex w-full min-w-0 shrink-0 flex-col lg:w-64 xl:w-72">
+            <details className="rounded-lg border border-card-border bg-card lg:hidden">
+              <summary className="cursor-pointer select-none px-4 py-3 font-semibold text-text">
+                Inspector
+              </summary>
+              <div className="p-4 pt-0">
+                <InspectorPanel
+                  selected={selectedPlacement}
+                  onChange={(patch) =>
+                    selectedPlacement && updatePlacement(selectedPlacement.placementId, patch)
+                  }
+                  onDelete={() =>
+                    selectedPlacement && deletePlacement(selectedPlacement.placementId)
+                  }
+                />
+              </div>
+            </details>
 
-        {/* Right panel - Inspector */}
-        <div className="lg:col-span-2 min-w-0 flex flex-col">
-          <details className="lg:hidden rounded-lg border border-card-border bg-card">
-            <summary className="px-4 py-3 cursor-pointer select-none font-semibold text-text">
-              Inspector
-            </summary>
-            <div className="p-4 pt-0">
+            <div className="hidden lg:block">
               <InspectorPanel
                 selected={selectedPlacement}
                 onChange={(patch) =>
                   selectedPlacement && updatePlacement(selectedPlacement.placementId, patch)
                 }
-                onDelete={() => selectedPlacement && deletePlacement(selectedPlacement.placementId)}
+                onDelete={() =>
+                  selectedPlacement && deletePlacement(selectedPlacement.placementId)
+                }
               />
             </div>
-          </details>
-
-          <div className="hidden lg:block">
-            <InspectorPanel
-              selected={selectedPlacement}
-              onChange={(patch) =>
-                selectedPlacement && updatePlacement(selectedPlacement.placementId, patch)
-              }
-              onDelete={() => selectedPlacement && deletePlacement(selectedPlacement.placementId)}
-            />
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

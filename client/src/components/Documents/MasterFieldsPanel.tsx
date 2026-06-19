@@ -235,6 +235,45 @@ export default function MasterFieldsPanel({
     }
   };
 
+  const emptyState = useMemo(() => {
+    if (loadingFilter || rows.length > 0) return null;
+
+    if (q.trim()) {
+      return {
+        tone: "info" as const,
+        title: "No matching fields",
+        message: "Clear the search or try a different filter.",
+      };
+    }
+
+    switch (filter) {
+      case "extracted":
+        return {
+          tone: "info" as const,
+          title: "No extracted fields",
+          message: "Upload documents to extract field values.",
+        };
+      case "focus":
+        return {
+          tone: "success" as const,
+          title: "You're done with required reviews",
+          message: 'No missing or review items. Check "All" to verify optional values.',
+        };
+      case "done":
+        return {
+          tone: "info" as const,
+          title: "No completed fields",
+          message: 'Complete fields to see them here, or try "Focus".',
+        };
+      default:
+        return {
+          tone: "info" as const,
+          title: "No fields to show",
+          message: "Try switching filters.",
+        };
+    }
+  }, [filter, loadingFilter, q, rows.length]);
+
   return (
     <div className="space-y-4">
       {/* Compact Summary Header */}
@@ -312,33 +351,16 @@ export default function MasterFieldsPanel({
         </div>
       </Surface>
 
-      {/* Empty State Messages */}
-      {filter === "extracted" && rows.length === 0 && !loadingFilter ? (
-        <Callout tone="info" title="No extracted fields">
-          No fields have been extracted from documents yet. Upload documents to extract field values.
-        </Callout>
-      ) : null}
-      {filter === "focus" && rows.length === 0 && !loadingFilter ? (
-        <Callout tone="success" title="You're done with required reviews">
-          No missing/review items found. You can check "All" if you want to verify optional values.
-        </Callout>
-      ) : null}
-      {filter === "done" && rows.length === 0 && !loadingFilter ? (
-        <Callout tone="info" title="No completed fields">
-          Complete fields to see them here. Try switching to "Focus" to see what needs attention.
-        </Callout>
-      ) : null}
-
       {/* Fields List */}
       <div className="space-y-3">
         {loadingFilter ? (
           <Surface variant="soft" className="p-6">
             <div className="text-center text-sm text-card-text">Loading filtered fields...</div>
           </Surface>
-        ) : rows.length === 0 ? (
+        ) : emptyState ? (
           <Surface variant="soft" className="p-6">
-            <Callout tone="info" title="No fields to show">
-              Try switching filters or clearing the search.
+            <Callout tone={emptyState.tone} title={emptyState.title}>
+              {emptyState.message}
             </Callout>
           </Surface>
         ) : (

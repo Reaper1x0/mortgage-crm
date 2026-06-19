@@ -1,7 +1,7 @@
 import React from "react";
 import { cn } from "../../utils/cn";
 import {
-  semanticMutedClasses,
+  semanticBadgeClasses,
   type SemanticTone,
 } from "../../utils/semanticTokens";
 
@@ -20,7 +20,7 @@ export default function StatusBadge({
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium leading-none",
-        semanticMutedClasses[tone],
+        semanticBadgeClasses[tone],
         className
       )}
     >

@@ -4,7 +4,6 @@ import { useAuth } from "../../context/AuthContext";
 import Callout from "../Reusable/Callout";
 import { OrganizationService } from "../../service/organizationService";
 import Modal from "../Reusable/Modal";
-import ColorPicker from "../Reusable/Inputs/ColorPicker";
 import DropdownMenu from "../Reusable/DropdownMenu";
 import Input from "../Reusable/Inputs/Input";
 import Button from "../Reusable/Button";
@@ -30,12 +29,6 @@ const OrganizationSettings: React.FC = () => {
   const logoUploadRef = React.useRef<FileUploadZoneHandle | null>(null);
   const [showLogoPreview, setShowLogoPreview] = React.useState(false);
   const [logoFile, setLogoFile] = React.useState<File | undefined>(undefined);
-  const [orgPrimaryColor, setOrgPrimaryColor] = React.useState(
-    active?.branding?.organization?.primaryColor || "#3b82f6"
-  );
-  const [orgSecondaryColor, setOrgSecondaryColor] = React.useState(
-    active?.branding?.organization?.secondaryColor || "#8b5cf6"
-  );
   const [name, setName] = React.useState(active?.organization?.name || "");
   const [legalName, setLegalName] = React.useState("");
   const [website, setWebsite] = React.useState("");
@@ -46,10 +39,8 @@ const OrganizationSettings: React.FC = () => {
   const [address, setAddress] = React.useState("");
 
   React.useEffect(() => {
-    setOrgPrimaryColor(active?.branding?.organization?.primaryColor || "#3b82f6");
-    setOrgSecondaryColor(active?.branding?.organization?.secondaryColor || "#8b5cf6");
     setName(active?.organization?.name || "");
-  }, [active?.branding?.organization, active?.organization?.name]);
+  }, [active?.organization?.name]);
 
   if (!active) {
     return (
@@ -88,11 +79,12 @@ const OrganizationSettings: React.FC = () => {
         addressLine1: address || null,
       });
 
-      const orgForm = new FormData();
-      orgForm.append("primaryColor", orgPrimaryColor);
-      orgForm.append("secondaryColor", orgSecondaryColor);
-      if (logoFile) orgForm.append("logo", logoFile);
-      await OrganizationService.updateBranding(orgForm);
+      if (logoFile) {
+        const orgForm = new FormData();
+        orgForm.append("logo", logoFile);
+        await OrganizationService.updateBranding(orgForm);
+      }
+
       await refreshWorkspaces();
       setLogoFile(undefined);
     } finally {
@@ -137,7 +129,7 @@ const OrganizationSettings: React.FC = () => {
           </div>
           <div className="min-w-0">
             <h1 className="text-3xl font-bold text-text leading-tight">{org?.name || "Organization"}</h1>
-            <p className="text-sm text-card-text mt-1">Manage organization identity, branding, and profile.</p>
+            <p className="text-sm text-card-text mt-1">Manage organization identity and profile.</p>
           </div>
           </div>
           <Button
@@ -175,14 +167,6 @@ const OrganizationSettings: React.FC = () => {
             onChange={(e) => setAddress(e.target.value)}
             className="md:col-span-2"
           />
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-card-border bg-card p-4 md:p-5 space-y-5">
-        <h2 className="text-lg font-semibold text-text">Brand Kit</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ColorPicker label="Organization primary color" value={orgPrimaryColor} onChange={setOrgPrimaryColor} />
-          <ColorPicker label="Organization secondary color" value={orgSecondaryColor} onChange={setOrgSecondaryColor} />
         </div>
       </section>
 

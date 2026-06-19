@@ -1,4 +1,4 @@
-import type { FileRef } from "../../types/extraction.types";
+import type { FileRef } from "../types/extraction.types";
 import { resolveFileUrl } from "./fileUrl";
 
 export type DocumentFormatKind =
@@ -49,16 +49,8 @@ export function getDocumentThumbnailUrl(
 ): string | null {
   if (!file) return null;
 
-  const meta = file.meta as { thumbnail_url?: string; thumbnail_kind?: string } | undefined;
-  const signedThumb = resolveFileUrl(meta?.thumbnail_url || null);
-  if (signedThumb) return signedThumb;
-
-  const format = detectDocumentFormat(file.content_type, file.extension);
-  if (format === "image") {
-    return resolveFileUrl(file.url || null);
-  }
-
-  return null;
+  const meta = file.meta as { thumbnail_url?: string } | undefined;
+  return resolveFileUrl(meta?.thumbnail_url || null);
 }
 
 export function getDocumentOpenUrl(file: FileRef | null): string | null {
