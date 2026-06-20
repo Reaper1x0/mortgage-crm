@@ -38,8 +38,8 @@ concurrency:
 env:
   BACKEND_REPO: mortgage-crm-backend
   FRONTEND_REPO: mortgage-crm-frontend
-  BACKEND_TASK_FAMILY: mortgage-crm-backend
-  FRONTEND_TASK_FAMILY: mortgage-crm-frontend
+  BACKEND_TASK_FAMILY: mortgage-crm-backend-task
+  FRONTEND_TASK_FAMILY: mortgage-crm-frontend-task
   BACKEND_SERVICE: mortgage-crm-backend-svc
   FRONTEND_SERVICE: mortgage-crm-frontend-svc
   BACKEND_CONTAINER: backend

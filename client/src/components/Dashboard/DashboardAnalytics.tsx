@@ -264,47 +264,27 @@ const DashboardAnalytics: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
         {/* Trends Chart */}
-        <Card containerClassName="h-full">
-          <div className="p-3 sm:p-4 flex h-full flex-col">
-            <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4 flex-shrink-0">
+        <Card>
+          <div className="p-3 sm:p-4">
+            <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4">
               Cases Processed Trends
             </h3>
-            <div className="min-h-0 flex-1">
-              <LineTrendChart data={trendsData} loading={loading} className="h-full" />
+            <div className="min-h-[320px]">
+              <LineTrendChart data={trendsData} loading={loading} />
             </div>
           </div>
         </Card>
 
         {/* Workload Chart */}
-        <Card containerClassName="h-full">
-          <div className="p-3 sm:p-4 flex flex-col h-full">
-            <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4 flex-shrink-0">
+        <Card>
+          <div className="p-3 sm:p-4">
+            <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4">
               Workload Distribution
             </h3>
-            <div className="min-h-0 flex-1 flex flex-col">
-              <DonutWorkloadChart data={workloadData} loading={loading} className="h-full" />
-              {!loading && data.workload && workloadData.length > 0 && (
-                <div className="mt-3 sm:mt-4 flex justify-center gap-4 sm:gap-6 flex-shrink-0">
-                  <div className="text-center">
-                    <div className="text-xl sm:text-2xl font-bold text-text">
-                      {data.workload.totals.pending}
-                    </div>
-                    <div className="text-xs sm:text-sm text-text-secondary">
-                      Pending
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl sm:text-2xl font-bold text-text">
-                      {data.workload.totals.completed}
-                    </div>
-                    <div className="text-xs sm:text-sm text-text-secondary">
-                      Completed
-                    </div>
-                  </div>
-                </div>
-              )}
+            <div className="min-h-[320px]">
+              <DonutWorkloadChart data={workloadData} loading={loading} />
             </div>
           </div>
         </Card>
