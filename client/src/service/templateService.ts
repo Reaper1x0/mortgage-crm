@@ -20,6 +20,10 @@ export const TemplateService = {
   getTemplateFile: async (id: string) => {
     const res = await apiClient.get(`/templates/${id}/file`, {
       responseType: "arraybuffer",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
     });
     return res.data as ArrayBuffer;
   },

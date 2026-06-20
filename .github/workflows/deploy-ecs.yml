@@ -1,0 +1,225 @@
+# Deploy mortgage-crm to AWS ECS (Fargate + ECR)
+#
+# One-time GitHub setup (Settings → Secrets and variables → Actions):
+#
+# Secrets:
+#   AWS_ACCESS_KEY_ID
+#   AWS_SECRET_ACCESS_KEY
+#
+# Variables (Repository variables tab):
+#   AWS_REGION          e.g. us-east-1
+#   AWS_ACCOUNT_ID      e.g. 539562402207
+#   ECS_CLUSTER         e.g. mortgage-crm-cluster
+#   ALB_URL             e.g. http://mortgage-crm-alb-1282448004.us-east-1.elb.amazonaws.com
+#
+# IAM user policy needs: ecr:* (push), ecs:DescribeTaskDefinition,
+# ecs:RegisterTaskDefinition, ecs:UpdateService, ecs:DescribeServices
+
+name: Deploy to ECS
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      deploy_backend:
+        description: Deploy backend (server/)
+        type: boolean
+        default: true
+      deploy_frontend:
+        description: Deploy frontend (client/)
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-ecs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BACKEND_REPO: mortgage-crm-backend
+  FRONTEND_REPO: mortgage-crm-frontend
+  BACKEND_TASK_FAMILY: mortgage-crm-backend
+  FRONTEND_TASK_FAMILY: mortgage-crm-frontend
+  BACKEND_SERVICE: mortgage-crm-backend-svc
+  FRONTEND_SERVICE: mortgage-crm-frontend-svc
+  BACKEND_CONTAINER: backend
+  FRONTEND_CONTAINER: frontend
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.resolve.outputs.backend }}
+      frontend: ${{ steps.resolve.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        if: github.event_name == 'push'
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'server/**'
+              - '.github/workflows/deploy-ecs.yml'
+            frontend:
+              - 'client/**'
+              - '.github/workflows/deploy-ecs.yml'
+
+      - id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "backend=${{ inputs.deploy_backend }}" >> "$GITHUB_OUTPUT"
+            echo "frontend=${{ inputs.deploy_frontend }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=${{ steps.filter.outputs.backend }}" >> "$GITHUB_OUTPUT"
+            echo "frontend=${{ steps.filter.outputs.frontend }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy-backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "tag=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "image=${{ steps.ecr.outputs.registry }}/${{ env.BACKEND_REPO }}:sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.BACKEND_REPO }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.BACKEND_REPO }}:latest
+
+      - name: Deploy backend to ECS
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+        run: |
+          set -euo pipefail
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "${{ env.BACKEND_TASK_FAMILY }}" \
+            --query taskDefinition \
+            --output json)
+
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" --arg CONTAINER "${{ env.BACKEND_CONTAINER }}" '
+            .containerDefinitions |= map(if .name == $CONTAINER then .image = $IMAGE else . end)
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy,
+                .deregisteredAt
+              )
+          ')
+
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query taskDefinition.taskDefinitionArn \
+            --output text)
+
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "${{ env.BACKEND_SERVICE }}" \
+            --task-definition "$NEW_ARN" \
+            --force-new-deployment
+
+          echo "Backend deployed: $NEW_ARN"
+
+  deploy-frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "tag=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "image=${{ steps.ecr.outputs.registry }}/${{ env.FRONTEND_REPO }}:sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./client
+          push: true
+          build-args: |
+            VITE_SERVER_URL=${{ vars.ALB_URL }}/backend/api
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.FRONTEND_REPO }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.FRONTEND_REPO }}:latest
+
+      - name: Deploy frontend to ECS
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+        run: |
+          set -euo pipefail
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "${{ env.FRONTEND_TASK_FAMILY }}" \
+            --query taskDefinition \
+            --output json)
+
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" --arg CONTAINER "${{ env.FRONTEND_CONTAINER }}" '
+            .containerDefinitions |= map(if .name == $CONTAINER then .image = $IMAGE else . end)
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy,
+                .deregisteredAt
+              )
+          ')
+
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query taskDefinition.taskDefinitionArn \
+            --output text)
+
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "${{ env.FRONTEND_SERVICE }}" \
+            --task-definition "$NEW_ARN" \
+            --force-new-deployment
+
+          echo "Frontend deployed: $NEW_ARN"
