@@ -6,10 +6,13 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
 } from "recharts";
 import { cn } from "../../utils/cn";
 import { useTheme } from "../../context/ThemeContext";
+import ChartResponsiveContainer, {
+  CHART_HEIGHT,
+  chartPlaceholderStyle,
+} from "./ChartResponsiveContainer";
 
 export interface TrendDataPoint {
   bucket: string;
@@ -61,11 +64,12 @@ const LineTrendChart: React.FC<LineTrendChartProps> = ({
     return (
       <div
         className={cn(
-          "w-full h-80 flex items-center justify-center",
+          "w-full min-w-0 flex items-center justify-center",
           "bg-card border border-card-border rounded-2xl",
           "animate-pulse",
           className
         )}
+        style={chartPlaceholderStyle()}
       >
         <div className="text-card-text">Loading chart data...</div>
       </div>
@@ -76,10 +80,11 @@ const LineTrendChart: React.FC<LineTrendChartProps> = ({
     return (
       <div
         className={cn(
-          "w-full h-80 flex items-center justify-center",
+          "w-full min-w-0 flex items-center justify-center",
           "bg-card border border-card-border rounded-2xl",
           className
         )}
+        style={chartPlaceholderStyle()}
       >
         <div className="text-card-text">No data available</div>
       </div>
@@ -87,12 +92,11 @@ const LineTrendChart: React.FC<LineTrendChartProps> = ({
   }
 
   return (
-    <div className={cn("w-full h-80 p-6", className)}>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart 
-          data={data} 
-          margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
-        >
+    <ChartResponsiveContainer className={className} height={CHART_HEIGHT}>
+      <LineChart
+        data={data}
+        margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
+      >
           <CartesianGrid 
             strokeDasharray="3 3" 
             stroke={colors.cardBorder}
@@ -155,8 +159,7 @@ const LineTrendChart: React.FC<LineTrendChartProps> = ({
             strokeLinejoin="round"
           />
         </LineChart>
-      </ResponsiveContainer>
-    </div>
+    </ChartResponsiveContainer>
   );
 };
 

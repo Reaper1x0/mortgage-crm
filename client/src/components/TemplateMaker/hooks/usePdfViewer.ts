@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 interface UsePdfViewerProps {
   containerRef?: React.RefObject<HTMLDivElement>;
@@ -6,6 +6,11 @@ interface UsePdfViewerProps {
   onPageSizeChange?: (size: { w: number; h: number }) => void;
   onPageDimensionsReady?: (width: number, height: number) => void;
 }
+
+/** Wait for CSS width transitions (e.g. collapsible sidebar) before resizing the PDF. */
+const PAGE_WIDTH_DEBOUNCE_MS = 250;
+const PAGE_WIDTH_EPSILON = 2;
+const PAGE_PX_SYNC_DEBOUNCE_MS = 50;
 
 /**
  * Hook for managing PDF viewer size and calculations
@@ -20,6 +25,8 @@ export function usePdfViewer({
   // Responsive width - will be calculated based on container
   const [pageWidth, setPageWidth] = useState<number>(750);
   const [pagePx, setPagePx] = useState<{ w: number; h: number }>({ w: 750, h: 1000 });
+  const pageWidthDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pagePxDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Calculate responsive page width based on container
   const calculatePageWidth = useCallback(() => {
@@ -45,8 +52,28 @@ export function usePdfViewer({
     const padding = window.innerWidth < 640 ? 16 : window.innerWidth < 768 ? 24 : 32;
     const maxWidth = rect.width - padding;
     // Ensure minimum width and reasonable maximum (prevent too large on ultrawide screens)
-    return Math.max(280, Math.min(maxWidth, 1200));
+    return Math.round(Math.max(280, Math.min(maxWidth, 1200)));
   }, [containerRef]);
+
+  const applyPageWidth = useCallback(
+    (nextWidth: number) => {
+      setPageWidth((prev) => {
+        if (Math.abs(prev - nextWidth) < PAGE_WIDTH_EPSILON) return prev;
+        return nextWidth;
+      });
+    },
+    [],
+  );
+
+  const schedulePageWidthUpdate = useCallback(() => {
+    if (pageWidthDebounceRef.current) {
+      clearTimeout(pageWidthDebounceRef.current);
+    }
+    pageWidthDebounceRef.current = setTimeout(() => {
+      pageWidthDebounceRef.current = null;
+      applyPageWidth(calculatePageWidth());
+    }, PAGE_WIDTH_DEBOUNCE_MS);
+  }, [applyPageWidth, calculatePageWidth]);
 
   const syncPagePx = useCallback(() => {
     const pageEl = pageWrapRef.current?.querySelector(".react-pdf__Page") as HTMLElement | null;
@@ -65,46 +92,58 @@ export function usePdfViewer({
     }
   }, [pageWrapRef, onPageSizeChange]);
 
-  // Update page width on resize
-  useEffect(() => {
-    const updateWidth = () => {
-      const newWidth = calculatePageWidth();
-      setPageWidth(newWidth);
-    };
+  const scheduleSyncPagePx = useCallback(() => {
+    if (pagePxDebounceRef.current) {
+      clearTimeout(pagePxDebounceRef.current);
+    }
+    pagePxDebounceRef.current = setTimeout(() => {
+      pagePxDebounceRef.current = null;
+      syncPagePx();
+    }, PAGE_PX_SYNC_DEBOUNCE_MS);
+  }, [syncPagePx]);
 
-    updateWidth();
-    window.addEventListener("resize", updateWidth);
-    
-    // Also observe container resize if available
+  // Update page width on resize (debounced so sidebar width transitions don't re-render PDF every frame)
+  useEffect(() => {
+    applyPageWidth(calculatePageWidth());
+    window.addEventListener("resize", schedulePageWidthUpdate);
+
     let resizeObserver: ResizeObserver | null = null;
     if (containerRef?.current) {
-      resizeObserver = new ResizeObserver(updateWidth);
+      resizeObserver = new ResizeObserver(schedulePageWidthUpdate);
       resizeObserver.observe(containerRef.current);
     }
 
     return () => {
-      window.removeEventListener("resize", updateWidth);
+      window.removeEventListener("resize", schedulePageWidthUpdate);
       resizeObserver?.disconnect();
+      if (pageWidthDebounceRef.current) {
+        clearTimeout(pageWidthDebounceRef.current);
+      }
     };
-  }, [calculatePageWidth, containerRef]);
+  }, [applyPageWidth, calculatePageWidth, schedulePageWidthUpdate, containerRef]);
 
   // Handle PDF native dimensions (for reference, not used for sizing)
   const handlePageDimensions = useCallback((width: number, height: number) => {
     onPageDimensionsReady?.(width, height);
   }, [onPageDimensionsReady]);
 
-  // Sync page size when PDF renders
+  // Sync overlay placement size when the rendered page element resizes
   useEffect(() => {
     if (!pageWrapRef.current) return;
 
     const pageEl = pageWrapRef.current.querySelector(".react-pdf__Page") as HTMLElement | null;
     if (!pageEl) return;
 
-    const ro = new ResizeObserver(() => syncPagePx());
+    const ro = new ResizeObserver(() => scheduleSyncPagePx());
     ro.observe(pageEl);
 
-    return () => ro.disconnect();
-  }, [pageWrapRef, syncPagePx]);
+    return () => {
+      ro.disconnect();
+      if (pagePxDebounceRef.current) {
+        clearTimeout(pagePxDebounceRef.current);
+      }
+    };
+  }, [pageWrapRef, scheduleSyncPagePx]);
 
   return {
     pageWidth,

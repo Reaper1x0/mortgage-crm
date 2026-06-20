@@ -271,7 +271,7 @@ const DashboardAnalytics: React.FC = () => {
             <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4">
               Cases Processed Trends
             </h3>
-            <div className="min-h-[320px]">
+            <div className="min-h-[280px] min-w-0">
               <LineTrendChart data={trendsData} loading={loading} />
             </div>
           </div>
@@ -283,7 +283,7 @@ const DashboardAnalytics: React.FC = () => {
             <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4">
               Workload Distribution
             </h3>
-            <div className="min-h-[320px]">
+            <div className="min-h-[280px] min-w-0">
               <DonutWorkloadChart data={workloadData} loading={loading} />
             </div>
           </div>

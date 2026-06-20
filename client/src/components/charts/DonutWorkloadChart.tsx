@@ -3,12 +3,15 @@ import {
   PieChart, 
   Pie, 
   Cell, 
-  ResponsiveContainer, 
   Tooltip, 
   Legend 
 } from "recharts";
 import { cn } from "../../utils/cn";
 import { useTheme } from "../../context/ThemeContext";
+import ChartResponsiveContainer, {
+  CHART_HEIGHT,
+  chartPlaceholderStyle,
+} from "./ChartResponsiveContainer";
 
 export interface WorkloadDataPoint {
   name: string;
@@ -102,11 +105,12 @@ const DonutWorkloadChart: React.FC<DonutWorkloadChartProps> = ({
     return (
       <div
         className={cn(
-          "w-full h-80 flex items-center justify-center",
+          "w-full min-w-0 flex items-center justify-center",
           "bg-card border border-card-border rounded-2xl",
           "animate-pulse",
           className
         )}
+        style={chartPlaceholderStyle()}
       >
         <div className="text-card-text">Loading chart data...</div>
       </div>
@@ -117,10 +121,11 @@ const DonutWorkloadChart: React.FC<DonutWorkloadChartProps> = ({
     return (
       <div
         className={cn(
-          "w-full h-80 flex items-center justify-center",
+          "w-full min-w-0 flex items-center justify-center",
           "bg-card border border-card-border rounded-2xl",
           className
         )}
+        style={chartPlaceholderStyle()}
       >
         <div className="text-card-text">No data available</div>
       </div>
@@ -128,9 +133,8 @@ const DonutWorkloadChart: React.FC<DonutWorkloadChartProps> = ({
   }
 
   return (
-    <div className={cn("w-full h-80 p-6", className)}>
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
+    <ChartResponsiveContainer className={className} height={CHART_HEIGHT}>
+      <PieChart>
           <Pie
             data={data}
             cx="50%"
@@ -212,8 +216,7 @@ const DonutWorkloadChart: React.FC<DonutWorkloadChartProps> = ({
             }}
           />
         </PieChart>
-      </ResponsiveContainer>
-    </div>
+    </ChartResponsiveContainer>
   );
 };
 

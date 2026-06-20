@@ -7,10 +7,13 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
 } from "recharts";
 import { cn } from "../../utils/cn";
 import { useTheme } from "../../context/ThemeContext";
+import ChartResponsiveContainer, {
+  CHART_HEIGHT,
+  chartPlaceholderStyle,
+} from "./ChartResponsiveContainer";
 
 export interface BarDataPoint {
   name: string;
@@ -101,11 +104,12 @@ const BarChartSimple: React.FC<BarChartSimpleProps> = ({
     return (
       <div
         className={cn(
-          "w-full h-80 flex items-center justify-center",
+          "w-full min-w-0 flex items-center justify-center",
           "bg-card border border-card-border rounded-2xl",
           "animate-pulse",
           className
         )}
+        style={chartPlaceholderStyle()}
       >
         <div className="text-card-text">Loading chart data...</div>
       </div>
@@ -116,10 +120,11 @@ const BarChartSimple: React.FC<BarChartSimpleProps> = ({
     return (
       <div
         className={cn(
-          "w-full h-80 flex items-center justify-center",
+          "w-full min-w-0 flex items-center justify-center",
           "bg-card border border-card-border rounded-2xl",
           className
         )}
+        style={chartPlaceholderStyle()}
       >
         <div className="text-card-text">No data available</div>
       </div>
@@ -127,12 +132,11 @@ const BarChartSimple: React.FC<BarChartSimpleProps> = ({
   }
 
   return (
-    <div className={cn("w-full h-80 p-6", className)}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart 
-          data={data} 
-          margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
-        >
+    <ChartResponsiveContainer className={className} height={CHART_HEIGHT}>
+      <BarChart
+        data={data}
+        margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
+      >
           <defs>
             <linearGradient id={`barGradient-${color}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={colors.selected.main} stopOpacity={1} />
@@ -189,8 +193,7 @@ const BarChartSimple: React.FC<BarChartSimpleProps> = ({
             ))}
           </Bar>
         </BarChart>
-      </ResponsiveContainer>
-    </div>
+    </ChartResponsiveContainer>
   );
 };
 
