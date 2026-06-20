@@ -1,10 +1,17 @@
-import { Document, Page } from "react-pdf";
+import { Document, Page, pdfjs, type DocumentProps } from "react-pdf";
 import { Placement } from "../../../types/template.types";
 import PlacementBox from "../PlacementBox";
 import { rectToPx, pxToRect } from "../utils/placementUtils";
 
+// Must be configured in the same module as <Document>/<Page> (react-pdf requirement).
+// Vite bundles the worker from pdfjs-dist so version always matches react-pdf.
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url,
+).toString();
+
 interface PdfViewerProps {
-  templateUrl: string;
+  pdfFile: DocumentProps["file"];
   pageIndex: number;
   pageWidth: number;
   pagePx: { w: number; h: number };
@@ -20,7 +27,7 @@ interface PdfViewerProps {
 }
 
 export default function PdfViewer({
-  templateUrl,
+  pdfFile,
   pageIndex,
   pageWidth,
   pagePx,
@@ -49,7 +56,7 @@ export default function PdfViewer({
 
   return (
     <div className="mt-3 w-full min-w-0 overflow-x-auto">
-      {!templateUrl ? (
+      {!pdfFile ? (
         <div className="text-card-text">Upload or load a template to start.</div>
       ) : (
         <div
@@ -58,10 +65,17 @@ export default function PdfViewer({
         >
           <div className="relative inline-block leading-none max-w-full" ref={pageWrapRef}>
             <Document
-              file={templateUrl}
+              file={pdfFile}
               onLoadSuccess={(d) => onPageLoad(d.numPages)}
+              onLoadError={(error) => {
+                console.error("react-pdf failed to load document:", error);
+              }}
               loading={<div className="text-card-text p-3">Loading PDF...</div>}
-              error={<div className="text-danger-text p-3">Failed to load PDF file.</div>}
+              error={
+                <div className="text-danger-text p-3">
+                  Failed to load PDF file. Check the browser console for details.
+                </div>
+              }
             >
               <Page
                 pageNumber={pageIndex + 1}

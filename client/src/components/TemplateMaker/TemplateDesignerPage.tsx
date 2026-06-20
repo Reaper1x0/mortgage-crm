@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router";
-import { pdfjs } from "react-pdf";
+import { type DocumentProps } from "react-pdf";
 import Button from "../../components/Reusable/Button";
 import { TemplateService } from "../../service/templateService";
 import { MasterFieldService } from "../../service/masterFieldService";
@@ -18,15 +18,13 @@ import ViewControls from "./components/ViewControls";
 import MasterFieldsPanel from "./components/MasterFieldsPanel";
 import KeyboardShortcutsHelp from "./components/KeyboardShortcutsHelp";
 
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-
 export default function TemplateDesignerPage() {
   const { templateId, organizationId, workspaceId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
   const [template, setTemplate] = useState<TemplateDoc | null>(null);
-  const [templateUrl, setTemplateUrl] = useState<string>("");
+  const [pdfFile, setPdfFile] = useState<DocumentProps["file"]>(null);
   const [masterFields, setMasterFields] = useState<MasterField[]>([]);
   const [masterFieldsLoading, setMasterFieldsLoading] = useState(true);
   const [placements, setPlacements] = useState<Placement[]>([]);
@@ -63,8 +61,8 @@ export default function TemplateDesignerPage() {
   // Load template and master fields
   useEffect(() => {
     if (!templateId) return;
-    let activeBlobUrl: string | null = null;
     setMasterFieldsLoading(true);
+    setPdfFile(null);
     (async () => {
       try {
         const [tplRes, mfRes] = await Promise.all([
@@ -79,36 +77,34 @@ export default function TemplateDesignerPage() {
         setPageIndex(0);
         setMasterFields(mfRes.fields || []);
 
-        try {
-          const fileBytes = await TemplateService.getTemplateFile(templateId);
-          const header = new TextDecoder("ascii")
-            .decode(new Uint8Array(fileBytes).slice(0, 5))
-            .trim();
-          if (!header.startsWith("%PDF")) {
-            throw new Error("Template file response is not a PDF");
-          }
-          const blob = new Blob([fileBytes], { type: "application/pdf" });
-          activeBlobUrl = URL.createObjectURL(blob);
-          setTemplateUrl(activeBlobUrl);
-        } catch (err) {
-          setTemplateUrl(tpl.file?.url || "");
+        const fileBytes = await TemplateService.getTemplateFile(templateId);
+        const header = new TextDecoder("ascii")
+          .decode(new Uint8Array(fileBytes).slice(0, 5))
+          .trim();
+        if (!header.startsWith("%PDF")) {
+          throw new Error("Template file response is not a PDF");
         }
+        setPdfFile({ data: new Uint8Array(fileBytes) });
+      } catch (err) {
+        console.error("Failed to load template PDF:", err);
+        dispatch(
+          addToast({
+            message: "Failed to load template PDF. Please refresh and try again.",
+            type: "error",
+          }),
+        );
       } finally {
         setMasterFieldsLoading(false);
       }
     })();
-
-    return () => {
-      if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
-    };
-  }, [templateId]);
+  }, [templateId, dispatch]);
 
   // Sync page size when PDF renders
   useEffect(() => {
-    if (!templateUrl) return;
+    if (!pdfFile) return;
     const t = setTimeout(syncPagePx, 100);
     return () => clearTimeout(t);
-  }, [templateUrl, pageIndex, pageWidth, syncPagePx]);
+  }, [pdfFile, pageIndex, pageWidth, syncPagePx]);
 
 
   // Placement management functions
@@ -262,7 +258,7 @@ export default function TemplateDesignerPage() {
             />
 
             <PdfViewer
-              templateUrl={templateUrl}
+              pdfFile={pdfFile}
               pageIndex={pageIndex}
               pageWidth={pageWidth}
               pagePx={pagePx}

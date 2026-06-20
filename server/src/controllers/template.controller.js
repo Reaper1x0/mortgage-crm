@@ -95,7 +95,12 @@ const TemplateController = {
       "Content-Disposition",
       `inline; filename="${String(fileName).replace(/"/g, "")}"`
     );
-    return res.status(200).send(fileBuffer);
+    // Avoid Express ETag 304 responses — axios arraybuffer clients receive an empty body on 304.
+    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.status(200);
+    return res.end(fileBuffer);
   }),
 
   savePlacements: catchAsync(async (req, res) => {
