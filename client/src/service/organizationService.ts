@@ -40,7 +40,6 @@ export interface EffectivePermissions {
   organizationRoleSlug?: string | null;
   organizationPermissions: string[];
   workspacePermissions: string[] | null;
-  canManageWorkspaceUsers?: boolean;
 }
 
 export interface PermissionCatalogEntry {

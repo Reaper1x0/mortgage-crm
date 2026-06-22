@@ -45,8 +45,8 @@ const listLeads = {
     search: Joi.string().allow(""),
     source: Joi.string().allow(""),
     company: Joi.string().allow(""),
-    createdFrom: Joi.date().iso(),
-    createdTo: Joi.date().iso(),
+    createdFrom: Joi.date().iso().optional().allow("", null),
+    createdTo: Joi.date().iso().optional().allow("", null),
   }),
 };
 

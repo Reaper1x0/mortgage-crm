@@ -147,9 +147,14 @@ const Navbar = () => {
 
           <div className="flex items-center gap-2">
             {!isAuthenticated ? (
-              <Button variant="primary" onClick={() => navigate("/")}>
-                {t("join_now")}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" onClick={() => navigate("/")}>
+                  {t("login")}
+                </Button>
+                <Button variant="primary" onClick={() => navigate("/register")}>
+                  {t("register")}
+                </Button>
+              </div>
             ) : (
               <>
                 {!isOnboarding && workspaces.length > 0 && (

@@ -6,3 +6,4 @@ module.exports.workspaceValidation = require("./workspace.validation");
 module.exports.organizationValidation = require("./organization.validation");
 module.exports.superAdminValidation = require("./superAdmin.validation");
 module.exports.billingValidation = require("./billing.validation");
+module.exports.masterFieldsValidation = require("./masterFields.validation");

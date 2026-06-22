@@ -60,16 +60,18 @@ export default function PageHeader({
   return (
     <header
       className={cn(
-        "flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between",
-        className
+        isSection
+          ? "flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between"
+          : "flex flex-col gap-3",
+        className,
       )}
     >
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 w-full">
         {back ? <PageHeaderBackLink back={back} /> : null}
         <h1
           className={cn(
             "font-extrabold tracking-tight text-text",
-            isSection ? "text-lg leading-snug" : "text-xl leading-tight sm:text-2xl"
+            isSection ? "text-lg leading-snug" : "text-xl leading-tight sm:text-2xl",
           )}
         >
           {title}
@@ -78,7 +80,7 @@ export default function PageHeader({
           <div
             className={cn(
               "mt-0.5 text-card-text",
-              isSection ? "text-xs leading-relaxed" : "max-w-3xl text-sm leading-snug"
+              isSection ? "text-xs leading-relaxed" : "max-w-3xl text-sm leading-snug",
             )}
           >
             {description}
@@ -87,7 +89,14 @@ export default function PageHeader({
       </div>
 
       {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-2",
+            isSection ? "shrink-0 sm:justify-end" : "w-full sm:justify-end",
+          )}
+        >
+          {actions}
+        </div>
       ) : null}
     </header>
   );

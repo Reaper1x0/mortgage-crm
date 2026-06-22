@@ -5,16 +5,19 @@ import Button from "../Reusable/Button";
 import DataTable from "../Reusable/DataTable";
 import Modal from "../Reusable/Modal";
 import Input from "../Reusable/Inputs/Input";
-import FileUploadZone from "../Reusable/Inputs/FileUploadZone";
 import TextArea from "../Reusable/Inputs/TextArea";
 import IconButton from "../Reusable/IconButton";
-import Select from "../Reusable/Inputs/Select";
-import Checkbox from "../Reusable/Checkbox";
+import ListFilterPanel, { type FilterFieldConfig } from "../Reusable/ListFilterPanel";
+import BulkActionBar from "../Reusable/BulkActionBar";
+import BulkImportWizard from "../Reusable/BulkImportWizard";
 import { prettyDate } from "../../utils/date";
 import { showSuccessToast, showWarningToast } from "../../utils/errorHandler";
 import { Lead, LeadService } from "../../service/leadService";
 import { usePermissions } from "../../context/PermissionContext";
 import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
+import { usePaginatedList } from "../../hooks/usePaginatedList";
+import { useRowSelection } from "../../hooks/useRowSelection";
+import type { ListQueryParams } from "../../types/listQuery";
 
 type LeadFormData = {
   fullName: string;
@@ -37,6 +40,14 @@ const FIELD_LABELS: Record<LeadField, string> = {
   notes: "Notes",
 };
 
+const LEAD_FILTER_FIELDS: FilterFieldConfig[] = [
+  { type: "search", key: "search", label: "Search", placeholder: "Name, email, phone..." },
+  { type: "text", key: "source", label: "Source", placeholder: "Website, Referral..." },
+  { type: "text", key: "company", label: "Company", placeholder: "Company name" },
+  { type: "date", key: "createdFrom", label: "Created From" },
+  { type: "date", key: "createdTo", label: "Created To" },
+];
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const emptyLeadForm: LeadFormData = {
@@ -47,6 +58,21 @@ const emptyLeadForm: LeadFormData = {
   source: "",
   notes: "",
 };
+
+const LEAD_INITIAL_FILTERS = {
+  search: "",
+  source: "",
+  company: "",
+  createdFrom: "",
+  createdTo: "",
+};
+
+async function fetchLeadsList(params: ListQueryParams) {
+  const res = await LeadService.listLeads(params);
+  return { items: res.leads, pagination: res.pagination };
+}
+
+const leadRowKey = (row: Lead) => row._id;
 
 const getLeadPayload = (formData: LeadFormData) => ({
   fullName: formData.fullName.trim(),
@@ -60,151 +86,96 @@ const getLeadPayload = (formData: LeadFormData) => ({
 export default function LeadsPage() {
   const { canWorkspace } = usePermissions();
   const canLeadsWrite = canWorkspace("workspace.leads.write");
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+
   const [isCreateOpen, setCreateOpen] = useState(false);
   const [isEditOpen, setEditOpen] = useState(false);
   const [isBulkOpen, setBulkOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [total, setTotal] = useState(0);
-  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [createdFrom, setCreatedFrom] = useState("");
-  const [createdTo, setCreatedTo] = useState("");
   const [downloadingSample, setDownloadingSample] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const fetchLeads = useCallback(
-    async (p = page, ps = pageSize) => {
-      setLoading(true);
-      try {
-        const params: {
-          page: number;
-          limit: number;
-          sortBy: string;
-          sortOrder: "asc" | "desc";
-          search?: string;
-          source?: string;
-          company?: string;
-          createdFrom?: string;
-          createdTo?: string;
-        } = {
-          page: p,
-          limit: ps,
-          sortBy: "createdAt",
-          sortOrder: "desc",
-        };
-        if (searchQuery.trim()) params.search = searchQuery.trim();
-        if (sourceFilter.trim()) params.source = sourceFilter.trim();
-        if (companyFilter.trim()) params.company = companyFilter.trim();
-        if (createdFrom) params.createdFrom = createdFrom;
-        if (createdTo) params.createdTo = createdTo;
+  const list = usePaginatedList<Lead>({
+    fetchFn: fetchLeadsList,
+    initialFilters: LEAD_INITIAL_FILTERS,
+  });
 
-        const res = await LeadService.listLeads(params);
-        const list = res?.leads || [];
-        const meta = res?.pagination;
-        setLeads(list);
-        setSelectedLeadIds((prev) => prev.filter((id) => list.some((lead) => lead._id === id)));
-        setTotal(typeof meta?.total === "number" ? meta.total : list.length);
-        if (typeof meta?.page === "number") setPage(meta.page);
-        if (typeof meta?.limit === "number") setPageSize(meta.limit);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [page, pageSize, searchQuery, sourceFilter, companyFilter, createdFrom, createdTo]
+  const selection = useRowSelection<Lead>({
+    rowKey: leadRowKey,
+    rows: list.data,
+  });
+
+  const filterValues = useMemo(
+    () => ({
+      search: String(list.filters.search ?? ""),
+      source: String(list.filters.source ?? ""),
+      company: String(list.filters.company ?? ""),
+      createdFrom: String(list.filters.createdFrom ?? ""),
+      createdTo: String(list.filters.createdTo ?? ""),
+    }),
+    [list.filters],
   );
-
-  useEffect(() => {
-    fetchLeads(page, pageSize);
-  }, [page, pageSize, fetchLeads]);
 
   const handleDelete = async () => {
     if (!leadToDelete) return;
-    setLoading(true);
+    setActionLoading(true);
     try {
       await LeadService.deleteLead(leadToDelete._id);
       showSuccessToast("Lead deleted successfully");
       setDeleteConfirmOpen(false);
       setLeadToDelete(null);
-      await fetchLeads(page, pageSize);
+      await list.refetch();
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
-  };
-
-  const toggleLeadSelection = (leadId: string, checked: boolean) => {
-    setSelectedLeadIds((prev) => {
-      if (checked) {
-        if (prev.includes(leadId)) return prev;
-        return [...prev, leadId];
-      }
-      return prev.filter((id) => id !== leadId);
-    });
-  };
-
-  const allVisibleSelected = leads.length > 0 && leads.every((lead) => selectedLeadIds.includes(lead._id));
-
-  const toggleSelectAllVisible = (checked: boolean) => {
-    if (checked) {
-      const visibleIds = leads.map((lead) => lead._id);
-      setSelectedLeadIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
-      return;
-    }
-    const visibleIdSet = new Set(leads.map((lead) => lead._id));
-    setSelectedLeadIds((prev) => prev.filter((id) => !visibleIdSet.has(id)));
   };
 
   const handleBulkDelete = async () => {
-    if (!selectedLeadIds.length) return;
-    setLoading(true);
+    if (!selection.selectedKeys.length) return;
+    setActionLoading(true);
     try {
-      await LeadService.bulkDeleteLeads(selectedLeadIds);
-      showSuccessToast(`${selectedLeadIds.length} lead(s) deleted successfully`);
-      setSelectedLeadIds([]);
+      await LeadService.bulkDeleteLeads(selection.selectedKeys);
+      showSuccessToast(`${selection.selectedKeys.length} lead(s) deleted successfully`);
+      selection.clear();
       setBulkDeleteConfirmOpen(false);
-      await fetchLeads(page, pageSize);
+      await list.refetch();
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   const handleMoveSingleLead = useCallback(
     async (lead: Lead) => {
-      setLoading(true);
+      setActionLoading(true);
       try {
         const res = await LeadService.moveLeadToClient(lead._id);
         showSuccessToast(`${lead.fullName} moved to client`);
         if (res.skippedCount > 0) {
           showWarningToast(`${res.skippedCount} lead(s) skipped`);
         }
-        await fetchLeads(page, pageSize);
+        await list.refetch();
       } finally {
-        setLoading(false);
+        setActionLoading(false);
       }
     },
-    [fetchLeads, page, pageSize]
+    [list],
   );
 
   const handleBulkMoveToClients = async () => {
-    if (!selectedLeadIds.length) return;
-    setLoading(true);
+    if (!selection.selectedKeys.length) return;
+    setActionLoading(true);
     try {
-      const res = await LeadService.bulkMoveLeadsToClients(selectedLeadIds);
+      const res = await LeadService.bulkMoveLeadsToClients(selection.selectedKeys);
       showSuccessToast(`${res.movedCount} lead(s) moved to client`);
       if (res.skippedCount > 0) {
         showWarningToast(`${res.skippedCount} lead(s) skipped`);
       }
-      setSelectedLeadIds([]);
-      await fetchLeads(page, pageSize);
+      selection.clear();
+      await list.refetch();
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
@@ -217,34 +188,11 @@ export default function LeadsPage() {
     }
   }, []);
 
+  const busy = list.loading || actionLoading;
+
   const columns = useMemo(
     () => [
-      {
-        title: (
-          <div className="flex items-center justify-center">
-            <Checkbox
-              checked={allVisibleSelected}
-              onChange={(e) => toggleSelectAllVisible(e.target.checked)}
-              size="sm"
-              disabled={!canLeadsWrite}
-              title={!canLeadsWrite ? PERMISSION_TOOLTIPS.leadBulkSelection : undefined}
-            />
-          </div>
-        ),
-        dataIndex: "select",
-        render: (_: unknown, row: Lead) => (
-          <div className="flex items-center justify-center">
-            <Checkbox
-              checked={selectedLeadIds.includes(row._id)}
-              onChange={(e) => toggleLeadSelection(row._id, e.target.checked)}
-              size="sm"
-              disabled={!canLeadsWrite}
-              title={!canLeadsWrite ? PERMISSION_TOOLTIPS.leadBulkSelection : undefined}
-            />
-          </div>
-        ),
-      },
-      { title: "Full Name", dataIndex: "fullName" },
+      { title: "Full Name", dataIndex: "fullName", sortable: true },
       { title: "Email", dataIndex: "email", render: (v: string) => v || "-" },
       { title: "Phone", dataIndex: "phone", render: (v: string) => v || "-" },
       { title: "Company", dataIndex: "company", render: (v: string) => v || "-" },
@@ -257,6 +205,7 @@ export default function LeadsPage() {
       {
         title: "Created At",
         dataIndex: "createdAt",
+        sortable: true,
         render: (v: string) => <span className="text-sm text-card-text">{v ? prettyDate(v) : "-"}</span>,
       },
       {
@@ -295,7 +244,7 @@ export default function LeadsPage() {
             <Button
               variant="secondary"
               onClick={() => handleMoveSingleLead(row)}
-              disabled={loading || !canLeadsWrite}
+              disabled={busy || !canLeadsWrite}
               disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.moveLeadToClient : undefined}
             >
               Make Client
@@ -304,7 +253,7 @@ export default function LeadsPage() {
         ),
       },
     ],
-    [allVisibleSelected, selectedLeadIds, canLeadsWrite, loading, handleMoveSingleLead]
+    [busy, canLeadsWrite, handleMoveSingleLead],
   );
 
   return (
@@ -313,11 +262,14 @@ export default function LeadsPage() {
         title="Leads"
         description="Manage your leads and import them from spreadsheets."
         actions={
-          <div className="flex gap-2">
+          <>
             <Button variant="secondary" onClick={handleDownloadSampleTemplate} disabled={downloadingSample}>
               <span className="inline-flex items-center gap-2">
                 <FiDownload className="h-4 w-4 shrink-0" aria-hidden />
-                {downloadingSample ? "Preparing…" : "Sample leads format (XLSX)"}
+                <span className="hidden sm:inline">
+                  {downloadingSample ? "Preparing…" : "Sample leads format (XLSX)"}
+                </span>
+                <span className="sm:hidden">{downloadingSample ? "…" : "Sample"}</span>
               </span>
             </Button>
             <Button
@@ -342,118 +294,59 @@ export default function LeadsPage() {
                 Add Lead
               </span>
             </Button>
-          </div>
+          </>
         }
       />
 
-      <div className="rounded-2xl border border-card-border bg-card p-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
-          <Input
-            label="Search"
-            name="leadSearch"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Name, email, phone..."
-          />
-          <Input
-            label="Source"
-            name="sourceFilter"
-            value={sourceFilter}
-            onChange={(e) => {
-              setSourceFilter(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Website, Referral..."
-          />
-          <Input
-            label="Company"
-            name="companyFilter"
-            value={companyFilter}
-            onChange={(e) => {
-              setCompanyFilter(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Company name"
-          />
-          <Input
-            label="Created From"
-            name="createdFrom"
-            type="date"
-            value={createdFrom}
-            onChange={(e) => {
-              setCreatedFrom(e.target.value);
-              setPage(1);
-            }}
-          />
-          <Input
-            label="Created To"
-            name="createdTo"
-            type="date"
-            value={createdTo}
-            onChange={(e) => {
-              setCreatedTo(e.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-        <div className="mt-3">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setSearchQuery("");
-              setSourceFilter("");
-              setCompanyFilter("");
-              setCreatedFrom("");
-              setCreatedTo("");
-              setPage(1);
-            }}
-          >
-            Clear Filters
-          </Button>
-        </div>
-      </div>
+      <ListFilterPanel
+        fields={LEAD_FILTER_FIELDS}
+        values={filterValues}
+        onChange={(key, value) => list.setFilter(key as keyof typeof filterValues, value)}
+        onClear={list.clearFilters}
+      />
 
-      {selectedLeadIds.length > 0 && (
-        <div className="rounded-2xl border border-card-border bg-card p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-card-text">
-              <span className="font-semibold text-text">{selectedLeadIds.length}</span> lead(s) selected
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                onClick={handleBulkMoveToClients}
-                disabled={loading || !canLeadsWrite}
-                disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.moveLeadToClient : undefined}
-              >
-                Make Clients
-              </Button>
-              <Button
-                variant="danger"
-                onClick={() => setBulkDeleteConfirmOpen(true)}
-                disabled={loading || !canLeadsWrite}
-                disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.bulkDeleteLeads : undefined}
-              >
-                Delete Selected
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <BulkActionBar selectedCount={selection.selectedCount} itemLabel="lead">
+        <Button
+          variant="secondary"
+          onClick={handleBulkMoveToClients}
+          disabled={busy || !canLeadsWrite}
+          disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.moveLeadToClient : undefined}
+        >
+          Make Clients
+        </Button>
+        <Button
+          variant="danger"
+          onClick={() => setBulkDeleteConfirmOpen(true)}
+          disabled={busy || !canLeadsWrite}
+          disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.bulkDeleteLeads : undefined}
+        >
+          Delete Selected
+        </Button>
+      </BulkActionBar>
+
       <DataTable
-        loading={loading}
-        data={leads}
+        loading={list.loading}
+        data={list.data}
         columns={columns}
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        onPageChange={(p) => setPage(p)}
-        onPageSizeChange={(ps) => {
-          setPageSize(ps);
-          setPage(1);
+        page={list.page}
+        pageSize={list.pageSize}
+        total={list.total}
+        onPageChange={list.setPage}
+        onPageSizeChange={list.setPageSize}
+        rowKey={(row) => row._id}
+        rowSelection={{
+          selectedKeys: selection.selectedKeys,
+          onToggle: selection.toggle,
+          onToggleAllVisible: selection.toggleAllVisible,
+          allVisibleSelected: selection.allVisibleSelected,
+          someVisibleSelected: selection.someVisibleSelected,
+          disabled: !canLeadsWrite,
+          disabledTooltip: !canLeadsWrite ? PERMISSION_TOOLTIPS.leadBulkSelection : undefined,
+        }}
+        sort={{
+          sortBy: list.sortBy,
+          sortOrder: list.sortOrder,
+          onSort: list.setSort,
         }}
       />
 
@@ -467,7 +360,7 @@ export default function LeadsPage() {
           await LeadService.createLead(payload);
           showSuccessToast("Lead created successfully");
           setCreateOpen(false);
-          await fetchLeads(page, pageSize);
+          await list.refetch();
         }}
       />
 
@@ -493,7 +386,7 @@ export default function LeadsPage() {
           showSuccessToast("Lead updated successfully");
           setEditOpen(false);
           setSelectedLead(null);
-          await fetchLeads(page, pageSize);
+          await list.refetch();
         }}
       />
 
@@ -505,24 +398,33 @@ export default function LeadsPage() {
           setLeadToDelete(null);
         }}
         onConfirm={handleDelete}
-        loading={loading}
+        loading={busy}
       />
 
       <DeleteSelectedLeadsModal
         isOpen={bulkDeleteConfirmOpen}
-        count={selectedLeadIds.length}
+        count={selection.selectedCount}
         onClose={() => setBulkDeleteConfirmOpen(false)}
         onConfirm={handleBulkDelete}
-        loading={loading}
+        loading={busy}
       />
 
-      <BulkUploadModal
+      <BulkImportWizard
         isOpen={isBulkOpen}
+        title="Bulk Upload Leads"
         onClose={() => setBulkOpen(false)}
         onImported={async () => {
           setBulkOpen(false);
-          await fetchLeads(page, pageSize);
+          await list.refetch();
         }}
+        targetFields={[...LEAD_FIELDS]}
+        fieldLabels={FIELD_LABELS}
+        requiredFields={["fullName"]}
+        onPreview={LeadService.bulkPreview}
+        onImport={async (rows, mapping) =>
+          LeadService.bulkImport({ rows, mapping: mapping as Record<LeadField, string> })
+        }
+        importButtonLabel="Import Leads"
       />
     </div>
   );
@@ -690,240 +592,6 @@ function DeleteLeadModal({
           {loading ? "Deleting..." : "Delete Lead"}
         </Button>
       </div>
-    </Modal>
-  );
-}
-
-function BulkUploadModal({
-  isOpen,
-  onClose,
-  onImported,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onImported: () => Promise<void>;
-}) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const [file, setFile] = useState<File | null>(null);
-  const [columns, setColumns] = useState<string[]>([]);
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [previewRows, setPreviewRows] = useState<Record<string, unknown>[]>([]);
-  const [mapping, setMapping] = useState<Record<LeadField, string>>({
-    fullName: "",
-    email: "",
-    phone: "",
-    company: "",
-    source: "",
-    notes: "",
-  });
-  const [result, setResult] = useState<{
-    totalRows: number;
-    importedRows: number;
-    skippedRows: number;
-    skippedReasons: Array<{ row: number; reason: string }>;
-  } | null>(null);
-  const [processing, setProcessing] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setStep(1);
-      setFile(null);
-      setColumns([]);
-      setRows([]);
-      setPreviewRows([]);
-      setMapping({ fullName: "", email: "", phone: "", company: "", source: "", notes: "" });
-      setResult(null);
-      setProcessing(false);
-    }
-  }, [isOpen]);
-
-  const parseFile = async () => {
-    if (!file) {
-      showWarningToast("Please select a CSV or XLSX file");
-      return;
-    }
-    setProcessing(true);
-    try {
-      const data = await LeadService.bulkPreview(file);
-      if (!data.columns.length) {
-        showWarningToast("No columns detected in the uploaded file");
-        return;
-      }
-      setColumns(data.columns);
-      setRows(data.rows || []);
-      setPreviewRows(data.previewRows || []);
-      setStep(2);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const proceedToMapping = () => {
-    if (!columns.length) {
-      showWarningToast("No columns available for mapping");
-      return;
-    }
-    setStep(3);
-  };
-
-  const runImport = async () => {
-    if (!mapping.fullName) {
-      showWarningToast("Please map Full Name");
-      return;
-    }
-    setProcessing(true);
-    try {
-      const importResult = await LeadService.bulkImport({ rows, mapping });
-      setResult({
-        totalRows: importResult.totalRows,
-        importedRows: importResult.importedRows,
-        skippedRows: importResult.skippedRows,
-        skippedReasons: importResult.skippedReasons || [],
-      });
-      showSuccessToast("Leads import completed");
-      setStep(5);
-      await onImported();
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <h2 className="text-xl font-semibold text-text">Bulk Upload Leads</h2>
-      <p className="mt-1 text-sm text-card-text">Step {step} of 5</p>
-
-      {step === 1 && (
-        <div className="mt-4 space-y-4">
-          <FileUploadZone
-            label="Spreadsheet File"
-            name="bulkFile"
-            accept=".csv,.xlsx"
-            hint="CSV or Excel (.xlsx) — columns will be mapped in the next step"
-            selectedFileName={file?.name ?? null}
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={parseFile} disabled={processing}>
-              {processing ? "Parsing..." : "Continue"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="mt-4 space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold text-text">Detected Columns</h3>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {columns.map((column) => (
-                <span key={column} className="rounded-full border border-card-border px-3 py-1 text-xs text-card-text">
-                  {column}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-text">Preview Rows</h3>
-            <div className="mt-2 max-h-48 overflow-auto rounded-lg border border-card-border p-2 text-xs text-card-text">
-              {previewRows.length ? (
-                previewRows.map((row, index) => (
-                  <pre key={index} className="mb-2 whitespace-pre-wrap">
-                    {JSON.stringify(row, null, 2)}
-                  </pre>
-                ))
-              ) : (
-                <p>No row preview available.</p>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setStep(1)}>
-              Back
-            </Button>
-            <Button variant="primary" onClick={proceedToMapping}>
-              Next: Map Columns
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === 3 && (
-        <div className="mt-4 space-y-4">
-          {LEAD_FIELDS.map((field) => (
-            <Select
-              key={field}
-              label={FIELD_LABELS[field]}
-              name={`map-${field}`}
-              value={mapping[field]}
-              onChange={(e) => setMapping((prev) => ({ ...prev, [field]: e.target.value }))}
-              options={[
-                { label: field === "fullName" ? "Select required column" : "Do not map", value: "" },
-                ...columns.map((column) => ({ label: column, value: column })),
-              ]}
-            />
-          ))}
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setStep(2)}>
-              Back
-            </Button>
-            <Button variant="primary" onClick={() => setStep(4)}>
-              Review Import
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === 4 && (
-        <div className="mt-4 space-y-4">
-          <div className="rounded-xl border border-card-border p-3">
-            <h3 className="font-semibold text-text">Import Summary</h3>
-            <p className="mt-1 text-sm text-card-text">Rows ready for import: {rows.length}</p>
-            <p className="mt-1 text-sm text-card-text">Required mapping: {mapping.fullName || "Not mapped"}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setStep(3)}>
-              Back
-            </Button>
-            <Button variant="primary" onClick={runImport} disabled={processing}>
-              {processing ? "Importing..." : "Import Leads"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === 5 && result && (
-        <div className="mt-4 space-y-4">
-          <div className="rounded-xl border border-card-border p-3 text-sm">
-            <p className="text-card-text">
-              Total rows: <span className="font-semibold text-text">{result.totalRows}</span>
-            </p>
-            <p className="text-card-text">
-              Imported rows: <span className="font-semibold text-success-text">{result.importedRows}</span>
-            </p>
-            <p className="text-card-text">
-              Skipped rows: <span className="font-semibold text-warning-text">{result.skippedRows}</span>
-            </p>
-          </div>
-          {result.skippedReasons.length > 0 && (
-            <div className="max-h-40 overflow-auto rounded-xl border border-card-border p-3 text-xs text-card-text">
-              {result.skippedReasons.map((item, idx) => (
-                <p key={`${item.row}-${idx}`}>
-                  Row {item.row}: {item.reason}
-                </p>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        </div>
-      )}
     </Modal>
   );
 }

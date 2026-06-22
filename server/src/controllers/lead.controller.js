@@ -1,20 +1,23 @@
-const XLSX = require("xlsx");
 const { R2XX, R4XX } = require("../Responses");
 const { leadService } = require("../services");
 const { catchAsync } = require("../utils");
 const { parsePagination } = require("../utils/pagination.utils");
+const {
+  buildTextSearch,
+  buildRegexFilter,
+  buildDateRangeFilter,
+  mergeFilters,
+  toSafeString,
+} = require("../utils/queryBuilder.utils");
+const {
+  isRowCompletelyEmpty,
+  parseSpreadsheetBuffer,
+  buildSampleWorkbook,
+  assertSpreadsheetFile,
+} = require("../utils/spreadsheetImport.utils");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const LEAD_FIELDS = ["fullName", "email", "phone", "company", "source", "notes"];
-
-const toSafeString = (value) => {
-  if (value === undefined || value === null) return "";
-  return String(value).trim();
-};
-
-const isRowCompletelyEmpty = (row = {}) => {
-  return Object.values(row).every((value) => !toSafeString(value));
-};
 
 const sanitizeLeadPayload = (payload = {}) => {
   return {
@@ -25,38 +28,6 @@ const sanitizeLeadPayload = (payload = {}) => {
     source: toSafeString(payload.source),
     notes: toSafeString(payload.notes),
   };
-};
-
-const parseSpreadsheetBuffer = (fileBuffer) => {
-  const workbook = XLSX.read(fileBuffer, { type: "buffer" });
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-    blankrows: false,
-  });
-
-  if (!rows.length) return { columns: [], rows: [] };
-
-  const headerRow = Array.isArray(rows[0]) ? rows[0] : [];
-  const normalizedHeaders = headerRow.map((value, index) => {
-    const label = toSafeString(value);
-    return label || `Column_${index + 1}`;
-  });
-
-  const dataRows = rows.slice(1).map((rawRow) => {
-    const rowArray = Array.isArray(rawRow) ? rawRow : [];
-    const rowObject = {};
-
-    normalizedHeaders.forEach((header, idx) => {
-      rowObject[header] = rowArray[idx] ?? "";
-    });
-
-    return rowObject;
-  });
-
-  return { columns: normalizedHeaders, rows: dataRows };
 };
 
 const LeadController = {
@@ -71,33 +42,13 @@ const LeadController = {
       allowedSortBy: ["createdAt", "updatedAt", "fullName", "email", "phone", "company", "source"],
     });
 
-    const filter = { workspace: workspaceId };
-    if (req.query.search) {
-      filter.$or = [
-        { fullName: { $regex: req.query.search, $options: "i" } },
-        { email: { $regex: req.query.search, $options: "i" } },
-        { phone: { $regex: req.query.search, $options: "i" } },
-        { company: { $regex: req.query.search, $options: "i" } },
-        { source: { $regex: req.query.search, $options: "i" } },
-      ];
-    }
-    if (req.query.source) {
-      filter.source = { $regex: req.query.source, $options: "i" };
-    }
-    if (req.query.company) {
-      filter.company = { $regex: req.query.company, $options: "i" };
-    }
-    if (req.query.createdFrom || req.query.createdTo) {
-      filter.createdAt = {};
-      if (req.query.createdFrom) {
-        filter.createdAt.$gte = new Date(req.query.createdFrom);
-      }
-      if (req.query.createdTo) {
-        const end = new Date(req.query.createdTo);
-        end.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = end;
-      }
-    }
+    const filter = mergeFilters(
+      { workspace: workspaceId },
+      buildTextSearch(req.query.search, ["fullName", "email", "phone", "company", "source"]),
+      buildRegexFilter("source", req.query.source),
+      buildRegexFilter("company", req.query.company),
+      buildDateRangeFilter("createdAt", req.query.createdFrom, req.query.createdTo),
+    );
 
     const { items, pagination } = await leadService.listLeads({ page, limit, sort, filter });
 
@@ -182,10 +133,7 @@ const LeadController = {
       ["Jane Doe", "jane.doe@example.com", "555-0100", "Acme Mortgage", "Website", "Interested in refinance"],
       ["John Smith", "john@example.com", "555-0199", "", "Referral", ""],
     ];
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
-    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const buffer = buildSampleWorkbook(headers, sampleRows, "Leads");
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -195,15 +143,10 @@ const LeadController = {
   }),
 
   bulkPreviewLeads: catchAsync(async (req, res) => {
-    const file = req.file;
-    if (!file) return R4XX(res, 400, "Upload a CSV or XLSX file");
+    const fileError = assertSpreadsheetFile(req.file);
+    if (fileError) return R4XX(res, 400, fileError);
 
-    const ext = (file.originalname || "").toLowerCase();
-    if (!ext.endsWith(".csv") && !ext.endsWith(".xlsx")) {
-      return R4XX(res, 400, "Only CSV and XLSX files are supported");
-    }
-
-    const parsed = parseSpreadsheetBuffer(file.buffer);
+    const parsed = parseSpreadsheetBuffer(req.file.buffer);
     const nonEmptyRows = parsed.rows.filter((row) => !isRowCompletelyEmpty(row));
 
     return R2XX(res, "File parsed successfully", 200, {

@@ -10,7 +10,7 @@ import { GrDashboard } from "react-icons/gr";
 import { useEffect, useMemo } from "react";
 
 export default function WorkspaceLayout() {
-  const { role, activeWorkspaceId, setActiveWorkspaceId, setActiveOrganizationId } = useAuth();
+  const { activeWorkspaceId, setActiveWorkspaceId, setActiveOrganizationId } = useAuth();
   const perm = usePermissionsOptional();
   const location = useLocation();
   const { organizationId, workspaceId: workspaceIdParam } = useParams();
@@ -48,10 +48,7 @@ export default function WorkspaceLayout() {
   );
 
   const showUsersNav =
-    role === "Admin" ||
-    perm?.effective?.isOrgOwner ||
-    perm?.canAnyWorkspace(["workspace.users.read", "workspace.users.manage"]) ||
-    perm?.canAnyOrg(["organization.members.read", "organization.members.invite", "organization.members.update"]);
+    perm?.canAnyWorkspace(["workspace.users.read"]) || perm?.effective?.isOrgOwner;
 
   const links: SidebarLink[] = useMemo(
     () => (showUsersNav ? [...defaultLinks, { to: withWorkspace("users"), label: "Users", icon: FiUsers }] : defaultLinks),
@@ -70,10 +67,10 @@ export default function WorkspaceLayout() {
         <div className="flex w-full gap-4 px-4">
           {!isOnboarding && !isTemplateDesigner && <Sidebar links={links} />}
           {isTemplateDesigner ? (
-            <Outlet />
+            <Outlet key={location.pathname} />
           ) : (
             <main className="min-w-0 flex-1 py-4">
-              <Outlet />
+              <Outlet key={location.pathname} />
             </main>
           )}
         </div>

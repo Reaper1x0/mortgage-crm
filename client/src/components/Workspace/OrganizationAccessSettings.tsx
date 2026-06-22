@@ -59,7 +59,6 @@ const WS_PERMISSIONS = [
   { key: "workspace.extraction.run", label: "Run extraction jobs" },
   { key: "workspace.audit.read", label: "View audit trail" },
   { key: "workspace.users.read", label: "View workspace members" },
-  { key: "workspace.users.manage", label: "Manage workspace members" },
 ];
 
 function rolePermissions(role: RoleRow): string[] {

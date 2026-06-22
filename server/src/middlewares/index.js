@@ -13,4 +13,3 @@ module.exports.requireSystemRole = require("./requireSystemRole.middleware");
 module.exports.requireActiveSubscription = require("./requireActiveSubscription.middleware");
 module.exports.requireEntitlement = require("./requireEntitlement.middleware");
 module.exports.enforcePlanLimit = require("./enforcePlanLimit.middleware");
-module.exports.requireWorkspaceUserManager = require("./requireWorkspaceUserManager.middleware");

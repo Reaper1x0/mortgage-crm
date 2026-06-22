@@ -61,7 +61,8 @@ router.get(
       "organization.rbac.manage",
       "organization.members.invite",
       "organization.members.update",
-      "workspace.users.manage",
+      "organization.members.read",
+      "workspace.users.read",
     ],
     { scope: "either", mode: "any" }
   ),

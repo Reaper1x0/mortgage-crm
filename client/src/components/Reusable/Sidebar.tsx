@@ -44,7 +44,7 @@ const NavItem: React.FC<NavItemProps> = ({
           "group relative flex items-center gap-3",
           "rounded-2xl px-2 py-1",
           "text-sm font-semibold",
-          "transition-all duration-200",
+          "transition-all duration-200 outline-none",
           collapsed ? "justify-center px-1" : "",
           isActive
             ? "bg-card text-text"

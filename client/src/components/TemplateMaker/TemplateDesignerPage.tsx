@@ -75,7 +75,7 @@ export default function TemplateDesignerPage() {
         setPlacements(tpl.placements || []);
         setPdfNumPages(tpl.pageCount || 1);
         setPageIndex(0);
-        setMasterFields(mfRes.fields || []);
+        setMasterFields(mfRes.items || []);
 
         const fileBytes = await TemplateService.getTemplateFile(templateId);
         const header = new TextDecoder("ascii")

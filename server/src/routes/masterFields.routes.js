@@ -1,18 +1,94 @@
 const express = require("express");
+const multer = require("multer");
 const MasterFieldController = require("../controllers/masterFields.controller");
-const { isAuth, requireWorkspace, requirePermission } = require("../middlewares");
+const { masterFieldsValidation } = require("../validations");
+const { isAuth, requireWorkspace, requirePermission, validate } = require("../middlewares");
+
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
-router.post("/fields", isAuth, requireWorkspace, requirePermission("workspace.masterfields.write"), MasterFieldController.createMasterField);
+router.post(
+  "/fields",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.write"),
+  MasterFieldController.createMasterField,
+);
 
-router.get("/fields", isAuth, requireWorkspace, requirePermission("workspace.masterfields.read"), MasterFieldController.getAllMasterFields);
+router.get(
+  "/fields",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.read"),
+  validate(masterFieldsValidation.listMasterFields),
+  MasterFieldController.getAllMasterFields,
+);
 
-router.get("/fields/:key", isAuth, requireWorkspace, requirePermission("workspace.masterfields.read"), MasterFieldController.getMasterFieldByKey);
+router.post(
+  "/bulk/delete",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.write"),
+  validate(masterFieldsValidation.bulkDeleteMasterFields),
+  MasterFieldController.bulkDeleteMasterFields,
+);
 
-router.put("/fields/:key", isAuth, requireWorkspace, requirePermission("workspace.masterfields.write"), MasterFieldController.updateMasterField);
+router.get(
+  "/bulk/sample-template",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.read"),
+  MasterFieldController.downloadMasterFieldsSampleTemplate,
+);
 
-router.delete("/fields/:key", isAuth, requireWorkspace, requirePermission("workspace.masterfields.write"), MasterFieldController.deleteMasterField);
+router.post(
+  "/bulk/preview",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.write"),
+  upload.single("file"),
+  MasterFieldController.bulkPreviewMasterFields,
+);
 
-router.delete("/fields", isAuth, requireWorkspace, requirePermission("workspace.masterfields.write"), MasterFieldController.deleteMultipleMasterFields);
+router.post(
+  "/bulk/import",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.write"),
+  validate(masterFieldsValidation.bulkImportMasterFields),
+  MasterFieldController.bulkImportMasterFields,
+);
+
+router.get(
+  "/fields/:key",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.read"),
+  MasterFieldController.getMasterFieldByKey,
+);
+
+router.put(
+  "/fields/:key",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.write"),
+  MasterFieldController.updateMasterField,
+);
+
+router.delete(
+  "/fields/:key",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.write"),
+  MasterFieldController.deleteMasterField,
+);
+
+router.delete(
+  "/fields",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.write"),
+  MasterFieldController.deleteMultipleMasterFields,
+);
 
 module.exports = router;

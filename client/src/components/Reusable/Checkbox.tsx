@@ -54,7 +54,7 @@ const Checkbox: React.FC<CheckboxProps> = ({
           {checked ? (
             <FaCheckSquare size={icon} className="text-text" />
           ) : (
-            <FaRegSquare size={icon} className="text-gray-400" />
+            <FaRegSquare size={icon} className="text-card-text" />
           )}
         </div>
 

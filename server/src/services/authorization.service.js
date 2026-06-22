@@ -54,11 +54,6 @@ function setToSortedArray(set) {
   return Array.from(set).sort();
 }
 
-function canManageWorkspaceUsers({ orgPerms, wsPerms }) {
-  if (orgPerms.has("organization.members.invite") || orgPerms.has("organization.members.update")) return true;
-  return wsPerms.has("workspace.users.manage");
-}
-
 /** Effective permissions returned to the client on auth bootstrap */
 async function getEffectiveForUser({ userId, organizationId, workspaceId }) {
   const { OrganizationMember, WorkspaceMember } = require("../models");
@@ -95,7 +90,6 @@ async function getEffectiveForUser({ userId, organizationId, workspaceId }) {
     organizationRoleSlug: orgMember?.organizationRole?.slug || null,
     organizationPermissions: setToSortedArray(orgPerms),
     workspacePermissions: workspaceId ? setToSortedArray(wsPerms) : null,
-    canManageWorkspaceUsers: canManageWorkspaceUsers({ orgPerms, wsPerms }),
   };
 }
 
@@ -104,7 +98,6 @@ module.exports = {
   permissionsFromWorkspaceRole,
   getOrganizationPermissionSet,
   getWorkspacePermissionSet,
-  canManageWorkspaceUsers,
   getEffectiveForUser,
   orgKeySet,
   wsKeySet,

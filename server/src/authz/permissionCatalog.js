@@ -39,7 +39,6 @@ const PERMISSIONS = [
   { key: "workspace.extraction.run", scope: WORKSPACE_SCOPE, label: "Run extraction jobs" },
   { key: "workspace.audit.read", scope: WORKSPACE_SCOPE, label: "View audit trail" },
   { key: "workspace.users.read", scope: WORKSPACE_SCOPE, label: "View workspace members" },
-  { key: "workspace.users.manage", scope: WORKSPACE_SCOPE, label: "Manage workspace members" },
 ];
 
 const ALL_KEYS = PERMISSIONS.map((p) => p.key);

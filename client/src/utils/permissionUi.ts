@@ -16,6 +16,7 @@ export const PERMISSION_TOOLTIPS = {
   createTemplate: "You don't have permission to create templates.",
   manageTemplate: "You don't have permission to open template management.",
   addMasterField: "You don't have permission to add master fields.",
+  bulkMasterFields: "You don't have permission to import master fields in bulk.",
   editMasterField: "You don't have permission to edit master fields.",
   deleteMasterField: "You don't have permission to delete master fields.",
   deleteMasterFieldsBulk: "You don't have permission to delete master fields.",

@@ -33,13 +33,6 @@ export interface UserListResponse {
   message: string;
   success: boolean;
   users: User[];
-  roleStats?: {
-    fullAccessCount: number;
-  };
-  permissions?: {
-    canManageUsers: boolean;
-    canManageFullAccess: boolean;
-  };
   pagination: {
     page: number;
     limit: number;
@@ -101,39 +94,6 @@ export const UserService = {
 
   getUser: async (id: string) => {
     const response = await apiClient.get<UserResponse>(`/users/${id}`);
-    return response.data;
-  },
-
-  createUser: async (data: {
-    fullName: string;
-    username: string;
-    email: string;
-    password: string;
-    role?: string;
-    workspaceRoleId?: string;
-  }) => {
-    const response = await apiClient.post<UserResponse>("/users", data);
-    return response.data;
-  },
-
-  updateUser: async (
-    id: string,
-    data: {
-      fullName?: string;
-      username?: string;
-      email?: string;
-      password?: string;
-      role?: string;
-      workspaceRole?: string;
-      workspaceRoleId?: string;
-    }
-  ) => {
-    const response = await apiClient.put<UserResponse>(`/users/${id}`, data);
-    return response.data;
-  },
-
-  deleteUser: async (id: string) => {
-    const response = await apiClient.delete(`/users/${id}`);
     return response.data;
   },
 };
