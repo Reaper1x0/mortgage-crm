@@ -5,6 +5,7 @@ import PageHeader from "../Reusable/PageHeader";
 import { BillingService, Plan, PlanPricing } from "../../service/billingService";
 import Checkbox from "../Reusable/Checkbox";
 import Modal from "../Reusable/Modal";
+import StatusBadge from "../Reusable/StatusBadge";
 
 type PlanForm = Partial<Plan> & {
   entitlements: Record<string, number | boolean | null>;
@@ -319,12 +320,16 @@ export default function SuperAdminPlansPage() {
                   Edit
                 </Button>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                <span className={`rounded-full border px-2 py-1 ${plan.active ? "border-success-border text-success-text" : "border-danger-border text-danger-text"}`}>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <StatusBadge tone={plan.active ? "success" : "danger"}>
                   {plan.active ? "Active" : "Inactive"}
-                </span>
-                <span className="rounded-full border border-card-border px-2 py-1 text-text">{plan.visible ? "Visible" : "Hidden"}</span>
-                {plan.recommended ? <span className="rounded-full border border-primary-border px-2 py-1 text-primary">Recommended</span> : null}
+                </StatusBadge>
+                <StatusBadge tone={plan.visible ? "info" : "neutral"}>
+                  {plan.visible ? "Visible" : "Hidden"}
+                </StatusBadge>
+                {plan.recommended ? (
+                  <StatusBadge tone="primary">Recommended</StatusBadge>
+                ) : null}
               </div>
               <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {ENTITLEMENT_CATALOG.map((item) => {

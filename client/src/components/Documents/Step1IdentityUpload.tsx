@@ -274,12 +274,6 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
               </Button>
             }
           />
-
-          {localPreviewUrl ? (
-            <div className="overflow-hidden rounded-lg border border-card-border">
-              <img src={localPreviewUrl} alt="ID preview" className="max-h-48 w-full object-contain bg-card" />
-            </div>
-          ) : null}
         </div>
       </Modal>
     </div>

@@ -7,6 +7,7 @@ async function extractJson({
   userPrompt,
   temperature = llmConfig.openai.temperature,
   maxTokens = llmConfig.openai.maxTokens,
+  model = llmConfig.openai.extractionModel || llmConfig.openai.model,
 }) {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not set");
@@ -17,7 +18,7 @@ async function extractJson({
   }
 
   const completion = await openai.chat.completions.create({
-    model: llmConfig.openai.model,
+    model,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -30,7 +31,7 @@ async function extractJson({
   const content = completion?.choices?.[0]?.message?.content || "{}";
   return buildResponse({
     provider: "openai",
-    model: completion?.model || llmConfig.openai.model,
+    model: completion?.model || model,
     content,
     usage: completion?.usage || null,
     raw: completion,

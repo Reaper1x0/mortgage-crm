@@ -1,30 +1,54 @@
 const llmService = require("../llm/llm.service");
+const llmConfig = require("../../config/llm.config");
+
+const EXTRACTION_LLM_OPTIONS = {
+  model: llmConfig.openai.extractionModel,
+  timeoutMs: llmConfig.openai.extractionTimeoutMs,
+};
 
 const FIELD_KEYS_DETECTOR_SYSTEM_PROMPT = `
-You are a document field KEY detector.
+You are a high-recall mortgage document field KEY detector for Pass A of a two-pass extraction pipeline.
 
-You will receive:
-1) DOCUMENT TEXT for exactly one file
-2) A list of allowed field keys with their descriptions/labels
+INPUTS YOU RECEIVE
+1) Full DOCUMENT TEXT for exactly one file (may be multi-page).
+2) A complete ALLOWED FIELD LIST: every key with label, description, and type.
 
-TASK:
-- Analyze the document text and identify which field keys from the provided list have corresponding data in the document.
-- Match document content to field keys based on semantic meaning, not just exact string matches.
-- For example, if the document contains "Property: Lot 12, Block 5..." and there's a key like "property_address" or "property_description", include that key.
-- If the document contains "Mortgagor: Name: John Doe" and there's a key like "mortgagor_name" or "borrower_name", include that key.
-- Return ONLY a JSON object with this exact shape:
+YOUR ONLY JOB
+Return which schema keys have extractable data somewhere in the document. You are NOT extracting values yet.
 
+OUTPUT (JSON only, no prose)
 {
-  "present_keys": ["key1","key2",...]
+  "present_keys": ["exact_key_from_schema", ...]
 }
 
-RULES:
-- Output ONLY keys from the provided list (use exact key strings as provided).
-- Match based on semantic meaning: look for content that relates to each field's purpose.
-- Be comprehensive: include all keys where you can find related information in the document.
-- Use the field descriptions/labels to help understand what each key represents.
-- If a field's concept appears in the document (even with different wording), include the key.
-- Do NOT invent keys that aren't in the provided list.
+MANDATORY WORKFLOW — follow in order
+1) Read the entire document once end-to-end (all pages/sections).
+2) Iterate through EVERY key in the allowed field list — do not stop early.
+3) For each key, decide: "Does this document contain information that could fill this field?"
+4) If yes (even partially, indirectly, or under different wording), add the exact key string to present_keys.
+5) Before finishing, mentally re-scan these common mortgage closing sections and ensure related keys are included:
+   - Solicitor / closing instructions (mortgagee, property, PID, tenure, limitation of interest, mortgage date)
+   - Loan commitment (principal, interest rate, term, payments, instalment dates, maturity, place of payment)
+   - Parties table (mortgagors, spouse, guarantors, addresses)
+   - Form 15 / mortgage instrument (covenants, dates, borrower acknowledgement)
+   - Execution / signature blocks (witnesses, signers, signatures)
+   - Schedule G (product, rates, payment terms, special terms)
+   - Form 55 marital status affidavit (deponents, spouse, clauses 2–5, sworn place/date)
+   - Affidavit & certificate of execution (subscribing witness, persons executed, notary, commissioner)
+
+MATCHING RULES (high recall)
+- Match by SEMANTIC meaning and role, not exact label text.
+- The same fact may support MULTIPLE keys (e.g. a date may appear in mortgage_form_date, schedule_g_mortgage_date, affidavit dates, certificate dates) — include every applicable key.
+- Include keys when data appears in tables, headers, narrative paragraphs, signature blocks, or checkboxes (YES/NO/selected).
+- Synonyms: mortgagor/borrower, mortgagee/lender/bank, principal sum/loan amount, interest adjustment date, maturity date, deponent/affiant, commissioner/notary/solicitor where context fits.
+- If a field is clearly NOT in the document (e.g. second guarantor when only one exists, variable-rate fields in a fixed-rate doc), omit it.
+- When uncertain but plausible, INCLUDE the key (Pass B will verify and extract the value).
+
+STRICT CONSTRAINTS
+- Use ONLY exact key strings from the provided schema — never invent keys.
+- Return present_keys as a deduplicated array.
+- Aim for completeness: missing a present key is worse than including a borderline one.
+- Output valid JSON only.
 `;
 
 /**
@@ -220,15 +244,17 @@ ${JSON.stringify(compactSchema, null, 2)}
 >>>
 
 INSTRUCTIONS:
-1. Read through the document text carefully
-2. For each field in the schema, check if the document contains information that matches that field's purpose
-3. Match based on meaning: if the document mentions "Property: Lot 12..." and there's a field about property address/description, include that field's key
-4. If the document mentions "Mortgagor: Name: John Doe" and there's a field about mortgagor/borrower name, include that field's key
-5. Return ALL keys where you can find related information in the document
-6. Use ONLY the exact key strings from the schema above
+1. You must evaluate EVERY key in the schema below — ${compactSchema.length} keys total.
+2. Read the full document text (all pages) before deciding.
+3. For each key, use its label and description to find matching content anywhere in the document.
+4. Include a key if the document contains data that could populate that field, even if wording differs.
+5. One piece of text may justify multiple keys (names, dates, addresses often appear in several fields).
+6. Prefer high recall: if unsure whether a key applies, include it.
+7. Return ONLY exact key strings from the schema in present_keys.
+8. Expected output size: mortgage closing packages often yield 50–90+ present keys when most sections are filled — do not return a small subset after only scanning part of the document.
 `;
 
-  // logs for token comparison
+  console.log("[LLM-A] extractionModel:", EXTRACTION_LLM_OPTIONS.model);
   console.log("[LLM-A] file:", fileName);
   console.log("[LLM-A] extractedTextLen:", text.length);
   console.log("[LLM-A] schemaFieldsCount:", compactSchema.length);
@@ -241,7 +267,9 @@ INSTRUCTIONS:
       systemPrompt: FIELD_KEYS_DETECTOR_SYSTEM_PROMPT,
       userPrompt,
       temperature: 0,
-      maxTokens: 4096,
+      maxTokens: llmConfig.openai.extractionPassAMaxTokens,
+      model: EXTRACTION_LLM_OPTIONS.model,
+      timeoutMs: EXTRACTION_LLM_OPTIONS.timeoutMs,
     });
     payload = result.parsed || {};
   } catch (e) {
@@ -317,7 +345,9 @@ INSTRUCTIONS:
       systemPrompt: FIELD_EXTRACTION_SYSTEM_PROMPT,
       userPrompt,
       temperature: 0,
-      maxTokens: 16384,
+      maxTokens: llmConfig.openai.extractionPassBMaxTokens,
+      model: EXTRACTION_LLM_OPTIONS.model,
+      timeoutMs: EXTRACTION_LLM_OPTIONS.timeoutMs,
     });
     payload = result.parsed || {};
   } catch (e) {

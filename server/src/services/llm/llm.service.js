@@ -19,6 +19,8 @@ async function extractJson({
   userPrompt,
   temperature,
   maxTokens,
+  model,
+  timeoutMs,
 }) {
   if (!systemPrompt || !userPrompt) {
     throw new Error("extractJson requires both systemPrompt and userPrompt");
@@ -31,8 +33,9 @@ async function extractJson({
       userPrompt,
       temperature,
       maxTokens,
+      model,
     }),
-    Number(llmConfig.timeoutMs || 60000)
+    Number(timeoutMs || llmConfig.timeoutMs || 60000)
   );
   const durationMs = Date.now() - startedAt;
 

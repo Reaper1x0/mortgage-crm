@@ -49,6 +49,22 @@ const envVarsSchema = Joi.object({
     .default("text-embedding-3-small")
     .label("OPENAI_EMBEDDING_MODEL"),
   OPENAI_ASSISTANT_MODEL: Joi.string().allow("").optional().label("OPENAI_ASSISTANT_MODEL"),
+  OPENAI_EXTRACTION_MODEL: Joi.string().allow("").optional().label("OPENAI_EXTRACTION_MODEL"),
+  OPENAI_EXTRACTION_PASS_A_MAX_TOKENS: Joi.number()
+    .integer()
+    .min(1)
+    .optional()
+    .label("OPENAI_EXTRACTION_PASS_A_MAX_TOKENS"),
+  OPENAI_EXTRACTION_PASS_B_MAX_TOKENS: Joi.number()
+    .integer()
+    .min(1)
+    .optional()
+    .label("OPENAI_EXTRACTION_PASS_B_MAX_TOKENS"),
+  OPENAI_EXTRACTION_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .optional()
+    .label("OPENAI_EXTRACTION_TIMEOUT_MS"),
   RAG_CHUNK_SIZE: Joi.number().integer().min(200).optional().default(1000).label("RAG_CHUNK_SIZE"),
   RAG_CHUNK_OVERLAP: Joi.number().integer().min(0).optional().default(150).label("RAG_CHUNK_OVERLAP"),
   RAG_TOP_K: Joi.number().integer().min(1).max(50).optional().default(8).label("RAG_TOP_K"),
@@ -104,6 +120,10 @@ module.exports = {
   OPENAI_MAX_RETRIES: envVars.OPENAI_MAX_RETRIES,
   OPENAI_EMBEDDING_MODEL: envVars.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
   OPENAI_ASSISTANT_MODEL: envVars.OPENAI_ASSISTANT_MODEL || "",
+  OPENAI_EXTRACTION_MODEL: envVars.OPENAI_EXTRACTION_MODEL || "",
+  OPENAI_EXTRACTION_PASS_A_MAX_TOKENS: envVars.OPENAI_EXTRACTION_PASS_A_MAX_TOKENS,
+  OPENAI_EXTRACTION_PASS_B_MAX_TOKENS: envVars.OPENAI_EXTRACTION_PASS_B_MAX_TOKENS,
+  OPENAI_EXTRACTION_TIMEOUT_MS: envVars.OPENAI_EXTRACTION_TIMEOUT_MS,
   RAG_CHUNK_SIZE: Number(envVars.RAG_CHUNK_SIZE || 1000),
   RAG_CHUNK_OVERLAP: Number(envVars.RAG_CHUNK_OVERLAP || 150),
   RAG_TOP_K: Number(envVars.RAG_TOP_K || 8),

@@ -24,6 +24,11 @@ module.exports = {
   maxRetries: Number(envConfig.LLM_MAX_RETRIES || 2),
   openai: {
     model: envConfig.OPENAI_MODEL || envConfig.GPT_MODEL || "gpt-4o-mini",
+    extractionModel:
+      envConfig.OPENAI_EXTRACTION_MODEL ||
+      envConfig.OPENAI_MODEL ||
+      envConfig.GPT_MODEL ||
+      "gpt-4o",
     assistantModel:
       envConfig.OPENAI_ASSISTANT_MODEL ||
       envConfig.OPENAI_MODEL ||
@@ -31,6 +36,11 @@ module.exports = {
       "gpt-4o-mini",
     embeddingModel: envConfig.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
     maxTokens: Number(envConfig.OPENAI_MAX_TOKENS || 4096),
+    extractionPassAMaxTokens: Number(envConfig.OPENAI_EXTRACTION_PASS_A_MAX_TOKENS || 8192),
+    extractionPassBMaxTokens: Number(envConfig.OPENAI_EXTRACTION_PASS_B_MAX_TOKENS || 16384),
+    extractionTimeoutMs: Number(
+      envConfig.OPENAI_EXTRACTION_TIMEOUT_MS || envConfig.LLM_TIMEOUT_MS || 120000
+    ),
     temperature: Number(envConfig.OPENAI_TEMPERATURE || 0),
     timeoutMs: Number(envConfig.OPENAI_TIMEOUT_MS || envConfig.LLM_TIMEOUT_MS || 60000),
     maxRetries: Number(envConfig.OPENAI_MAX_RETRIES || envConfig.LLM_MAX_RETRIES || 2),

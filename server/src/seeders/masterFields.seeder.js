@@ -2,7 +2,7 @@ const MasterField = require("../models/masterFields.model");
 const mongoose = require("mongoose");
 
 require("dotenv").config();
-const MASTER_FIELDS_WORKSPACE_ID = "6a33e44c9838f7acf2ef9498";
+const MASTER_FIELDS_WORKSPACE_ID = "6a3be888beb5fc97a6ce70d3";
 
 const seedData = [
   {
