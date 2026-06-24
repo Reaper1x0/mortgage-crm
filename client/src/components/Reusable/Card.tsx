@@ -12,7 +12,7 @@ interface CardProps {
 const Card: React.FC<CardProps> = ({ children, className = "", containerClassName = "" }) => {
   return (
     <HoverBorderGradient
-      containerClassName={cn("w-full", containerClassName)}
+      containerClassName={cn("w-full max-w-full min-w-0", containerClassName)}
       className={cn(
         "bg-card border border-card-border shadow-md shadow-card-shadow",
         "p-4",
@@ -22,9 +22,9 @@ const Card: React.FC<CardProps> = ({ children, className = "", containerClassNam
       )}
       roundedClassName="rounded-2xl"
     >
-      <div className="relative">
+      <div className="relative min-w-0">
         <Spotlight className="opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        <div className="relative z-10">{children}</div>
+        <div className="relative z-10 min-w-0">{children}</div>
       </div>
     </HoverBorderGradient>
   );

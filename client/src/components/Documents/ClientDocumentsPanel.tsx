@@ -2,30 +2,30 @@ import React, { useMemo, useState } from "react";
 import { SubmissionDocument } from "../../types/extraction.types";
 import Modal from "../Reusable/Modal";
 import ExtractedFieldsGrid from "./ExtractedFieldsGrid";
-import ClientDocumentCard from "./ClientDocumentCard";
-import UploadProgressRow from "./UploadProgressRow";
+import UploadedDocumentCard from "./UploadedDocumentCard";
 import PageHeader from "../Reusable/PageHeader";
 import Surface from "../Reusable/Surface";
 import ActionBar from "../Reusable/ActionBar";
 import Callout from "../Reusable/Callout";
 import StatusBadge from "../Reusable/StatusBadge";
 import Button from "../Reusable/Button";
-import IconButton from "../Reusable/IconButton";
-import FileUploadZone from "../Reusable/Inputs/FileUploadZone";
-import type { FileUploadProgress } from "../../service/submissionDocumentService";
-import { FiFileText, FiPlus, FiX } from "react-icons/fi";
+import FileUploader from "../Reusable/Inputs/FileUploader";
+import type { FileUploadProgressCallback } from "../../utils/uploadProgress";
+import { FiFileText, FiPlus } from "react-icons/fi";
 import { getFileName, getFileRef, sortDocumentsNewestFirst } from "./clientDocumentUtils";
 
 export type ClientDocumentsPanelProps = {
   clientTitle?: string;
   clientLegalName?: string | null;
   existingDocuments: SubmissionDocument[];
-  onUploadFiles: (files: File[], onFileProgress: (fileName: string, p: FileUploadProgress) => void) => Promise<boolean>;
+  uploadDocument: (file: File, onProgress: FileUploadProgressCallback) => Promise<void>;
+  onDocumentsUploaded?: () => void;
+  onUploadFailed?: (message: string) => void;
   onExtractFields: (docEntryId: string) => Promise<boolean>;
-  onReplaceExisting: (
+  replaceDocument: (
     docEntryId: string,
     file: File,
-    onProgress?: (p: FileUploadProgress) => void
+    onProgress?: FileUploadProgressCallback
   ) => Promise<void>;
   onDeleteExisting: (docEntryId: string) => Promise<void>;
   onBack?: () => void;
@@ -36,22 +36,19 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
   clientTitle,
   clientLegalName,
   existingDocuments,
-  onUploadFiles,
+  uploadDocument,
+  onDocumentsUploaded,
+  onUploadFailed,
   onExtractFields,
-  onReplaceExisting,
+  replaceDocument,
   onDeleteExisting,
   onBack,
   extractingDocId = null,
 }) => {
   const [addOpen, setAddOpen] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, FileUploadProgress>>({});
 
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [replaceForId, setReplaceForId] = useState<string | null>(null);
-  const [replaceFile, setReplaceFile] = useState<File | null>(null);
-  const [replaceProgress, setReplaceProgress] = useState<FileUploadProgress | null>(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteForId, setDeleteForId] = useState<string | null>(null);
@@ -71,8 +68,6 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
 
   const openReplaceModal = (id: string) => {
     setReplaceForId(id);
-    setReplaceFile(null);
-    setReplaceProgress(null);
     setReplaceOpen(true);
   };
 
@@ -86,47 +81,10 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
     setFieldsOpen(true);
   };
 
-  const handlePendingFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files) : [];
-    setPendingFiles(files);
-    setUploadProgress({});
-    e.target.value = "";
-  };
-
-  const removePendingFile = (index: number) => {
-    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleUpload = async () => {
-    if (!pendingFiles.length || uploading) return;
-    setUploading(true);
-    setUploadProgress({});
-
-    const success = await onUploadFiles(pendingFiles, (fileName, progress) => {
-      setUploadProgress((prev) => ({ ...prev, [fileName]: progress }));
-    });
-
-    setUploading(false);
-    if (success) {
-      setPendingFiles([]);
-      setUploadProgress({});
-      setAddOpen(false);
-    }
-  };
-
-  const doReplace = async () => {
-    if (!replaceForId || !replaceFile) return;
-    try {
-      setActionLoadingId(replaceForId);
-      setReplaceProgress({ fileName: replaceFile.name, phase: "uploading", percent: 0 });
-      await onReplaceExisting(replaceForId, replaceFile, (p) => setReplaceProgress(p));
-      setReplaceOpen(false);
-      setReplaceForId(null);
-      setReplaceFile(null);
-      setReplaceProgress(null);
-    } finally {
-      setActionLoadingId(null);
-    }
+  const closeReplace = () => {
+    if (actionLoadingId) return;
+    setReplaceOpen(false);
+    setReplaceForId(null);
   };
 
   const doDelete = async () => {
@@ -145,14 +103,6 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
     await onExtractFields(docEntryId);
   };
 
-  const closeReplace = () => {
-    if (actionLoadingId) return;
-    setReplaceOpen(false);
-    setReplaceForId(null);
-    setReplaceFile(null);
-    setReplaceProgress(null);
-  };
-
   const closeDelete = () => {
     if (actionLoadingId) return;
     setDeleteOpen(false);
@@ -165,7 +115,6 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
   };
 
   const closeAdd = () => {
-    if (uploading) return;
     setAddOpen(false);
   };
 
@@ -185,13 +134,13 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <PageHeader
         title="Client documents"
         description={description}
         back={onBack ? { label: "Back", onClick: onBack } : undefined}
         actions={
-          <Button variant="primary" type="button" onClick={() => setAddOpen(true)} disabled={uploading}>
+          <Button variant="primary" type="button" onClick={() => setAddOpen(true)}>
             <span className="inline-flex items-center gap-2">
               <FiPlus /> Upload documents
             </span>
@@ -199,7 +148,7 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
         }
       />
 
-      <Surface variant="soft" className="p-5">
+      <Surface variant="soft" className="min-w-0 overflow-hidden p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-extrabold text-text">All files</h2>
@@ -229,22 +178,23 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
             </Button>
           </div>
         ) : (
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-5 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {sortedDocs.map((doc) => {
               const id = doc._id as string;
               const isBusy = actionLoadingId === id;
               const isExtracting = extractingDocId === id;
               return (
-                <ClientDocumentCard
-                  key={id}
-                  doc={doc}
-                  isBusy={isBusy}
-                  isExtracting={isExtracting}
-                  onExtract={handleExtract}
-                  onViewFields={openFieldsModal}
-                  onReplace={openReplaceModal}
-                  onDelete={openDeleteModal}
-                />
+                <div key={id} className="min-w-0">
+                  <UploadedDocumentCard
+                    doc={doc}
+                    isBusy={isBusy}
+                    isExtracting={isExtracting}
+                    onExtract={handleExtract}
+                    onViewFields={openFieldsModal}
+                    onReplace={openReplaceModal}
+                    onDelete={openDeleteModal}
+                  />
+                </div>
               );
             })}
           </div>
@@ -258,62 +208,24 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
             title="Upload documents"
             description="Files are stored in S3 with prepared markdown and metadata. Extraction is a separate step."
           />
-          <FileUploadZone
+          <FileUploader
             name="add-documents"
             multiple
             accept=".pdf,.docx,image/*"
             hint="PDF, DOCX, or images"
-            onChange={handlePendingFileChange}
-            disabled={uploading}
-          />
-          {pendingFiles.length > 0 ? (
-            <div className="space-y-3 rounded-xl border border-card-border px-3 py-3">
-              {pendingFiles.map((file, index) => {
-                const progress = uploadProgress[file.name];
-                return (
-                  <div key={`${file.name}-${index}`} className="space-y-2">
-                    {!progress ? (
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <FiFileText className="h-4 w-4 shrink-0 text-card-text" />
-                          <span className="truncate text-sm text-text">{file.name}</span>
-                        </div>
-                        {!uploading ? (
-                          <IconButton
-                            icon={FiX}
-                            size="sm"
-                            outline={false}
-                            fillBg={false}
-                            hoverable
-                            title="Remove"
-                            onClick={() => removePendingFile(index)}
-                          />
-                        ) : null}
-                      </div>
-                    ) : (
-                      <UploadProgressRow progress={progress} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-          <ActionBar
-            right={
-              <>
-                <Button variant="secondary" type="button" disabled={uploading} onClick={closeAdd}>
-                  Close
-                </Button>
-                <Button
-                  variant="primary"
-                  type="button"
-                  onClick={handleUpload}
-                  isLoading={uploading}
-                  disabled={uploading || pendingFiles.length === 0}
-                >
-                  Upload
-                </Button>
-              </>
+            resetWhen={addOpen}
+            uploadFile={uploadDocument}
+            onAllComplete={() => {
+              onDocumentsUploaded?.();
+              setAddOpen(false);
+            }}
+            onUploadError={(errors) => {
+              onUploadFailed?.(errors[0]?.error || "Upload failed.");
+            }}
+            footer={
+              <Button variant="secondary" type="button" onClick={closeAdd}>
+                Close
+              </Button>
             }
           />
         </div>
@@ -327,37 +239,33 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
             description="Upload a new file. Extracted fields and assistant index will need to be run again."
           />
           <Surface variant="soft" className="p-4">
-            <FileUploadZone
+            <FileUploader
               name="replace-document"
+              multiple={false}
               accept=".pdf,.docx,image/*"
               hint="PDF, DOCX, or image"
-              selectedFileName={replaceFile?.name ?? null}
-              disabled={!!actionLoadingId}
-              onChange={(e) => {
-                setReplaceFile(e.target.files?.[0] || null);
-                setReplaceProgress(null);
+              resetWhen={replaceOpen}
+              uploadButtonLabel="Upload replacement"
+              uploadFile={async (file, onProgress) => {
+                if (!replaceForId) throw new Error("No document selected.");
+                setActionLoadingId(replaceForId);
+                try {
+                  await replaceDocument(replaceForId, file, onProgress);
+                } finally {
+                  setActionLoadingId(null);
+                }
               }}
-            />
-          </Surface>
-          {replaceProgress ? <UploadProgressRow progress={replaceProgress} /> : null}
-          <ActionBar
-            right={
-              <>
+              onAllComplete={() => {
+                setReplaceOpen(false);
+                setReplaceForId(null);
+              }}
+              footer={
                 <Button variant="secondary" type="button" disabled={!!actionLoadingId} onClick={closeReplace}>
                   Cancel
                 </Button>
-                <Button
-                  variant="primary"
-                  type="button"
-                  disabled={!replaceFile || !!actionLoadingId}
-                  isLoading={!!actionLoadingId}
-                  onClick={doReplace}
-                >
-                  Upload replacement
-                </Button>
-              </>
-            }
-          />
+              }
+            />
+          </Surface>
         </div>
       </Modal>
 

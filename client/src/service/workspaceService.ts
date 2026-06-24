@@ -1,10 +1,15 @@
 import apiClient from "../api/apiClient";
 
+export interface TenantBranding {
+  logoUrl?: string | null;
+}
+
 export interface WorkspaceSummary {
   workspaceId: string;
   name: string;
   slug: string;
   role: "Admin" | "Agent" | "Viewer";
+  workspaceRoleSlug?: string | null;
   organization?: {
     organizationId: string;
     name: string;
@@ -18,13 +23,34 @@ export interface WorkspaceSummary {
   } | null;
 }
 
-export interface TenantBranding {
-  logoUrl?: string | null;
+export interface OrganizationWorkspaceSummary {
+  workspaceId: string;
+  name: string;
+  slug: string;
+  role: "Admin" | "Agent" | "Viewer";
+  workspaceRoleSlug?: string | null;
+  branding?: WorkspaceSummary["branding"];
+}
+
+export interface OrganizationMembership {
+  organizationId: string;
+  name: string;
+  slug: string;
+  isOrgOwner?: boolean;
+  organizationRole?: "Owner" | "Admin" | "Member" | "Viewer" | null;
+  organizationRoleSlug?: string | null;
+  branding?: TenantBranding | null;
+  workspaces: OrganizationWorkspaceSummary[];
 }
 
 export const WorkspaceService = {
   list: () =>
-    apiClient.get<{ success: boolean; message: string; workspaces: WorkspaceSummary[] }>("/workspaces"),
+    apiClient.get<{
+      success: boolean;
+      message: string;
+      organizations: OrganizationMembership[];
+      workspaces: WorkspaceSummary[];
+    }>("/workspaces"),
 
   create: (name: string, organizationId?: string | null, organizationName?: string | null) =>
     apiClient.post<{ success: boolean; message: string; workspace: { _id: string; name: string; slug: string } }>(

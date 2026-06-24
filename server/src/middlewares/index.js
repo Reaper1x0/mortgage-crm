@@ -3,6 +3,7 @@ module.exports.requireOrganization = require("./organizationContext.middleware")
 module.exports.requireWorkspace = require("./workspaceContext.middleware");
 module.exports.attachWorkspacePermissionsIfPresent = require("./optionalWorkspaceContext.middleware");
 module.exports.isMember = require("./isMember.middleware");
+module.exports.isUsernameFree = require("./isUsernameFree.middleware");
 module.exports.validate = require("./validate.middleware");
 module.exports.isNotMember = require("./isNotMember.middleware");
 module.exports.isNotLoggedIn = require("./isNotLoggedIn.middleware");

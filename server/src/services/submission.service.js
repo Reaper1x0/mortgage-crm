@@ -7,6 +7,24 @@ function isObjectId(v) {
   return mongoose.Types.ObjectId.isValid(v);
 }
 
+const UPLOADER_POPULATE = {
+  path: "uploaded_by",
+  select: "fullName email username",
+  populate: {
+    path: "profile_picture",
+    select: "url storage_path display_name",
+  },
+};
+
+const GENERATED_BY_POPULATE = {
+  path: "generated_documents.generated_by",
+  select: "fullName email username",
+  populate: {
+    path: "profile_picture",
+    select: "url storage_path display_name",
+  },
+};
+
 const SubmissionService = {
   // ✅ Create a new Submission (always bind to this userId)
   createSubmission: async (data, userId, workspaceId) => {
@@ -69,6 +87,17 @@ const SubmissionService = {
         select: "fullName email phone company source",
       })
       .populate({
+        path: "identity_document.file",
+        populate: {
+          path: "uploaded_by",
+          select: "fullName email username",
+          populate: {
+            path: "profile_picture",
+            select: "url storage_path display_name",
+          },
+        },
+      })
+      .populate({
         path: "documents.document",
         populate: {
           path: "uploaded_by",
@@ -90,6 +119,41 @@ const SubmissionService = {
       });
   },
 
+  getSubmissionSummary: async (id, workspaceId) => {
+    return Submission.findOne({ _id: id, workspace: workspaceId })
+      .select("_id submission_name legal_name status createdAt updatedAt sourceLead")
+      .populate({
+        path: "sourceLead",
+        select: "fullName email phone company source",
+      })
+      .lean();
+  },
+
+  getSubmissionIdentity: async (id, workspaceId) => {
+    return Submission.findOne({ _id: id, workspace: workspaceId })
+      .select("_id legal_name identity_document")
+      .populate({
+        path: "identity_document.file",
+        populate: UPLOADER_POPULATE,
+      });
+  },
+
+  getSubmissionDocuments: async (id, workspaceId) => {
+    return Submission.findOne({ _id: id, workspace: workspaceId })
+      .select("_id documents")
+      .populate({
+        path: "documents.document",
+        populate: UPLOADER_POPULATE,
+      });
+  },
+
+  getGeneratedDocuments: async (id, workspaceId) => {
+    return Submission.findOne({ _id: id, workspace: workspaceId })
+      .select("_id generated_documents")
+      .populate("generated_documents.file_id")
+      .populate(GENERATED_BY_POPULATE);
+  },
+
   // Update submission (Admin/Agent can update any submission)
   updateSubmission: async (submissionId, data, workspaceId) => {
     const payload = { ...data };
@@ -102,6 +166,17 @@ const SubmissionService = {
       .populate({
         path: "sourceLead",
         select: "fullName email phone company source",
+      })
+      .populate({
+        path: "identity_document.file",
+        populate: {
+          path: "uploaded_by",
+          select: "fullName email username",
+          populate: {
+            path: "profile_picture",
+            select: "url storage_path display_name",
+          },
+        },
       })
       .populate({
         path: "documents.document",

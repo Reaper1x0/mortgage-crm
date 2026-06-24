@@ -12,6 +12,7 @@ import BulkActionBar from "../Reusable/BulkActionBar";
 import BulkImportWizard from "../Reusable/BulkImportWizard";
 import { prettyDate } from "../../utils/date";
 import { showSuccessToast, showWarningToast } from "../../utils/errorHandler";
+import StatusBadge from "../Reusable/StatusBadge";
 import { Lead, LeadService } from "../../service/leadService";
 import { usePermissions } from "../../context/PermissionContext";
 import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
@@ -148,13 +149,14 @@ export default function LeadsPage() {
 
   const handleMoveSingleLead = useCallback(
     async (lead: Lead) => {
+      if (lead.usedAsClient) {
+        showWarningToast("This lead is already linked to a client.");
+        return;
+      }
       setActionLoading(true);
       try {
-        const res = await LeadService.moveLeadToClient(lead._id);
+        await LeadService.moveLeadToClient(lead._id);
         showSuccessToast(`${lead.fullName} moved to client`);
-        if (res.skippedCount > 0) {
-          showWarningToast(`${res.skippedCount} lead(s) skipped`);
-        }
         await list.refetch();
       } finally {
         setActionLoading(false);
@@ -165,12 +167,24 @@ export default function LeadsPage() {
 
   const handleBulkMoveToClients = async () => {
     if (!selection.selectedKeys.length) return;
+
+    const movableIds = selection.selectedKeys.filter((id) => {
+      const lead = list.data.find((item) => item._id === id);
+      return !lead?.usedAsClient;
+    });
+    const skippedCount = selection.selectedKeys.length - movableIds.length;
+
+    if (!movableIds.length) {
+      showWarningToast("Selected lead(s) are already linked to clients.");
+      return;
+    }
+
     setActionLoading(true);
     try {
-      const res = await LeadService.bulkMoveLeadsToClients(selection.selectedKeys);
+      const res = await LeadService.bulkMoveLeadsToClients(movableIds);
       showSuccessToast(`${res.movedCount} lead(s) moved to client`);
-      if (res.skippedCount > 0) {
-        showWarningToast(`${res.skippedCount} lead(s) skipped`);
+      if (res.skippedCount > 0 || skippedCount > 0) {
+        showWarningToast(`${res.skippedCount + skippedCount} lead(s) skipped`);
       }
       selection.clear();
       await list.refetch();
@@ -200,7 +214,16 @@ export default function LeadsPage() {
       {
         title: "Used As Client",
         dataIndex: "usedAsClient",
-        render: (_: unknown, row: Lead) => (row.usedAsClient ? `Yes (${row.clientCount || 0})` : "No"),
+        render: (_: unknown, row: Lead) =>
+          row.usedAsClient ? (
+            <StatusBadge tone="success">
+              {row.clientCount && row.clientCount > 1
+                ? `Client (${row.clientCount})`
+                : "Client"}
+            </StatusBadge>
+          ) : (
+            <StatusBadge tone="neutral">Not used</StatusBadge>
+          ),
       },
       {
         title: "Created At",
@@ -241,14 +264,16 @@ export default function LeadsPage() {
               disabled={!canLeadsWrite}
               disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.deleteLead : undefined}
             />
-            <Button
-              variant="secondary"
-              onClick={() => handleMoveSingleLead(row)}
-              disabled={busy || !canLeadsWrite}
-              disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.moveLeadToClient : undefined}
-            >
-              Make Client
-            </Button>
+            {!row.usedAsClient ? (
+              <Button
+                variant="secondary"
+                onClick={() => handleMoveSingleLead(row)}
+                disabled={busy || !canLeadsWrite}
+                disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.moveLeadToClient : undefined}
+              >
+                Make Client
+              </Button>
+            ) : null}
           </div>
         ),
       },

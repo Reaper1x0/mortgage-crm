@@ -1,9 +1,10 @@
 const { v4: uuidv4 } = require("uuid");
 const { PDFDocument } = require("pdf-lib");
-const { Template, MasterField, Submission, File } = require("../models");
+const { Template, MasterField, Submission } = require("../models");
 const { renderPdfBuffer } = require("./pdfRender.service");
 const { mongoosePaginate } = require("../utils/mongoosePaginate.utils");
 const storageService = require("./storage.service");
+const { FileService } = require("./file.service");
 const AuditTrailService = require("./auditTrail.service");
 const { getSignedFileUrl } = require("../utils/fileUrl.utils");
 
@@ -121,29 +122,25 @@ const TemplateService = {
     // Store in database using unified storage service
     let savedFile = null;
     if (submissionId && userId) {
-      const storageInfo = await storageService.uploadBuffer({
-        buffer: pdfBuffer,
-        originalName: outputName,
-        displayName: `Generated_${tpl.name}_${new Date().toISOString().split("T")[0]}.pdf`,
-        folder: `uploads/submissions/${submissionId}/generated`,
-        contentType: "application/pdf",
-        customMetadata: {
-          submissionId,
-          templateId: String(templateId),
-          templateName: tpl.name,
-          generated: true,
-          skipAuditLog: true, // Skip document_uploaded audit log since we log document_generated separately
+      savedFile = await FileService.createFromBuffer(
+        {
+          buffer: pdfBuffer,
+          originalName: outputName,
+          displayName: `Generated_${tpl.name}_${new Date().toISOString().split("T")[0]}.pdf`,
+          folder: `uploads/submissions/${submissionId}/generated`,
+          contentType: "application/pdf",
+          meta: {
+            submissionId,
+            workspaceId,
+            templateId: String(templateId),
+            templateName: tpl.name,
+            generated: true,
+            skipAuditLog: true,
+          },
         },
-      });
-
-      savedFile = await File.create({
-        ...storageInfo,
-        owner_id: userId,
-        uploaded_by: userId,
-        uploaded_at: new Date(),
-        status: "uploaded",
-        meta: storageInfo.meta,
-      });
+        userId,
+        userId
+      );
 
       // Add to submission's generated_documents array
       await Submission.findOneAndUpdate({ _id: submissionId, workspace: workspaceId }, {

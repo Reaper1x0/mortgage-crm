@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, FormEvent } from "react";
 import { useLanguage } from "../../context/LanguageContext";
 import { AuthService } from "../../service/authService";
-import { ButtonProps } from "../Reusable/Button";
 import Form, { FormSection } from "../Reusable/Inputs/Form";
+import Input from "../Reusable/Inputs/Input";
 import { UserService } from "../../service/userService";
 import Button from "../Reusable/Button";
 import Surface from "../Reusable/Surface";
@@ -25,14 +25,51 @@ const Profile = () => {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
   const fileUploadRef = useRef<FileUploadZoneHandle>(null);
+  const usernameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  const [usernameHint, setUsernameHint] = useState<string | undefined>(undefined);
+  const [usernameHintTone, setUsernameHintTone] = useState<"success" | "muted">("muted");
+  const [usernameChecking, setUsernameChecking] = useState(false);
 
-  const handleChange = async (username: String) => {
-    try {
-      await AuthService.getUsernameAvailibility(username);
+  useEffect(() => {
+    if (!user) return;
+    setFullName(user.fullName || "");
+    setUsername(user.username || "");
+    setUserNameError(undefined);
+    setUsernameHint(undefined);
+  }, [user]);
+
+  const handleUsernameChange = (value: string) => {
+    setUsername(value);
+    if (usernameCheckTimer.current) clearTimeout(usernameCheckTimer.current);
+
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === user?.username) {
       setUserNameError(undefined);
-    } catch {
-      setUserNameError("Username not available");
+      setUsernameHint(undefined);
+      setUsernameChecking(false);
+      return;
     }
+
+    setUsernameChecking(true);
+    setUsernameHint("Checking availability...");
+    setUsernameHintTone("muted");
+    setUserNameError(undefined);
+
+    usernameCheckTimer.current = setTimeout(async () => {
+      try {
+        await AuthService.getUsernameAvailibility(trimmed);
+        setUserNameError(undefined);
+        setUsernameHint("Username is available");
+        setUsernameHintTone("success");
+      } catch {
+        setUsernameHint(undefined);
+        setUserNameError("Username not available");
+      } finally {
+        setUsernameChecking(false);
+      }
+    }, 400);
   };
 
   const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,33 +130,17 @@ const Profile = () => {
     setProfileImageFailed(false);
   }, [avatarSource.type, avatarSource.value]);
 
-  const fields: FormSection["fields"] = [
-    { fieldtype: "input", name: "fullName", label: t("full_name"), placeholder: t("full_name"), type: "text", required: true },
-    { fieldtype: "input", name: "username", label: t("username"), placeholder: t("username"), type: "text", required: true, handlechange: handleChange },
-    { fieldtype: "input", name: "email", label: t("email"), placeholder: t("email"), type: "email", required: true, disabled: true },
-    { fieldtype: "input", name: "role", label: "Role", placeholder: "Role", type: "text", required: true, disabled: true },
-  ];
+  const handleProfileSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (usernameChecking || usernameError) return;
 
-  const buttons: ButtonProps[] = [
-    { 
-      type: "submit", 
-      children: savingProfile ? "Saving..." : "Save Changes", 
-      variant: "primary",
-      isLoading: savingProfile,
-      disabled: savingProfile
-    },
-  ];
-  const sections: FormSection[] = [{ title: "Personal Information", fields }];
-
-  const handleSubmit = async (values: Record<string, any>) => {
     setSavingProfile(true);
     try {
       const formData = new FormData();
-      formData.append("fullName", values.fullName || "");
-      formData.append("username", values.username || "");
+      formData.append("fullName", fullName || "");
+      formData.append("username", username || "");
 
       await UserService.updateProfile(formData);
-      // Refresh from API to get latest data (this will update all components via context)
       await refreshProfile();
     } catch (error: any) {
       alert(error?.response?.data?.message || error?.message || "Failed to update profile");
@@ -231,15 +252,55 @@ const Profile = () => {
               <h2 className="text-xl font-bold text-text">Personal Information</h2>
               <p className="text-sm text-card-text mt-1">Update your personal details and preferences</p>
             </div>
-            <Form
-              title=""
-              sections={sections}
-              buttons={buttons}
-              onSubmit={handleSubmit}
-              errors={usernameError ? { username: usernameError } : {}}
-              defaultValues={user || {}}
-              sectionClassName="!space-y-4"
-            />
+            <form onSubmit={handleProfileSubmit} className="space-y-4">
+              <Input
+                name="fullName"
+                label={t("full_name")}
+                placeholder={t("full_name")}
+                type="text"
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
+              <Input
+                name="username"
+                label={t("username")}
+                placeholder={t("username")}
+                type="text"
+                required
+                value={username}
+                onChange={(e) => handleUsernameChange(e.target.value)}
+                error={usernameError}
+                hint={usernameHint}
+                hintTone={usernameHintTone}
+              />
+              <Input
+                name="email"
+                label={t("email")}
+                placeholder={t("email")}
+                type="email"
+                required
+                value={user?.email || ""}
+                disabled
+              />
+              <Input
+                name="role"
+                label="Role"
+                placeholder="Role"
+                type="text"
+                required
+                value={user?.role || ""}
+                disabled
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={savingProfile}
+                disabled={savingProfile || usernameChecking || Boolean(usernameError)}
+              >
+                {savingProfile ? "Saving..." : "Save Changes"}
+              </Button>
+            </form>
           </Surface>
 
           {/* Security Section */}

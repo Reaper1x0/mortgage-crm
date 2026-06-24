@@ -83,7 +83,16 @@ export default {
         "fx-grid-line": "var(--fx-grid-line)",
         "fx-glow-1": "var(--fx-glow-1)",
         "fx-glow-2": "var(--fx-glow-2)",
-      }
+      },
+      keyframes: {
+        "upload-slide": {
+          "0%": { transform: "translateX(-120%)" },
+          "100%": { transform: "translateX(320%)" },
+        },
+      },
+      animation: {
+        "upload-slide": "upload-slide 1.2s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

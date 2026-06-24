@@ -1,9 +1,32 @@
 const { Lead, Submission } = require("../models");
 const { mongoosePaginate } = require("../utils/mongoosePaginate.utils");
 
+async function countClientsBySourceLeadIds(leadIds = [], workspaceId = null) {
+  if (!leadIds.length) return new Map();
+
+  const idStrings = Array.from(new Set(leadIds.map((id) => String(id))));
+  const submissionFilter = { sourceLead: { $in: idStrings } };
+  if (workspaceId) submissionFilter.workspace = workspaceId;
+
+  const linked = await Submission.find(submissionFilter).select("sourceLead").lean();
+  const countMap = new Map();
+  for (const doc of linked) {
+    if (!doc.sourceLead) continue;
+    const key = String(doc.sourceLead);
+    countMap.set(key, (countMap.get(key) || 0) + 1);
+  }
+  return countMap;
+}
+
 const LeadService = {
   listLeads: async function (options = {}) {
-    const { page = 1, limit = 10, sort = { createdAt: -1 }, filter = {} } = options;
+    const {
+      page = 1,
+      limit = 10,
+      sort = { createdAt: -1 },
+      filter = {},
+      workspaceId = null,
+    } = options;
 
     const paged = await mongoosePaginate({
       model: Lead,
@@ -17,16 +40,8 @@ const LeadService = {
     const leadIds = (paged.items || []).map((lead) => lead._id);
     if (!leadIds.length) return paged;
 
-    const counts = await Submission.aggregate([
-      {
-        $match: {
-          sourceLead: { $in: leadIds },
-          ...(filter.workspace ? { workspace: filter.workspace } : {}),
-        },
-      },
-      { $group: { _id: "$sourceLead", count: { $sum: 1 } } },
-    ]);
-    const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
+    const countWorkspaceId = workspaceId || filter.workspace || null;
+    const countMap = await countClientsBySourceLeadIds(leadIds, countWorkspaceId);
 
     return {
       ...paged,

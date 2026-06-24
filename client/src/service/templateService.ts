@@ -1,15 +1,23 @@
 import apiClient from "../api/apiClient";
+import { uploadFormData } from "../utils/uploadRequest";
+import type { FileUploadProgressCallback } from "../utils/uploadProgress";
 
 export const TemplateService = {
-  createTemplate: async (name: string, file: File) => {
+  createTemplate: async (
+    name: string,
+    file: File,
+    onProgress?: FileUploadProgressCallback
+  ) => {
     const form = new FormData();
     form.append("name", name);
     form.append("file", file);
 
-    const res = await apiClient.post("/templates", form, {
-      headers: { "Content-Type": "multipart/form-data" },
+    return uploadFormData({
+      path: "templates",
+      formData: form,
+      file,
+      onProgress,
     });
-    return res.data;
   },
 
   getTemplate: async (id: string) => {

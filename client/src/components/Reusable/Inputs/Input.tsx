@@ -10,6 +10,8 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   value?: string | number;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   error?: string;
+  hint?: string;
+  hintTone?: "success" | "muted";
   disabled?: boolean;
   fieldSize?: "sm" | "md" | "lg";
   className?: string;
@@ -24,6 +26,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       value,
       onChange,
       error,
+      hint,
+      hintTone = "muted",
       disabled = false,
       fieldSize = "md",
       className,
@@ -90,7 +94,18 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
         </div>
 
-        {error && <p className="mt-0.5 text-xs font-medium text-danger-text">{error}</p>}
+        {error ? (
+          <p className="mt-0.5 text-xs font-medium text-danger-text">{error}</p>
+        ) : hint ? (
+          <p
+            className={cn(
+              "mt-0.5 text-xs font-medium",
+              hintTone === "success" ? "text-success-text" : "text-card-text"
+            )}
+          >
+            {hint}
+          </p>
+        ) : null}
       </div>
     );
   }

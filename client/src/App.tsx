@@ -35,45 +35,30 @@ import SuperAdminSubscriptionDetailPage from "./components/SuperAdmin/SuperAdmin
 import BillingSettings from "./components/Workspace/BillingSettings";
 import OrganizationUsersSettings from "./components/Workspace/OrganizationUsersSettings";
 import OrganizationAccessSettings from "./components/Workspace/OrganizationAccessSettings";
+import OrganizationWorkspacesSettings from "./components/Workspace/OrganizationWorkspacesSettings";
 import PricingPage from "./components/Billing/PricingPage";
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/AuthContext";
 import { PermissionProvider } from "./context/PermissionContext";
 import { buildOrganizationPath, buildWorkspacePath, getTenantFromPath } from "./utils/tenantRouting";
 
-/** Keeps active org in AuthContext aligned with the URL. Preserves a workspace when the path is org-only (e.g. settings). */
+/** Keeps active org/workspace in AuthContext aligned with the URL. Workspace is cleared on org-only routes. */
 function SyncTenantFromUrl() {
   const location = useLocation();
-  const { setActiveOrganizationId, setActiveWorkspaceId, workspaces } = useAuth();
+  const { setActiveOrganizationId, setActiveWorkspaceId } = useAuth();
   useEffect(() => {
     const t = getTenantFromPath(location.pathname);
     setActiveOrganizationId(t.organizationId);
-    if (t.workspaceId) {
-      setActiveWorkspaceId(t.workspaceId);
-      return;
-    }
-    if (t.organizationId) {
-      const firstInOrg = workspaces.find((w) => w.organization?.organizationId === t.organizationId);
-      if (firstInOrg?.workspaceId) {
-        setActiveWorkspaceId(firstInOrg.workspaceId);
-        return;
-      }
-    }
-    if (!t.organizationId) {
-      setActiveWorkspaceId(null);
-    }
-  }, [location.pathname, workspaces, setActiveOrganizationId, setActiveWorkspaceId]);
+    setActiveWorkspaceId(t.workspaceId);
+  }, [location.pathname, setActiveOrganizationId, setActiveWorkspaceId]);
   return null;
 }
 
 function OrgDashboardRedirect() {
   const { organizationId } = useParams();
-  const { workspaces } = useAuth();
-  const firstOrgWorkspace = workspaces.find((w) => w.organization?.organizationId === organizationId) || workspaces[0];
-  if (organizationId && firstOrgWorkspace?.workspaceId) {
-    return <Navigate to={buildWorkspacePath(organizationId, firstOrgWorkspace.workspaceId, "dashboard")} replace />;
+  if (organizationId) {
+    return <Navigate to={buildOrganizationPath(organizationId, "settings/organization")} replace />;
   }
-  if (organizationId) return <Navigate to={buildOrganizationPath(organizationId, "onboarding")} replace />;
   return <Navigate to="/onboarding" replace />;
 }
 
@@ -249,6 +234,20 @@ function App() {
                     }
                   >
                     <Route index element={<BillingSettings />} />
+                  </Route>
+                  <Route
+                    path="workspaces"
+                    element={
+                      <ProtectedRoute
+                        requireWorkspace={false}
+                        organizationPermissionsAny={[
+                          "organization.organization.read",
+                          "organization.workspaces.create",
+                        ]}
+                      />
+                    }
+                  >
+                    <Route index element={<OrganizationWorkspacesSettings />} />
                   </Route>
                   <Route
                     path="access"

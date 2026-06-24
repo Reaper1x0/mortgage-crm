@@ -7,6 +7,7 @@ const {
   validate,
   isAuth,
   isMember,
+  isUsernameFree,
   isNotLoggedIn,
   isNotMember,
   isPasswordSame,
@@ -24,6 +25,7 @@ router.post(
   "/register",
   isNotLoggedIn,
   validate(authValidation.register),
+  isUsernameFree,
   isMember,
   authController.register
 );
@@ -93,5 +95,6 @@ router.post("/update-profile", isAuth, upload.single("profilePicture"), authCont
 router.post("/change-password", isAuth, validate(authValidation.changePassword), authController.changePassword);
 
 router.get("/username-availbility/:username", isAuthOptional, authController.getUserNameAvailibility);
+router.get("/username-availability/:username", isAuthOptional, authController.getUserNameAvailibility);
 
 module.exports = router;

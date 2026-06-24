@@ -1,39 +1,11 @@
 // backend/controllers/extractionController.js — CNIC identity extraction only.
 // Submission document upload/extract lives in submissionDocument.controller.js
 
-const { extractTextFromFile } = require("../services/textextraction.service");
 const { R2XX, R4XX, R5XX } = require("../Responses");
 const { catchAsync } = require("../utils");
 const SubmissionService = require("../services/submission.service");
-const llmService = require("../services/llm/llm.service");
-const { billingService } = require("../services");
-
-async function extractLegalNameFromText(text) {
-  const systemPrompt = `
-You are an extraction engine for Pakistani CNICs.
-Given the DOCUMENT TEXT, extract the full legal name of the card holder.
-Return ONLY a JSON object:
-
-{
-  "legal_name": "<exact name string or null>"
-}
-
-- Do NOT add any other keys.
-- If you are unsure, return "legal_name": null.
-DOCUMENT TEXT:
-<<<
-${text}
->>>
-`;
-
-  const result = await llmService.extractJson({
-    systemPrompt,
-    userPrompt: "Extract legal_name as strict JSON.",
-    temperature: 0,
-    maxTokens: 512,
-  });
-  return result?.parsed?.legal_name || null;
-}
+const submissionDocumentService = require("../services/submissionDocument.service");
+const { attachSignedUrlsDeep } = require("../utils/fileUrl.utils");
 
 const ExtractionController = {
   handleCnicUpload: catchAsync(async (req, res) => {
@@ -43,50 +15,57 @@ const ExtractionController = {
     if (!submissionId) return R4XX(res, 400, "Submission id is required.");
     if (!file) return R4XX(res, 400, "CNIC file is required.");
 
-    let text = "";
     try {
-      text = await extractTextFromFile({
-        ...file,
-        buffer: file.buffer,
+      const result = await submissionDocumentService.uploadOrReplaceIdentityDocument({
+        submissionId,
+        file,
+        userId: req.user,
+        workspaceId: req.workspaceId,
+        organizationId: req.organizationId,
+      });
+
+      const identitySubmission = await SubmissionService.getSubmissionIdentity(
+        submissionId,
+        req.workspaceId
+      );
+      if (!identitySubmission) return R4XX(res, 404, "Submission not found.");
+      const signedIdentity = await attachSignedUrlsDeep(identitySubmission);
+
+      const identityPayload = {
+        submissionId: signedIdentity._id,
+        legal_name: signedIdentity.legal_name ?? null,
+        identity_document: signedIdentity.identity_document ?? null,
+      };
+
+      if (!result.legalName) {
+        return R2XX(
+          res,
+          result.extractionError ||
+            "ID uploaded, but legal name could not be detected. Try a clearer image or enter manually.",
+          200,
+          {
+            legalName: null,
+            rawTextLength: result.rawTextLength,
+            ...identityPayload,
+            needsManualLegalName: true,
+            extractionStatus: result.extractionStatus,
+          }
+        );
+      }
+
+      return R2XX(res, "CNIC processed successfully.", 200, {
+        legalName: result.legalName,
+        rawTextLength: result.rawTextLength,
+        ...identityPayload,
+        needsManualLegalName: false,
+        extractionStatus: result.extractionStatus,
       });
     } catch (err) {
-      console.error("Text extraction failed for CNIC:", err);
-      return R5XX(res, { details: "Failed to extract text from CNIC." });
+      if (err?.statusCode === 404) return R4XX(res, 404, err.message);
+      if (err?.statusCode === 400) return R4XX(res, 400, err.message);
+      console.error("CNIC identity upload failed:", err);
+      return R5XX(res, { details: "Failed to process identification document." });
     }
-
-    if (!text || !text.trim()) return R4XX(res, 400, "No readable text found in CNIC image/document.");
-
-    let legalName = null;
-    try {
-      legalName = await extractLegalNameFromText(text);
-    } catch (err) {
-      console.error("OpenAI CNIC name extraction failed:", err);
-    }
-
-    if (!legalName) {
-      return R2XX(res, "CNIC processed, but legal name could not be detected. Please upload a clearer image.", 200, {
-        legalName: null,
-        rawTextLength: text.length,
-      });
-    }
-
-    const updated = await SubmissionService.updateSubmission(
-      submissionId,
-      { legal_name: legalName },
-      req.workspaceId
-    );
-    if (!updated) return R4XX(res, 404, "Submission not found.");
-    await billingService.trackExtractionUsage({
-      organizationId: req.organizationId,
-      amount: 1,
-    });
-
-    return R2XX(res, "CNIC processed successfully.", 200, {
-      legalName,
-      rawTextLength: text.length,
-      submission: updated,
-      needsManualLegalName: false,
-    });
   }),
 };
 

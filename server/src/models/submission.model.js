@@ -81,6 +81,25 @@ const DocumentSchema = new mongoose.Schema({
   extracted_at: { type: Date, default: null },
 });
 
+/* -------------------- Identity / CNIC document (step 1) -------------------- */
+const IdentityDocumentSchema = new mongoose.Schema({
+  file: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "File",
+    required: true,
+  },
+  document_name: { type: String, default: "" },
+  uploaded_at: { type: Date, default: Date.now },
+  uploaded_by: { type: mongoose.Schema.Types.ObjectId, ref: "users" },
+  extraction_status: {
+    type: String,
+    enum: ["pending", "extracted", "extract_failed"],
+    default: "pending",
+  },
+  extraction_error: { type: String, default: null },
+  extracted_at: { type: Date, default: null },
+});
+
 /* -------------------- Submission-level aggregated fields -------------------- */
 /**
  * This is the "final view" of master fields for the submission.
@@ -180,6 +199,7 @@ const SubmissionSchema = new mongoose.Schema(
     submission_name: { type: String, required: true },
 
     legal_name: { type: String },
+    identity_document: { type: IdentityDocumentSchema, default: null },
     sourceLead: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "leads",

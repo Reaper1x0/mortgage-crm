@@ -1,5 +1,9 @@
 import apiClient from "../api/apiClient";
-import type { Submission } from "../types/extraction.types";
+import type { GeneratedDocument, SubmissionDocument } from "../types/extraction.types";
+import { uploadFormData } from "../utils/uploadRequest";
+import type { FileUploadProgressCallback } from "../utils/uploadProgress";
+
+export type { FileUploadProgress, FileUploadPhase } from "../utils/uploadProgress";
 
 export type DocumentUploadResult = {
   original_name?: string;
@@ -8,91 +12,61 @@ export type DocumentUploadResult = {
   docEntryId?: string;
 };
 
-export type UploadDocumentsResponse = {
+export type DocumentsSliceResponse = {
   success: boolean;
   message: string;
-  submission: Submission;
+  submissionId: string;
+  documents: SubmissionDocument[];
+};
+
+export type UploadDocumentsResponse = DocumentsSliceResponse & {
   results: DocumentUploadResult[];
 };
 
-export type ExtractDocumentResponse = {
-  success: boolean;
-  message: string;
-  submission: Submission;
+export type ExtractDocumentResponse = DocumentsSliceResponse & {
   docEntryId: string;
   extracted_fields_count: number;
   extraction_status: string;
 };
 
-export type FileUploadPhase = "uploading" | "processing" | "done" | "error";
-
-export type FileUploadProgress = {
-  fileName: string;
-  phase: FileUploadPhase;
-  /** 0–100 during upload; processing uses indeterminate UI */
-  percent: number;
-  error?: string;
+export type RemoveGeneratedResponse = {
+  success: boolean;
+  message: string;
+  submissionId: string;
+  generated_documents: GeneratedDocument[];
 };
 
-type ProgressCallback = (progress: FileUploadProgress) => void;
-
-function applyUploadProgress(
-  file: File,
-  onProgress: ProgressCallback | undefined,
-  event: { loaded: number; total?: number }
-) {
-  if (!onProgress) return;
-  const total = event.total || file.size || 1;
-  const raw = Math.round((event.loaded * 100) / total);
-  const percent = Math.min(Math.max(raw, 0), 99);
-  onProgress({
-    fileName: file.name,
-    phase: event.loaded >= total ? "processing" : "uploading",
-    percent: event.loaded >= total ? 100 : percent,
-  });
-}
+export type ListDocumentsResponse = DocumentsSliceResponse;
 
 async function uploadSingleDocument(
   submissionId: string,
   file: File,
-  onProgress?: ProgressCallback
+  onProgress?: FileUploadProgressCallback
 ) {
   const formData = new FormData();
   formData.append("documents", file);
 
-  onProgress?.({ fileName: file.name, phase: "uploading", percent: 0 });
-
-  const resp = await apiClient.post<UploadDocumentsResponse>(
-    `/submissions/${submissionId}/documents`,
+  const data = await uploadFormData<UploadDocumentsResponse>({
+    path: `submissions/${submissionId}/documents`,
     formData,
-    {
-      headers: { "Content-Type": "multipart/form-data" },
-      onUploadProgress: (event) => applyUploadProgress(file, onProgress, event),
-    }
-  );
+    file,
+    onProgress,
+  });
 
-  onProgress?.({ fileName: file.name, phase: "processing", percent: 100 });
-
-  const data = resp.data;
   const fileResult = data.results?.find((r) => r.original_name === file.name) ?? data.results?.[0];
 
   if (!fileResult?.ok) {
-    onProgress?.({
-      fileName: file.name,
-      phase: "error",
-      percent: 0,
-      error: fileResult?.reason || data.message || "Upload failed.",
-    });
     throw new Error(fileResult?.reason || data.message || "Upload failed.");
   }
 
-  onProgress?.({ fileName: file.name, phase: "done", percent: 100 });
   return data;
 }
 
 export const SubmissionDocumentsService = {
   list: async (submissionId: string) => {
-    const resp = await apiClient.get(`/submissions/${submissionId}/documents`);
+    const resp = await apiClient.get<ListDocumentsResponse>(
+      `/submissions/${submissionId}/documents`
+    );
     return resp.data;
   },
 
@@ -101,15 +75,15 @@ export const SubmissionDocumentsService = {
   uploadMany: async (
     submissionId: string,
     files: File[],
-    onFileProgress?: (fileName: string, progress: FileUploadProgress) => void
+    onFileProgress?: (file: File, index: number, progress: import("../utils/uploadProgress").FileUploadProgress) => void
   ): Promise<UploadDocumentsResponse> => {
     let lastResponse: UploadDocumentsResponse | null = null;
 
-    for (const file of files) {
-      const data = await uploadSingleDocument(submissionId, file, (progress) => {
-        onFileProgress?.(file.name, progress);
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      lastResponse = await uploadSingleDocument(submissionId, file, (progress) => {
+        onFileProgress?.(file, index, progress);
       });
-      lastResponse = data;
     }
 
     if (!lastResponse) {
@@ -130,29 +104,30 @@ export const SubmissionDocumentsService = {
     submissionId: string,
     docEntryId: string,
     file: File,
-    onProgress?: ProgressCallback
+    onProgress?: FileUploadProgressCallback
   ) => {
     const fd = new FormData();
     fd.append("file", file);
 
-    onProgress?.({ fileName: file.name, phase: "uploading", percent: 0 });
-
-    const resp = await apiClient.put(
-      `/submissions/${submissionId}/documents/${docEntryId}`,
-      fd,
-      {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (event) => applyUploadProgress(file, onProgress, event),
-      }
-    );
-
-    onProgress?.({ fileName: file.name, phase: "done", percent: 100 });
-    return resp.data;
+    return uploadFormData<DocumentsSliceResponse>({
+      method: "PUT",
+      path: `submissions/${submissionId}/documents/${docEntryId}`,
+      formData: fd,
+      file,
+      onProgress,
+    });
   },
 
   remove: async (submissionId: string, docEntryId: string) => {
-    const resp = await apiClient.delete(
+    const resp = await apiClient.delete<DocumentsSliceResponse>(
       `/submissions/${submissionId}/documents/${docEntryId}`
+    );
+    return resp.data;
+  },
+
+  removeGenerated: async (submissionId: string, generatedDocId: string) => {
+    const resp = await apiClient.delete<RemoveGeneratedResponse>(
+      `/submissions/${submissionId}/generated/${generatedDocId}`
     );
     return resp.data;
   },

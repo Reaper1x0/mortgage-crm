@@ -11,7 +11,7 @@ import React, {
 import { User } from "../types/auth.types";
 import { UserService } from "../service/userService";
 import { AuthService } from "../service/authService";
-import { WorkspaceService, WorkspaceSummary } from "../service/workspaceService";
+import { WorkspaceService, WorkspaceSummary, OrganizationMembership } from "../service/workspaceService";
 import { getTenantFromPath } from "../utils/tenantRouting";
 
 interface AuthContextType {
@@ -21,6 +21,7 @@ interface AuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
   workspaces: WorkspaceSummary[];
+  organizations: OrganizationMembership[];
   workspacesLoaded: boolean;
   activeOrganizationId: string | null;
   activeWorkspaceId: string | null;
@@ -42,6 +43,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [organizations, setOrganizations] = useState<OrganizationMembership[]>([]);
   const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
   const [activeOrganizationId, setActiveOrganizationIdState] = useState<string | null>(() =>
     getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "").organizationId
@@ -80,32 +82,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const accessToken = localStorage.getItem("accessToken");
     if (!accessToken) {
       setWorkspaces([]);
+      setOrganizations([]);
       setWorkspacesLoaded(true);
       return;
     }
     try {
       const response = await WorkspaceService.list();
       const list = response.data?.workspaces ?? [];
+      const orgList = response.data?.organizations ?? [];
       setWorkspaces(list);
-      const orgFromActiveWorkspace =
-        list.find((w) => w.workspaceId === activeWorkspaceId)?.organization?.organizationId ?? null;
-      if (orgFromActiveWorkspace) {
-        setActiveOrganizationId(orgFromActiveWorkspace);
-      } else if (list[0]?.organization?.organizationId) {
-        setActiveOrganizationId(list[0].organization.organizationId);
-      }
+      setOrganizations(orgList);
 
       const tenantFromPath = getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "");
-      const pathWorkspaceId = tenantFromPath.workspaceId;
-      const valid = pathWorkspaceId && list.some((w) => w.workspaceId === pathWorkspaceId);
-      if (list.length > 0 && !valid) {
+      if (tenantFromPath.organizationId) {
+        setActiveOrganizationId(tenantFromPath.organizationId);
+      } else {
+        const orgFromActiveWorkspace =
+          list.find((w) => w.workspaceId === activeWorkspaceId)?.organization?.organizationId ?? null;
+        if (orgFromActiveWorkspace) {
+          setActiveOrganizationId(orgFromActiveWorkspace);
+        } else if (orgList[0]?.organizationId) {
+          setActiveOrganizationId(orgList[0].organizationId);
+        }
+      }
+
+      if (tenantFromPath.workspaceId && list.some((w) => w.workspaceId === tenantFromPath.workspaceId)) {
+        setActiveWorkspaceId(tenantFromPath.workspaceId);
+      } else if (!tenantFromPath.workspaceId) {
+        setActiveWorkspaceId(null);
+      } else if (list.length > 0) {
         setActiveWorkspaceId(list[0].workspaceId);
-      } else if (list.length === 0) {
+      } else {
         setActiveWorkspaceId(null);
       }
     } catch (e) {
       console.error("Failed to load workspaces:", e);
       setWorkspaces([]);
+      setOrganizations([]);
     } finally {
       setWorkspacesLoaded(true);
     }
@@ -117,6 +130,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       setLoading(false);
       setWorkspaces([]);
+      setOrganizations([]);
       setWorkspacesLoaded(true);
       return;
     }
@@ -185,6 +199,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setUser(null);
       setWorkspaces([]);
+      setOrganizations([]);
       setWorkspacesLoaded(true);
       setActiveOrganizationIdState(null);
       setActiveWorkspaceIdState(null);
@@ -244,6 +259,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const handleUserLoggedOut = () => {
       setUser(null);
       setWorkspaces([]);
+      setOrganizations([]);
       setWorkspacesLoaded(true);
       setActiveWorkspaceIdState(null);
       setLoading(false);
@@ -273,16 +289,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const activeWorkspace = workspaces.find((w) => w.workspaceId === activeWorkspaceId);
-    if (!activeWorkspace) {
+    const activeOrganization =
+      organizations.find((o) => o.organizationId === activeOrganizationId) ||
+      activeWorkspace?.organization?.organizationId
+        ? organizations.find(
+            (o) => o.organizationId === (activeWorkspace?.organization?.organizationId || activeOrganizationId)
+          )
+        : null;
+
+    if (!activeWorkspace && !activeOrganization) {
       document.title = "Mortgage CRM";
       return;
     }
-    const orgId = activeWorkspace.organization?.organizationId;
-    if (orgId && orgId !== activeOrganizationId) setActiveOrganizationId(orgId);
-    const orgBranding = activeWorkspace.branding?.organization || null;
-    const orgName = activeWorkspace.organization?.name || "Mortgage CRM";
-    document.title = orgName;
-    const orgLogo = orgBranding?.logoUrl || null;
+
+    const orgName =
+      activeOrganization?.name || activeWorkspace?.organization?.name || "Mortgage CRM";
+    document.title = activeWorkspace ? `${activeWorkspace.name} · ${orgName}` : orgName;
+
+    const orgLogo =
+      activeOrganization?.branding?.logoUrl ||
+      activeWorkspace?.branding?.organization?.logoUrl ||
+      null;
     let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
     if (!favicon) {
       favicon = document.createElement("link");
@@ -296,7 +323,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       favicon.setAttribute("href", "/vite.svg");
       favicon.setAttribute("type", "image/svg+xml");
     }
-  }, [activeWorkspaceId, activeOrganizationId, setActiveOrganizationId, workspaces]);
+  }, [activeWorkspaceId, activeOrganizationId, organizations, workspaces]);
 
   const value: AuthContextType = {
     user,
@@ -304,6 +331,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loading,
     isAuthenticated: !!user,
     workspaces,
+    organizations,
     workspacesLoaded,
     activeOrganizationId,
     activeWorkspaceId,

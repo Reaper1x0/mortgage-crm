@@ -28,9 +28,6 @@ declare module "axios" {
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
 });
 
 // Function to refresh the token
@@ -80,6 +77,30 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = token;
   }
+
+  // Let the browser set multipart boundaries — required for upload progress events.
+  if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+    if (typeof config.headers?.set === "function") {
+      config.headers.set("Content-Type", false);
+    } else if (typeof config.headers?.delete === "function") {
+      config.headers.delete("Content-Type");
+    } else if (config.headers) {
+      delete config.headers["Content-Type"];
+    }
+  } else if (config.headers) {
+    const hasContentType =
+      typeof config.headers.get === "function"
+        ? config.headers.get("Content-Type")
+        : config.headers["Content-Type"];
+    if (!hasContentType) {
+      if (typeof config.headers.set === "function") {
+        config.headers.set("Content-Type", "application/json");
+      } else {
+        config.headers["Content-Type"] = "application/json";
+      }
+    }
+  }
+
   const pathTenant = getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "");
   const organizationId = sanitizeOrgId(config.organizationId ?? pathTenant.organizationId);
   const workspaceId = sanitizeOrgId(config.workspaceId ?? pathTenant.workspaceId);

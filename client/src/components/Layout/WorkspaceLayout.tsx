@@ -69,7 +69,7 @@ export default function WorkspaceLayout() {
           {isTemplateDesigner ? (
             <Outlet key={location.pathname} />
           ) : (
-            <main className="min-w-0 flex-1 py-4">
+            <main className="min-w-0 flex-1 overflow-x-hidden py-4">
               <Outlet key={location.pathname} />
             </main>
           )}

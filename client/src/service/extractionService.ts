@@ -1,30 +1,28 @@
-// src/api/extractionClient.ts
-
-import apiClient from "../api/apiClient";
-import { Submission } from "../types/extraction.types";
+import type { SubmissionIdentitySlice } from "../types/extraction.types";
+import { uploadFormData } from "../utils/uploadRequest";
+import type { FileUploadProgressCallback } from "../utils/uploadProgress";
 
 type CnicResponse = {
   message: string;
   success: boolean;
   legalName: string | null;
   rawTextLength: number;
-  submission: Submission;
-};
+  extractionStatus?: "pending" | "extracted" | "extract_failed";
+  needsManualLegalName?: boolean;
+} & SubmissionIdentitySlice;
 
-export async function uploadCnicForName(submissionId: string | undefined, file: File) {
+export async function uploadCnicForName(
+  submissionId: string | undefined,
+  file: File,
+  onProgress?: FileUploadProgressCallback
+) {
   const formData = new FormData();
   formData.append("cnic", file);
 
-  const res = await apiClient.post<CnicResponse>(
-    `extraction/cnic/extract-name/${submissionId}`,
+  return uploadFormData<CnicResponse>({
+    path: `extraction/cnic/extract-name/${submissionId}`,
     formData,
-    {
-      headers: {
-        // let browser set boundary
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
-
-  return res.data;
+    file,
+    onProgress,
+  });
 }

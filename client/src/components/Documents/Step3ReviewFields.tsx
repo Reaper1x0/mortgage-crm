@@ -11,13 +11,11 @@ import Callout from "../Reusable/Callout";
 export type Step3Props = {
   submissionId: string;
   onBack: () => void;
-  onSubmissionUpdated?: (submission: any) => void;
 };
 
 const Step3ReviewFields: React.FC<Step3Props> = ({
   submissionId,
   onBack,
-  onSubmissionUpdated,
 }) => {
   const [loading, setLoading] = useState(true);
   const [masterFields, setMasterFields] = useState<any[]>([]);
@@ -35,7 +33,6 @@ const Step3ReviewFields: React.FC<Step3Props> = ({
         setMasterFields(resp?.master_fields || []);
         setSubmissionFields(resp?.submission_fields || []);
         setEligibility(resp?.eligibility || null);
-        if (onSubmissionUpdated) onSubmissionUpdated(resp?.submission);
       } catch (e) {
         console.error(e);
       } finally {

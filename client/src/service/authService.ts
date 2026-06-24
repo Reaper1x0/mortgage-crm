@@ -61,11 +61,11 @@ export const AuthService = {
     window.location.href = "/";
   },
 
-  getUsernameAvailibility: async (username: String) => {
-    if (username.length > 4)
-      return await apiClient.get(
-        `${SERVER_URL}auth/username-availbility/${username}`,
-        { skipErrorToast: true } // Username availability check shouldn't show errors
-      );
+  getUsernameAvailibility: async (username: string) => {
+    const trimmed = String(username || "").trim();
+    if (trimmed.length < 3) return null;
+    return await apiClient.get(`/auth/username-availability/${encodeURIComponent(trimmed)}`, {
+      skipErrorToast: true,
+    });
   },
 };

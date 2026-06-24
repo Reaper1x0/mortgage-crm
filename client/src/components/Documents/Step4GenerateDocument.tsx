@@ -1,20 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import Button from "../Reusable/Button";
 import PageHeader from "../Reusable/PageHeader";
+import Surface from "../Reusable/Surface";
+import Modal from "../Reusable/Modal";
+import ActionBar from "../Reusable/ActionBar";
+import Callout from "../Reusable/Callout";
 import { TemplateService } from "../../service/templateService";
 import { SubmissionFieldStatusService } from "../../service/submissionFieldsStatusService";
 import { SubmissionService } from "../../service/submissionService";
+import { SubmissionDocumentsService } from "../../service/submissionDocumentService";
 import { useDispatch } from "react-redux";
-import { FiFileText, FiDownload, FiCalendar } from "react-icons/fi";
+import { FiTrash2 } from "react-icons/fi";
 import { addToast } from "../../redux/slices/toasterSlice";
 import { resolveFileUrl } from "../../utils/fileUrl";
+import type { GeneratedDocument } from "../../types/extraction.types";
+import ClientDocumentCard from "./ClientDocumentCard";
+import {
+  getGeneratedFileName,
+  getGeneratedFileRef,
+  sortGeneratedDocumentsNewestFirst,
+} from "./clientDocumentUtils";
+import { isResolvableUser } from "../Reusable/UserActionAvatar";
 
 type TemplateCatalogItem = {
   _id: string;
   name: string;
   pageCount: number;
   createdAt?: string;
-  placements?: Array<{ fieldKey: string }>; // from .select("placements.fieldKey")
+  placements?: Array<{ fieldKey: string }>;
 };
 
 type SubmissionField = {
@@ -40,9 +53,16 @@ export default function Step4GenerateDocument({
   const [generating, setGenerating] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [generatedDocuments, setGeneratedDocuments] = useState<any[]>([]);
+  const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteForId, setDeleteForId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Load templates + submission fields status + generated documents
+  const sortedGenerated = useMemo(
+    () => sortGeneratedDocumentsNewestFirst(generatedDocuments),
+    [generatedDocuments]
+  );
+
   useEffect(() => {
     if (!submissionId) return;
 
@@ -50,17 +70,16 @@ export default function Step4GenerateDocument({
       setLoading(true);
       setError(null);
       try {
-        const [tplRes, status, submissionRes] = await Promise.all([
+        const [tplRes, status, generatedRes] = await Promise.all([
           TemplateService.listTemplates(),
           SubmissionFieldStatusService.getSubmissionFieldStatus(submissionId),
-          SubmissionService.getSubmissionById(submissionId),
+          SubmissionService.listGeneratedDocuments(submissionId),
         ]);
 
         setTemplates(tplRes.templates || []);
         setSubmissionFields(status?.submission_fields || []);
-        setGeneratedDocuments(submissionRes?.submission?.generated_documents || []);
+        setGeneratedDocuments(generatedRes?.generated_documents || []);
 
-        // auto-select first template (optional)
         const firstId = tplRes.templates?.[0]?._id;
         if (firstId) setSelectedId(firstId);
       } catch (e: any) {
@@ -76,7 +95,6 @@ export default function Step4GenerateDocument({
     [templates, selectedId]
   );
 
-  // Build values object from submission fields (prefer normalized)
   const valuesByKey = useMemo(() => {
     const out: Record<string, any> = {};
     for (const f of submissionFields || []) {
@@ -102,16 +120,19 @@ export default function Step4GenerateDocument({
     };
   }, [templateKeys, valuesByKey]);
 
+  async function refreshGeneratedDocuments() {
+    const generatedRes = await SubmissionService.listGeneratedDocuments(submissionId);
+    setGeneratedDocuments(generatedRes?.generated_documents || []);
+  }
+
   async function generate() {
     if (!selectedId) return;
     setGenerating(true);
     setError(null);
     setGeneratedUrl(null);
-    // Open a tab synchronously from the click event to reduce popup blocking.
     const previewTab = window.open("", "_blank", "noopener,noreferrer");
 
     try {
-      // only send values used by this template (clean + faster)
       const slimValues: Record<string, any> = {};
       for (const k of templateKeys) {
         if (valuesByKey[k] !== undefined) slimValues[k] = valuesByKey[k];
@@ -130,19 +151,17 @@ export default function Step4GenerateDocument({
         window.open(full, "_blank");
       }
 
-      // Always refresh generated documents list.
       try {
-        const submissionRes = await SubmissionService.getSubmissionById(submissionId);
-        setGeneratedDocuments(submissionRes?.submission?.generated_documents || []);
-      } catch (err) {
-        // Fallback: keep UX responsive even when refresh fails.
-        const fallbackDoc = {
+        await refreshGeneratedDocuments();
+      } catch {
+        const fallbackDoc: GeneratedDocument = {
           _id: `tmp-${Date.now()}`,
           template_id: selectedId,
           template_name: selected?.name || "Generated Template",
           generated_at: new Date().toISOString(),
           file_id: {
             _id: res?.result?.fileId || `tmp-file-${Date.now()}`,
+            storage_path: "",
             url: full,
             display_name: `Generated_${selected?.name || "Document"}.pdf`,
             original_name: res?.result?.outputFileName || "Generated Document",
@@ -161,6 +180,32 @@ export default function Step4GenerateDocument({
     }
   }
 
+  const openDeleteModal = (id: string) => {
+    setDeleteForId(id);
+    setDeleteOpen(true);
+  };
+
+  const closeDelete = () => {
+    if (deleteLoading) return;
+    setDeleteOpen(false);
+    setDeleteForId(null);
+  };
+
+  const doDelete = async () => {
+    if (!deleteForId) return;
+    setDeleteLoading(true);
+    try {
+      const res = await SubmissionDocumentsService.removeGenerated(submissionId, deleteForId);
+      setGeneratedDocuments(res?.generated_documents || []);
+      closeDelete();
+      dispatch(addToast({ message: "Generated document deleted", type: "success" }));
+    } catch (e: any) {
+      dispatch(addToast({ message: e?.message || "Failed to delete document", type: "error" }));
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -175,8 +220,7 @@ export default function Step4GenerateDocument({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Template List */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <div className="lg:col-span-7 rounded-2xl border border-card-border bg-background p-4">
           <div className="flex items-center justify-between gap-2">
             <div className="text-base font-semibold text-text">Templates</div>
@@ -196,8 +240,6 @@ export default function Step4GenerateDocument({
             <div className="mt-4 space-y-2">
               {templates.map((t) => {
                 const isActive = t._id === selectedId;
-
-                // lightweight coverage for each template
                 const keys = Array.from(new Set((t.placements || []).map((p) => String(p.fieldKey))));
                 const filled = keys.filter((k) => valuesByKey[k] !== undefined && valuesByKey[k] !== null && valuesByKey[k] !== "").length;
                 const missing = Math.max(0, keys.length - filled);
@@ -239,8 +281,7 @@ export default function Step4GenerateDocument({
           )}
         </div>
 
-        {/* Right: Summary + Generate */}
-        <div className="lg:col-span-5 space-y-3">
+        <div className="lg:col-span-5">
           <div className="rounded-2xl border border-card-border bg-background p-4">
             <div className="text-base font-semibold text-text">Selection</div>
 
@@ -299,56 +340,99 @@ export default function Step4GenerateDocument({
               </div>
             )}
           </div>
-
-          {/* Generated Documents List */}
-          {generatedDocuments.length > 0 && (
-            <div className="rounded-2xl border border-card-border bg-background p-4">
-              <div className="text-base font-semibold text-text mb-3">Generated Documents</div>
-              <div className="space-y-2">
-                {generatedDocuments.map((doc: any) => {
-                  const fileUrl = doc.file_id?.url || (typeof doc.file_id === "object" ? doc.file_id?.url : null);
-                  const fileName = doc.file_id?.display_name || doc.file_id?.original_name || "Generated Document";
-                  const fullUrl = resolveFileUrl(fileUrl);
-                  
-                  return (
-                    <div
-                      key={doc._id || doc.file_id?._id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-card-border bg-card p-3"
-                    >
-                      <div className="min-w-0 flex items-center gap-2">
-                        <FiFileText className="h-4 w-4 text-card-text shrink-0" />
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-text truncate">{fileName}</div>
-                          <div className="text-xs text-card-text">
-                            {doc.template_name && <span>Template: {doc.template_name} • </span>}
-                            {doc.generated_at && (
-                              <span className="inline-flex items-center gap-1">
-                                <FiCalendar className="h-3 w-3" />
-                                {new Date(doc.generated_at).toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      {fullUrl && (
-                        <a
-                          href={fullUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-md border border-card-border bg-background px-2 py-1 text-xs text-text hover:bg-card-hover"
-                        >
-                          <FiDownload className="h-3 w-3" />
-                          Open
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {sortedGenerated.length > 0 ? (
+        <Surface variant="soft" className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-extrabold text-text">Generated documents</h2>
+              <p className="mt-0.5 text-sm text-card-text">
+                {sortedGenerated.length} document{sortedGenerated.length === 1 ? "" : "s"} generated for this client
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {sortedGenerated.map((doc) => {
+              const id = doc._id || getGeneratedFileRef(doc)?._id || "";
+              const file = getGeneratedFileRef(doc);
+              const name = getGeneratedFileName(doc, file);
+              const generatedBy = doc.generated_by;
+              const actorUser = isResolvableUser(generatedBy) ? generatedBy : null;
+              const isDeleting = deleteLoading && deleteForId === id;
+
+              const badges = [
+                { label: "Generated", tone: "success" as const },
+                ...(doc.template_name
+                  ? [{ label: doc.template_name, tone: "neutral" as const }]
+                  : []),
+              ];
+
+              return (
+                <ClientDocumentCard
+                  key={id}
+                  file={file}
+                  fileName={name}
+                  badges={badges}
+                  actor={
+                    actorUser || doc.generated_at
+                      ? {
+                          user: actorUser ?? undefined,
+                          verb: "generated by",
+                          timestamp: doc.generated_at,
+                        }
+                      : undefined
+                  }
+                  disabled={isDeleting}
+                  footerEndActions={[
+                    {
+                      key: "delete",
+                      icon: FiTrash2,
+                      title: "Delete generated document",
+                      disabled: !id || id.startsWith("tmp-") || isDeleting,
+                      isLoading: isDeleting,
+                      onClick: () => openDeleteModal(id),
+                    },
+                  ]}
+                />
+              );
+            })}
+          </div>
+        </Surface>
+      ) : null}
+
+      <Modal isOpen={deleteOpen} onClose={closeDelete}>
+        <div className="space-y-4">
+          <PageHeader
+            variant="section"
+            title="Delete generated document?"
+            description="This will remove the generated PDF permanently."
+          />
+          <Callout tone="danger" title="Warning">
+            This action can&apos;t be undone.
+          </Callout>
+          <ActionBar
+            right={
+              <>
+                <Button variant="secondary" type="button" disabled={deleteLoading} onClick={closeDelete}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  type="button"
+                  disabled={deleteLoading}
+                  isLoading={deleteLoading}
+                  onClick={doDelete}
+                >
+                  Confirm delete
+                </Button>
+              </>
+            }
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

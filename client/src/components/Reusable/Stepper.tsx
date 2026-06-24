@@ -22,7 +22,7 @@ const Stepper: React.FC<StepperProps> = ({
   maxUnlockedStep,
 }) => {
   return (
-    <div className="mb-6 flex flex-wrap gap-3">
+    <div className="mb-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
       {steps.map((s) => {
         const isActive = currentStep === s.step;
         const isLocked = maxUnlockedStep != null && s.step > maxUnlockedStep;
@@ -34,7 +34,7 @@ const Stepper: React.FC<StepperProps> = ({
             onClick={() => !isLocked && onStepChange(s.step)}
             disabled={isLocked}
             className={cn(
-              "group flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
+              "group flex w-full min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors sm:w-auto",
               "bg-card shadow-sm",
               isActive
                 ? "border-primary"

@@ -52,14 +52,11 @@ const SubmissionFieldsController = {
     });
 
     return R2XX(res, "Field status fetched.", 200, {
-      submission: fresh,
       master_fields: masterFields,
       eligibility: fresh.eligibility,
       submission_fields: fresh.submission_fields || [],
-      // Server-side filtered results
       filtered_rows: rows,
       counts: counts,
-      // Audit trail data grouped by field_key
       audit_trail: fieldsAuditTrail,
     });
   }),
@@ -215,7 +212,6 @@ const SubmissionFieldsController = {
     const updated = await recomputeSubmissionFields(id, userId, workspaceId);
 
     return R2XX(res, "Fields updated.", 200, {
-      submission: updated,
       eligibility: updated.eligibility,
       submission_fields: updated.submission_fields || [],
     });
@@ -231,7 +227,6 @@ const SubmissionFieldsController = {
     if (!updated) return R4XX(res, 404, "Submission not found.");
 
     return R2XX(res, "Recomputed submission fields.", 200, {
-      submission: updated,
       eligibility: updated.eligibility,
       submission_fields: updated.submission_fields || [],
     });

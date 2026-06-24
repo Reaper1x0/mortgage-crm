@@ -19,7 +19,7 @@ export default function HoverBorderGradient({
   const Comp: any = as;
 
   return (
-    <Comp className={cn("group relative", roundedClassName, "p-[1px]", containerClassName)}>
+    <Comp className={cn("group relative max-w-full", roundedClassName, "p-[1px]", containerClassName)}>
       {/* Border layer (no opacity utilities) */}
       <div
         className={cn(

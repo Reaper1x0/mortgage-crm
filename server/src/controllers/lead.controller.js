@@ -50,7 +50,16 @@ const LeadController = {
       buildDateRangeFilter("createdAt", req.query.createdFrom, req.query.createdTo),
     );
 
-    const { items, pagination } = await leadService.listLeads({ page, limit, sort, filter });
+    const { items, pagination } = await leadService.listLeads({
+      page,
+      limit,
+      sort,
+      filter,
+      workspaceId,
+    });
+
+    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
 
     return R2XX(res, "Leads fetched successfully", 200, {
       leads: items,

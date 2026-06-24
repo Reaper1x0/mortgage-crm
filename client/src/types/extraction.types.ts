@@ -61,6 +61,23 @@ export type FieldsPayload = {
 
 export type SubmissionStatus = "pending" | "review" | "completed";
 
+export type SubmissionSummary = {
+  _id: string;
+  submission_name: string;
+  legal_name?: string | null;
+  status?: SubmissionStatus;
+  createdAt?: string;
+  updatedAt?: string;
+  sourceLead?: {
+    _id: string;
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    company?: string;
+    source?: string;
+  } | null;
+};
+
 export type FileRef = {
   _id: string;
   display_name: string;
@@ -112,6 +129,22 @@ export type GeneratedDocument = {
   last_downloaded_at?: string;
 };
 
+export type IdentityDocument = {
+  file?: FileRef | string;
+  document_name?: string;
+  uploaded_at?: string;
+  uploaded_by?: string;
+  extraction_status?: "pending" | "extracted" | "extract_failed";
+  extraction_error?: string | null;
+  extracted_at?: string | null;
+};
+
+export type SubmissionIdentitySlice = {
+  submissionId: string;
+  legal_name?: string | null;
+  identity_document?: IdentityDocument | null;
+};
+
 export type Submission = {
   _id: string;
   userId: string;
@@ -119,6 +152,7 @@ export type Submission = {
   status: SubmissionStatus;
   submission_name: string;
   legal_name?: string | null;
+  identity_document?: IdentityDocument | null;
   sourceLead?: {
     _id: string;
     fullName?: string;

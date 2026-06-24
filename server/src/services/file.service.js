@@ -6,53 +6,75 @@ const storageService = require("./storage.service");
 const AuditTrailService = require("./auditTrail.service");
 const documentArtifactsService = require("./document/documentArtifacts.service");
 const documentIndexService = require("./rag/documentIndex.service");
+const { createAndUploadThumbnail } = require("./document/documentThumbnail.service");
 
 function isObjectId(v) {
   return mongoose.Types.ObjectId.isValid(v);
 }
 
 function isSubmissionDocumentUpload(folder, meta = {}) {
-  return Boolean(meta.submissionId) && String(folder || "").includes("uploads/submissions/");
+  if (!meta.submissionId || meta.generated) return false;
+  return String(folder || "").includes("uploads/submissions/");
+}
+
+function shouldAttachThumbnail(meta = {}) {
+  if (meta.skipThumbnail) return false;
+  if (meta.type === "profile_picture") return false;
+  if (meta.type === "template_pdf") return false;
+  return true;
+}
+
+async function attachThumbnailToFileDoc(fileDoc, { mimetype, originalname } = {}) {
+  const thumbnail = await createAndUploadThumbnail({
+    storagePath: fileDoc.storage_path,
+    mimetype: mimetype || fileDoc.content_type,
+    originalname: originalname || fileDoc.original_name,
+  });
+
+  fileDoc.meta = {
+    ...(fileDoc.meta || {}),
+    thumbnail_storage_path: thumbnail.thumbnail_storage_path,
+    thumbnail_kind: thumbnail.thumbnail_kind,
+    thumbnail_source: thumbnail.thumbnail_source,
+  };
+  await fileDoc.save();
+  return thumbnail;
 }
 
 class FileService {
   /**
-   * CREATE (Upload + Save in Mongo)
+   * CREATE from buffer (central file persistence + thumbnails/artifacts)
    * @param {Object} params
-   * @param {Object} params.file - multer file (buffer/path/originalname/mimetype/size)
+   * @param {Buffer} params.buffer
+   * @param {string} params.originalName
    * @param {string} [params.displayName]
-   * @param {string} [params.folder] - e.g. "uploads/submissions/123"
-   * @param {Object} [params.meta] - additional meta to store in Mongo
-   * @param {ObjectId|string} ownerId - Owner of the file
-   * @param {ObjectId|string} uploadedBy - User who uploaded (for audit trail)
-   * @param {ObjectId|string} [submissionId] - Related submission (for audit trail)
+   * @param {string} [params.folder]
+   * @param {string} [params.contentType]
+   * @param {Object} [params.meta]
+   * @param {ObjectId|string} ownerId
+   * @param {ObjectId|string} [uploadedBy]
    */
-  static async createFromUpload(
-    { file, displayName, folder = "uploads", meta = {} },
+  static async createFromBuffer(
+    { buffer, originalName, displayName, folder = "uploads", contentType, meta = {} },
     ownerId,
     uploadedBy = null
   ) {
     if (!ownerId || !isObjectId(ownerId))
-      throw new Error("createFromUpload: valid ownerId is required");
-    if (!file) throw new Error("createFromUpload: file is required");
-
-    // Use ownerId as uploadedBy if not provided
-    const uploaderId = uploadedBy && isObjectId(uploadedBy) ? uploadedBy : ownerId;
-
-    const originalName = file.originalname || file.name || "file";
-    const contentType = file.mimetype || require("mime-types").lookup(originalName) || "application/octet-stream";
-
-    const buffer = file.buffer;
+      throw new Error("createFromBuffer: valid ownerId is required");
     if (!buffer || !Buffer.isBuffer(buffer))
-      throw new Error("createFromUpload: file buffer is missing");
+      throw new Error("createFromBuffer: buffer is required");
+    if (!originalName) throw new Error("createFromBuffer: originalName is required");
 
-    // Use unified storage service
+    const uploaderId = uploadedBy && isObjectId(uploadedBy) ? uploadedBy : ownerId;
+    const resolvedContentType =
+      contentType || require("mime-types").lookup(originalName) || "application/octet-stream";
+
     const storageInfo = await storageService.uploadBuffer({
       buffer,
       originalName,
       displayName: displayName || originalName,
       folder,
-      contentType,
+      contentType: resolvedContentType,
       customMetadata: meta,
     });
 
@@ -69,7 +91,11 @@ class FileService {
       try {
         const artifactMeta = await documentArtifactsService.attachToSubmissionDocument({
           fileDoc: doc,
-          file: { ...file, buffer, originalname: originalName, mimetype: contentType },
+          file: {
+            buffer,
+            originalname: originalName,
+            mimetype: resolvedContentType,
+          },
           context: {
             submissionId: meta.submissionId,
             workspaceId: meta.workspaceId,
@@ -92,10 +118,20 @@ class FileService {
         await File.deleteOne({ _id: doc._id });
         throw artifactErr;
       }
+    } else if (shouldAttachThumbnail(meta)) {
+      try {
+        await attachThumbnailToFileDoc(doc, {
+          mimetype: resolvedContentType,
+          originalname: originalName,
+        });
+      } catch (thumbnailErr) {
+        console.error(
+          `[file] Thumbnail generation failed for ${originalName}:`,
+          thumbnailErr?.message || thumbnailErr
+        );
+      }
     }
 
-    // Log audit trail only for actual documents (not profile pictures or other non-document files)
-    // Skip audit logging for profile pictures, system files, etc.
     if (meta.type !== "profile_picture" && !meta.skipAuditLog) {
       await AuditTrailService.log({
         entity_type: "document",
@@ -106,7 +142,7 @@ class FileService {
         action_details: {
           file_name: originalName,
           file_size: buffer.length,
-          content_type: contentType,
+          content_type: resolvedContentType,
         },
         document_id: doc._id,
         document_name: originalName,
@@ -115,6 +151,47 @@ class FileService {
     }
 
     return doc;
+  }
+
+  /**
+   * CREATE (Upload + Save in Mongo)
+   * @param {Object} params
+   * @param {Object} params.file - multer file (buffer/path/originalname/mimetype/size)
+   * @param {string} [params.displayName]
+   * @param {string} [params.folder] - e.g. "uploads/submissions/123"
+   * @param {Object} [params.meta] - additional meta to store in Mongo
+   * @param {ObjectId|string} ownerId - Owner of the file
+   * @param {ObjectId|string} uploadedBy - User who uploaded (for audit trail)
+   * @param {ObjectId|string} [submissionId] - Related submission (for audit trail)
+   */
+  static async createFromUpload(
+    { file, displayName, folder = "uploads", meta = {} },
+    ownerId,
+    uploadedBy = null
+  ) {
+    if (!ownerId || !isObjectId(ownerId))
+      throw new Error("createFromUpload: valid ownerId is required");
+    if (!file) throw new Error("createFromUpload: file is required");
+
+    const originalName = file.originalname || file.name || "file";
+    const contentType = file.mimetype || require("mime-types").lookup(originalName) || "application/octet-stream";
+
+    const buffer = file.buffer;
+    if (!buffer || !Buffer.isBuffer(buffer))
+      throw new Error("createFromUpload: file buffer is missing");
+
+    return FileService.createFromBuffer(
+      {
+        buffer,
+        originalName,
+        displayName,
+        folder,
+        contentType,
+        meta,
+      },
+      ownerId,
+      uploadedBy
+    );
   }
 
   /**

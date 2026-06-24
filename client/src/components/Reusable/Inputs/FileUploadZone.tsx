@@ -11,6 +11,8 @@ import {
 } from "react";
 import uploadIcon from "../../../assets/upload.png";
 import { cn } from "../../../utils/cn";
+import FileUploadList, { type FileUploadListItem } from "./FileUploadList";
+import type { FileUploadProgress } from "../../../utils/uploadProgress";
 
 export type FileUploadZoneHandle = {
   open: () => void;
@@ -31,6 +33,11 @@ export type FileUploadZoneProps = {
   selectedFileNames?: string[];
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
   onFilesSelected?: (files: File[]) => void;
+  /** Selected files shown below the zone with optional per-file upload progress */
+  fileItems?: FileUploadListItem[];
+  uploadProgress?: Record<string, FileUploadProgress>;
+  isUploading?: boolean;
+  onRemoveFile?: (id: string) => void;
   /** Renders only the hidden input (use ref.open() from a custom trigger) */
   hideDefaultZone?: boolean;
   children?: ReactNode;
@@ -50,6 +57,10 @@ const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZoneProps>(fun
     selectedFileNames,
     onChange,
     onFilesSelected,
+    fileItems,
+    uploadProgress,
+    isUploading = false,
+    onRemoveFile,
     hideDefaultZone = false,
     children,
   },
@@ -142,7 +153,7 @@ const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZoneProps>(fun
           onDrop={handleDrop}
           className={cn(
             "group relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-8 text-center transition-all duration-200",
-            "border-card-border bg-background hover:border-primary-border hover:bg-card/50",
+            "border-card-border bg-background hover:border-primary-border hover:bg-card-hover",
             isDragging && "border-primary-border bg-primary-muted ring-2 ring-primary-shadow",
             disabled && "cursor-not-allowed opacity-60 hover:border-card-border hover:bg-background",
             zoneClassName
@@ -161,7 +172,16 @@ const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZoneProps>(fun
 
       {children}
 
-      {displayNames.length > 0 ? (
+      {fileItems && fileItems.length > 0 ? (
+        <FileUploadList
+          items={fileItems}
+          uploadProgress={uploadProgress}
+          isUploading={isUploading}
+          onRemove={onRemoveFile}
+        />
+      ) : null}
+
+      {displayNames.length > 0 && !(fileItems && fileItems.length > 0) ? (
         <ul className="space-y-1 rounded-xl border border-card-border bg-card px-3 py-2">
           {displayNames.map((fileName) => (
             <li key={fileName} className="truncate text-sm text-card-text">
@@ -187,3 +207,4 @@ const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZoneProps>(fun
 });
 
 export default FileUploadZone;
+export type { FileUploadListItem } from "./FileUploadList";

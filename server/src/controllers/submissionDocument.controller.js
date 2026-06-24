@@ -9,6 +9,16 @@ function sendServiceError(res, err) {
   return R4XX(res, status, err?.message || "Request failed.");
 }
 
+async function loadSignedDocuments(submissionId, workspaceId) {
+  const submission = await SubmissionService.getSubmissionDocuments(submissionId, workspaceId);
+  if (!submission) return null;
+  const signed = await attachSignedUrlsDeep(submission);
+  return {
+    submissionId: signed._id,
+    documents: signed.documents || [],
+  };
+}
+
 const SubmissionDocumentController = {
   uploadDocuments: catchAsync(async (req, res) => {
     const files = req.files || [];
@@ -30,15 +40,13 @@ const SubmissionDocumentController = {
       return R4XX(res, 400, "No documents could be uploaded successfully.", { results });
     }
 
-    const hydratedSubmission = await SubmissionService.getSubmissionByKey(
-      submissionId,
-      req.workspaceId
-    );
-    const signedSubmission = await attachSignedUrlsDeep(hydratedSubmission);
+    const documentSlice = await loadSignedDocuments(submissionId, req.workspaceId);
+    if (!documentSlice) return R4XX(res, 404, "Submission not found.");
+
     const signedResults = await attachSignedUrlsDeep(results);
 
     return R2XX(res, "Documents uploaded successfully.", 200, {
-      submission: signedSubmission,
+      ...documentSlice,
       results: signedResults,
     });
   }),
@@ -57,14 +65,11 @@ const SubmissionDocumentController = {
         organizationId: req.organizationId,
       });
 
-      const hydratedSubmission = await SubmissionService.getSubmissionByKey(
-        submissionId,
-        req.workspaceId
-      );
-      const signedSubmission = await attachSignedUrlsDeep(hydratedSubmission);
+      const documentSlice = await loadSignedDocuments(submissionId, req.workspaceId);
+      if (!documentSlice) return R4XX(res, 404, "Submission not found.");
 
       return R2XX(res, "Fields extracted successfully.", 200, {
-        submission: signedSubmission,
+        ...documentSlice,
         ...result,
       });
     } catch (err) {
@@ -74,15 +79,10 @@ const SubmissionDocumentController = {
 
   listDocuments: catchAsync(async (req, res) => {
     const submissionId = req.params.id;
+    const documentSlice = await loadSignedDocuments(submissionId, req.workspaceId);
+    if (!documentSlice) return R4XX(res, 404, "Submission not found.");
 
-    const submission = await SubmissionService.getSubmissionByKey(submissionId, req.workspaceId);
-    if (!submission) return R4XX(res, 404, "Submission not found.");
-
-    const signedSubmission = await attachSignedUrlsDeep(submission);
-    return R2XX(res, "Documents fetched successfully.", 200, {
-      submissionId: submission._id,
-      documents: signedSubmission?.documents || [],
-    });
+    return R2XX(res, "Documents fetched successfully.", 200, documentSlice);
   }),
 
   replaceDocument: catchAsync(async (req, res) => {
@@ -103,14 +103,11 @@ const SubmissionDocumentController = {
         organizationId: req.organizationId,
       });
 
-      const hydratedSubmission = await SubmissionService.getSubmissionByKey(
-        submissionId,
-        req.workspaceId
-      );
-      const signedSubmission = await attachSignedUrlsDeep(hydratedSubmission);
+      const documentSlice = await loadSignedDocuments(submissionId, req.workspaceId);
+      if (!documentSlice) return R4XX(res, 404, "Submission not found.");
 
       return R2XX(res, "Document replaced successfully. Extract fields when ready.", 200, {
-        submission: signedSubmission,
+        ...documentSlice,
         replaced,
       });
     } catch (err) {
@@ -131,14 +128,38 @@ const SubmissionDocumentController = {
         workspaceId: req.workspaceId,
       });
 
-      const hydratedSubmission = await SubmissionService.getSubmissionByKey(
-        submissionId,
-        req.workspaceId
-      );
-      const signedSubmission = await attachSignedUrlsDeep(hydratedSubmission);
+      const documentSlice = await loadSignedDocuments(submissionId, req.workspaceId);
+      if (!documentSlice) return R4XX(res, 404, "Submission not found.");
 
       return R2XX(res, "Document deleted successfully.", 200, {
-        submission: signedSubmission,
+        ...documentSlice,
+        deleted,
+      });
+    } catch (err) {
+      return sendServiceError(res, err);
+    }
+  }),
+
+  deleteGeneratedDocument: catchAsync(async (req, res) => {
+    const userId = req.user;
+    const submissionId = req.params.id;
+    const generatedDocId = req.params.generatedDocId;
+
+    try {
+      const deleted = await submissionDocumentService.deleteGeneratedDocument({
+        submissionId,
+        generatedDocId,
+        userId,
+        workspaceId: req.workspaceId,
+      });
+
+      const submission = await SubmissionService.getGeneratedDocuments(submissionId, req.workspaceId);
+      if (!submission) return R4XX(res, 404, "Submission not found.");
+      const signed = await attachSignedUrlsDeep(submission);
+
+      return R2XX(res, "Generated document deleted successfully.", 200, {
+        submissionId: signed._id,
+        generated_documents: signed.generated_documents || [],
         deleted,
       });
     } catch (err) {

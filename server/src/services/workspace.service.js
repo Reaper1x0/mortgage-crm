@@ -306,20 +306,89 @@ const WorkspaceService = {
     );
   },
 
+  formatOrgRoleForUi: (slug, isOrgOwner = false) => {
+    if (isOrgOwner) return "Owner";
+    if (!slug) return null;
+    if (String(slug).toLowerCase() === "owner") return "Owner";
+    const s = String(slug);
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  },
+
   enrichWithOrganizationRoles: async (userId, workspaces) => {
     const roleMap = await WorkspaceService.getOrganizationRoleMapForUser(userId);
-    const formatOrgRoleForUi = (slug) => {
-      if (!slug) return null;
-      if (String(slug).toLowerCase() === "owner") return "Owner";
-      const s = String(slug);
-      return s.charAt(0).toUpperCase() + s.slice(1);
-    };
     return workspaces.map((w) => ({
       ...w,
       organizationRole: w.organization?.organizationId
-        ? formatOrgRoleForUi(roleMap.get(w.organization.organizationId))
+        ? WorkspaceService.formatOrgRoleForUi(roleMap.get(w.organization.organizationId))
         : null,
     }));
+  },
+
+  listMembershipTreeForUser: async (userId) => {
+    const [organizations, workspaces] = await Promise.all([
+      organizationService.listForUser(userId),
+      WorkspaceService.listWorkspacesForUser(userId),
+    ]);
+    const enrichedWorkspaces = await WorkspaceService.enrichWithOrganizationRoles(userId, workspaces);
+
+    const workspacesByOrgId = new Map();
+    for (const w of enrichedWorkspaces) {
+      const orgId = w.organization?.organizationId;
+      if (!orgId) continue;
+      if (!workspacesByOrgId.has(orgId)) workspacesByOrgId.set(orgId, []);
+      workspacesByOrgId.get(orgId).push({
+        workspaceId: w.workspaceId,
+        name: w.name,
+        slug: w.slug,
+        role: w.role,
+        workspaceRoleSlug: w.workspaceRoleSlug || null,
+        branding: w.branding || null,
+      });
+    }
+
+    const orgLogoFileIds = new Set();
+    organizations.forEach((org) => {
+      const logoFile = org.branding?.logoFile;
+      if (logoFile) orgLogoFileIds.add(String(logoFile));
+    });
+
+    const signedOrgLogoByFileId = new Map();
+    if (orgLogoFileIds.size > 0) {
+      const files = await File.find({ _id: { $in: Array.from(orgLogoFileIds) } })
+        .select("_id storage_path")
+        .lean();
+      await Promise.all(
+        files.map(async (f) => {
+          const url = await getSignedFileUrl(f.storage_path, 60);
+          signedOrgLogoByFileId.set(String(f._id), url);
+        })
+      );
+    }
+
+    const organizationRows = organizations.map((org) => {
+      const orgBranding = org.branding ? { ...org.branding } : null;
+      if (orgBranding?.logoFile) {
+        orgBranding.logoUrl =
+          signedOrgLogoByFileId.get(String(orgBranding.logoFile)) || orgBranding.logoUrl || null;
+      }
+      const orgWorkspaces = workspacesByOrgId.get(org.organizationId) || [];
+      const brandingFromWorkspace = orgWorkspaces[0]?.branding?.organization || null;
+      return {
+        organizationId: org.organizationId,
+        name: org.name,
+        slug: org.slug,
+        isOrgOwner: !!org.isOrgOwner,
+        organizationRole: WorkspaceService.formatOrgRoleForUi(org.organizationRole, org.isOrgOwner),
+        organizationRoleSlug: org.organizationRole || (org.isOrgOwner ? "owner" : null),
+        branding: orgBranding || brandingFromWorkspace || null,
+        workspaces: orgWorkspaces,
+      };
+    });
+
+    return {
+      organizations: organizationRows,
+      workspaces: enrichedWorkspaces,
+    };
   },
 
   updateBranding: async (workspaceId, brandingPatch = {}) => {

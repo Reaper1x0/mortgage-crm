@@ -9,9 +9,8 @@ const subscriptionService = require("../billing/subscription.service");
 
 const WorkspaceController = {
   listMine: catchAsync(async (req, res) => {
-    const workspaces = await workspaceService.listWorkspacesForUser(req.user);
-    const enriched = await workspaceService.enrichWithOrganizationRoles(req.user, workspaces);
-    return R2XX(res, "Workspaces fetched successfully", 200, { workspaces: enriched });
+    const { organizations, workspaces } = await workspaceService.listMembershipTreeForUser(req.user);
+    return R2XX(res, "Workspaces fetched successfully", 200, { organizations, workspaces });
   }),
 
   create: catchAsync(async (req, res) => {

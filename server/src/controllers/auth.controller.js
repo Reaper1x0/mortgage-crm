@@ -16,12 +16,19 @@ const { attachSignedUrlsDeep } = require("../utils/fileUrl.utils");
 
 const AuthController = {
   register: catchAsync(async (req, res) => {
-    const newUser = await authService.register(req.body);
-    const sanitizedUser = sanitizers.userSanitizer(newUser);
-    await attachSignedUrlsDeep(sanitizedUser);
-    R2XX(res, "User registered successfully. Now you can login.", 201, {
-      user: sanitizedUser,
-    });
+    try {
+      const newUser = await authService.register(req.body);
+      const sanitizedUser = sanitizers.userSanitizer(newUser);
+      await attachSignedUrlsDeep(sanitizedUser);
+      R2XX(res, "User registered successfully. Now you can login.", 201, {
+        user: sanitizedUser,
+      });
+    } catch (error) {
+      if (error?.statusCode === 409) {
+        return R4XX(res, 409, error.message || "Username already taken.");
+      }
+      throw error;
+    }
   }),
 
   login: catchAsync(async (req, res) => {

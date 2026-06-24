@@ -1,6 +1,6 @@
 import { FiFile, FiFileText, FiImage } from "react-icons/fi";
 import type { IconType } from "react-icons";
-import type { FileRef, SubmissionDocument } from "../../types/extraction.types";
+import type { FileRef, GeneratedDocument, SubmissionDocument } from "../../types/extraction.types";
 import type { StatusBadgeTone } from "../Reusable/StatusBadge";
 import { resolveFileUrl } from "../../utils/fileUrl";
 
@@ -108,4 +108,30 @@ export const canExtractDocument = (doc: SubmissionDocument): boolean => {
 export const canReExtractDocument = (doc: SubmissionDocument): boolean => {
   if (resolveUploadStatus(doc) !== "uploaded") return false;
   return resolveExtractionStatus(doc) === "extracted";
+};
+
+export const getGeneratedFileRef = (doc: GeneratedDocument): FileRef | null => {
+  const file = doc.file_id;
+  if (!file || typeof file === "string") return null;
+  return file;
+};
+
+export const getGeneratedFileName = (doc: GeneratedDocument, file?: FileRef | null): string => {
+  const ref = file ?? getGeneratedFileRef(doc);
+  return (
+    ref?.display_name?.trim() ||
+    ref?.original_name?.trim() ||
+    (doc.template_name ? `Generated_${doc.template_name}.pdf` : "Generated document")
+  );
+};
+
+export const sortGeneratedDocumentsNewestFirst = (
+  documents: GeneratedDocument[]
+): GeneratedDocument[] => {
+  const arr = Array.isArray(documents) ? [...documents] : [];
+  return arr.sort((a, b) => {
+    const da = a?.generated_at ? new Date(a.generated_at).getTime() : 0;
+    const db = b?.generated_at ? new Date(b.generated_at).getTime() : 0;
+    return db - da;
+  });
 };

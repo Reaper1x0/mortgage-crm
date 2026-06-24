@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useLanguage } from "../../context/LanguageContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -8,13 +8,10 @@ import Button from "../Reusable/Button";
 import Avatar from "../Reusable/Avatar";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { cn } from "../../utils/cn";
-import { FiSun, FiMoon, FiChevronDown, FiPlus } from "react-icons/fi";
+import { FiSun, FiMoon, FiChevronDown } from "react-icons/fi";
 import { RiBuildingLine } from "react-icons/ri";
 import { useAuth } from "../../context/AuthContext";
-import { usePermissionsOptional } from "../../context/PermissionContext";
-import { WorkspaceService } from "../../service/workspaceService";
-import { PopoverTrigger } from "../Reusable/PopoverTrigger";
-import { buildOrganizationPath, buildWorkspacePath, getTenantFromPath } from "../../utils/tenantRouting";
+import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
 
 const Navbar = () => {
   const { t } = useLanguage();
@@ -27,83 +24,76 @@ const Navbar = () => {
     logout: handleLogout,
     isAuthenticated,
     workspaces,
+    organizations,
     activeOrganizationId,
     activeWorkspaceId,
+    setActiveOrganizationId,
     setActiveWorkspaceId,
-    refreshWorkspaces,
   } = useAuth();
-  const perm = usePermissionsOptional();
 
   const [isLogoutModalOpen, setLogoutModalOpen] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
-  const [createWsOpen, setCreateWsOpen] = useState(false);
-  const [newWsName, setNewWsName] = useState("");
-  const [createWsLoading, setCreateWsLoading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [expandedOrgId, setExpandedOrgId] = useState<string | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   const userInfo = normalizeUserForAvatar(user);
-  const activeWorkspace = workspaces.find((w) => w.workspaceId === activeWorkspaceId) || null;
-  const orgReferenceWorkspace =
-    activeWorkspace ||
-    workspaces.find((w) => w.organization?.organizationId === activeOrganizationId) ||
-    workspaces[0] ||
+  const activeWorkspace = activeWorkspaceId
+    ? workspaces.find((w) => w.workspaceId === activeWorkspaceId) || null
+    : null;
+  const activeOrganization =
+    organizations.find((o) => o.organizationId === activeOrganizationId) ||
+    (activeWorkspace?.organization?.organizationId
+      ? organizations.find((o) => o.organizationId === activeWorkspace.organization?.organizationId)
+      : null) ||
     null;
-  const organizationName = orgReferenceWorkspace?.organization?.name || "Mortgage CRM";
-  const organizationLogo = orgReferenceWorkspace?.branding?.organization?.logoUrl || null;
+  const organizationName = activeOrganization?.name || activeWorkspace?.organization?.name || "Mortgage CRM";
+  const organizationLogo =
+    activeOrganization?.branding?.logoUrl || activeWorkspace?.branding?.organization?.logoUrl || null;
+  const pickerLabel = activeWorkspace
+    ? `${organizationName} · ${activeWorkspace.name}`
+    : organizationName || "Organization";
 
-  const resolveOrganizationIdForApi = (): string | null => {
-    const fromPath = getTenantFromPath(location.pathname).organizationId;
-    if (fromPath) return fromPath;
-    if (activeOrganizationId && /^[a-f\d]{24}$/i.test(activeOrganizationId)) return activeOrganizationId;
-    const fromWorkspace = orgReferenceWorkspace?.organization?.organizationId;
-    if (fromWorkspace && /^[a-f\d]{24}$/i.test(fromWorkspace)) return fromWorkspace;
-    return null;
-  };
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [pickerOpen]);
+
+  useEffect(() => {
+    if (pickerOpen && activeOrganizationId) {
+      setExpandedOrgId(activeOrganizationId);
+    }
+  }, [pickerOpen, activeOrganizationId]);
 
   const mode: "light" | "dark" = theme === "dark" ? "dark" : "light";
-  const canCreateWorkspace =
-    perm?.effective?.isOrgOwner ||
-    perm?.canAnyOrg(["organization.workspaces.create"]) ||
-    false;
 
   const toggleTheme = () => {
     setTheme(mode === "dark" ? "light" : "dark");
   };
 
-  const handleWorkspaceChange = (id: string) => {
-    if (id) {
-      setActiveWorkspaceId(id);
-      const selected = workspaces.find((w) => w.workspaceId === id);
-      const orgId = selected?.organization?.organizationId || activeOrganizationId;
-      if (orgId) {
-        navigate(buildWorkspacePath(orgId, id, "dashboard"));
-      }
-    }
+  const handleOrganizationSelect = (organizationId: string) => {
+    setActiveOrganizationId(organizationId);
+    setActiveWorkspaceId(null);
+    setPickerOpen(false);
+    navigate(buildOrganizationPath(organizationId, "settings/organization"));
   };
 
-  const handleCreateWorkspace = async () => {
-    const trimmed = newWsName.trim();
-    if (trimmed.length < 2) return;
-    setCreateWsLoading(true);
-    try {
-      const orgId = resolveOrganizationIdForApi();
-      const res = await WorkspaceService.create(trimmed, orgId);
-      const wid = res.data?.workspace?._id;
-      await refreshWorkspaces();
-      if (wid && orgId) {
-        setActiveWorkspaceId(String(wid));
-        navigate(buildWorkspacePath(orgId, String(wid), "dashboard"));
-        return;
-      }
-      setNewWsName("");
-      setCreateWsOpen(false);
-      if (orgId) {
-        navigate(buildOrganizationPath(orgId, "dashboard"));
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setCreateWsLoading(false);
-    }
+  const handleWorkspaceChange = (organizationId: string, workspaceId: string) => {
+    setActiveOrganizationId(organizationId);
+    setActiveWorkspaceId(workspaceId);
+    setPickerOpen(false);
+    navigate(buildWorkspacePath(organizationId, workspaceId, "dashboard"));
+  };
+
+  const toggleOrgExpanded = (organizationId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setExpandedOrgId((prev) => (prev === organizationId ? null : organizationId));
   };
 
   const handleLogoutClick = async () => {
@@ -130,7 +120,13 @@ const Navbar = () => {
       >
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
           <Link
-            to={isAuthenticated && activeOrganizationId ? buildOrganizationPath(activeOrganizationId, "dashboard") : "/"}
+            to={
+              isAuthenticated && activeOrganizationId
+                ? activeWorkspaceId && activeWorkspace
+                  ? buildWorkspacePath(activeOrganizationId, activeWorkspace.workspaceId, "dashboard")
+                  : buildOrganizationPath(activeOrganizationId, "settings/organization")
+                : "/"
+            }
             className="ml-10 inline-flex items-center gap-2 text-text"
           >
             {organizationLogo ? (
@@ -157,109 +153,112 @@ const Navbar = () => {
               </div>
             ) : (
               <>
-                {!isOnboarding && workspaces.length > 0 && (
-                  <div className="hidden sm:flex items-center gap-2 mr-1">
-                    <PopoverTrigger
-                      closeOnSelect
-                      content={
-                        <div className="w-[280px] rounded-2xl border border-card-border bg-card p-2 shadow-lg">
-                          <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-card-text">
-                            Organization
-                          </div>
-                          <div className="mt-1 space-y-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                activeOrganizationId &&
-                                navigate(buildOrganizationPath(activeOrganizationId, "settings/organization"))
-                              }
-                              className={cn(
-                                "w-full rounded-xl px-3 py-2 text-left text-sm",
-                                "transition-all duration-200",
-                                "inline-flex items-center gap-3",
-                                activeOrganizationId &&
-                                  location.pathname.startsWith(
-                                    buildOrganizationPath(activeOrganizationId, "settings/organization")
-                                  )
-                                  ? "bg-primary-muted text-text border border-primary-border"
-                                  : "text-text hover:bg-card-hover border border-transparent"
-                              )}
-                            >
-                              <span className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-card-border bg-background">
-                                {organizationLogo ? (
-                                  <img
-                                    src={organizationLogo}
-                                    alt={organizationName}
-                                    className="h-full w-full object-contain"
-                                  />
-                                ) : (
-                                  <RiBuildingLine className="h-4 w-4 text-card-text" />
-                                )}
-                              </span>
-                              <span className="min-w-0">
-                                <span className="block truncate font-semibold">{organizationName || "Organization"}</span>
-                                <span className="block text-xs text-card-text">Open organization</span>
-                              </span>
-                            </button>
-                          </div>
-                          <div className="mt-2 border-t border-card-border pt-2">
-                            <div className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-card-text">
-                              Workspaces
-                            </div>
-                          </div>
-                          <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
-                            {workspaces.map((w) => {
-                              const isActive = w.workspaceId === activeWorkspaceId;
-                              return (
-                                <button
-                                  key={w.workspaceId}
-                                  type="button"
-                                  onClick={() => handleWorkspaceChange(w.workspaceId)}
-                                  className={cn(
-                                    "w-full rounded-xl px-3 py-2 text-left text-sm",
-                                    "transition-all duration-200",
-                                    isActive
-                                      ? "bg-card-hover text-text border border-card"
-                                      : "text-text hover:bg-card-hover border border-transparent"
-                                  )}
-                                >
-                                  <div className="font-semibold truncate">{w.name}</div>
-                                  <div className="text-xs text-card-text">{w.role}</div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {canCreateWorkspace ? (
-                            <div className="mt-2 border-t border-card-border pt-2">
-                              <button
-                                type="button"
-                                onClick={() => setCreateWsOpen(true)}
+                {!isOnboarding && organizations.length > 0 && (
+                  <div className="hidden sm:flex items-center gap-2 mr-1 relative" ref={pickerRef}>
+                    <button
+                      type="button"
+                      onClick={() => setPickerOpen((open) => !open)}
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-lg border border-card-border bg-background px-3 py-1.5 text-sm font-medium text-text",
+                        "focus:outline-none focus:ring-2 focus:ring-primary-shadow"
+                      )}
+                    >
+                      <RiBuildingLine className="h-4 w-4 text-card-text" />
+                      <span className="max-w-[220px] truncate">{pickerLabel}</span>
+                      <FiChevronDown className={cn("h-4 w-4 text-card-text transition-transform", pickerOpen && "rotate-180")} />
+                    </button>
+
+                    {pickerOpen ? (
+                      <div className="absolute right-0 top-full z-50 mt-2 w-[320px] rounded-2xl border border-card-border bg-card p-2 shadow-lg">
+                        <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-card-text">
+                          Organizations
+                        </div>
+                        <div className="mt-1 max-h-80 overflow-y-auto space-y-2 pr-1">
+                          {organizations.map((org) => {
+                            const isActiveOrg = org.organizationId === activeOrganizationId && !activeWorkspaceId;
+                            const isExpanded = expandedOrgId === org.organizationId;
+                            const orgLogo = org.branding?.logoUrl || null;
+                            const hasWorkspaces = org.workspaces.length > 0;
+
+                            return (
+                              <div
+                                key={org.organizationId}
                                 className={cn(
-                                  "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
-                                  "inline-flex items-center gap-2",
-                                  "text-text hover:bg-card-hover"
+                                  "overflow-hidden rounded-xl border",
+                                  isActiveOrg ? "border-primary-border bg-primary-muted" : "border-card-border bg-background"
                                 )}
                               >
-                                <FiPlus className="h-4 w-4" />
-                                Create workspace
-                              </button>
-                            </div>
-                          ) : null}
+                                <div className="flex items-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOrganizationSelect(org.organizationId)}
+                                    className={cn(
+                                      "min-w-0 flex-1 px-3 py-2.5 text-left text-sm transition-colors duration-200",
+                                      "inline-flex items-center gap-3 hover:bg-card-hover"
+                                    )}
+                                  >
+                                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-card-border bg-card">
+                                      {orgLogo ? (
+                                        <img src={orgLogo} alt={org.name} className="h-full w-full object-contain" />
+                                      ) : (
+                                        <RiBuildingLine className="h-4 w-4 text-card-text" />
+                                      )}
+                                    </span>
+                                    <span className="min-w-0">
+                                      <span className="block truncate font-semibold text-text">{org.name}</span>
+                                      <span className="block text-xs text-card-text">
+                                        {org.organizationRole || "Member"}
+                                      </span>
+                                    </span>
+                                  </button>
+                                  {hasWorkspaces ? (
+                                    <button
+                                      type="button"
+                                      aria-label={`${isExpanded ? "Collapse" : "Expand"} workspaces for ${org.name}`}
+                                      onClick={(event) => toggleOrgExpanded(org.organizationId, event)}
+                                      className="mr-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-card-text transition-colors hover:bg-card-hover"
+                                    >
+                                      <FiChevronDown
+                                        className={cn("h-4 w-4 transition-transform duration-200", isExpanded && "rotate-180")}
+                                      />
+                                    </button>
+                                  ) : null}
+                                </div>
+
+                                {isExpanded && hasWorkspaces ? (
+                                  <div className="space-y-1 border-t border-card-border bg-card px-2 py-2">
+                                    <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-card-text">
+                                      Workspaces
+                                    </div>
+                                    {org.workspaces.map((workspace) => {
+                                      const isActiveWorkspace = workspace.workspaceId === activeWorkspaceId;
+                                      return (
+                                        <button
+                                          key={workspace.workspaceId}
+                                          type="button"
+                                          onClick={() =>
+                                            handleWorkspaceChange(org.organizationId, workspace.workspaceId)
+                                          }
+                                          className={cn(
+                                            "w-full rounded-lg px-3 py-2 text-left text-sm transition-colors duration-200",
+                                            isActiveWorkspace
+                                              ? "bg-primary-muted text-text border border-primary-border"
+                                              : "text-text hover:bg-card-hover border border-transparent"
+                                          )}
+                                        >
+                                          <div className="font-medium truncate">{workspace.name}</div>
+                                          <div className="text-xs text-card-text">{workspace.role}</div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })}
                         </div>
-                      }
-                    >
-                      <button
-                        type="button"
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-lg border border-card-border bg-background px-3 py-1.5 text-sm font-medium text-text",
-                          "focus:outline-none focus:ring-2 focus:ring-primary/30"
-                        )}
-                      >
-                        <RiBuildingLine className="h-4 w-4 text-card-text" />
-                        <span className="max-w-[180px] truncate">{organizationName || "Organization"}</span>
-                        <FiChevronDown className="h-4 w-4 text-card-text" />
-                      </button>
-                    </PopoverTrigger>
+                      </div>
+                    ) : null}
                   </div>
                 )}
                 {/* Theme Toggle (icon-only, replaces dropdown) */}
@@ -368,39 +367,6 @@ const Navbar = () => {
           </div>
         </div>
       </header>
-
-      <Modal isOpen={createWsOpen} onClose={() => setCreateWsOpen(false)}>
-        <h2 className="text-lg font-semibold mb-2 text-text">New workspace</h2>
-        <p className="text-sm text-card-text mb-4">Create another workspace. You will be switched to it after creation.</p>
-        {!canCreateWorkspace ? (
-          <p className="mb-4 rounded-xl border border-warning-border bg-warning-muted px-3 py-2 text-sm text-warning">
-            You do not have permission to create workspaces in this organization.
-          </p>
-        ) : null}
-        <input
-          type="text"
-          value={newWsName}
-          onChange={(e) => setNewWsName(e.target.value)}
-          placeholder="Workspace name"
-          className={cn(
-            "w-full rounded-xl border border-card-border bg-background px-3 py-2 text-sm text-text mb-4",
-            "placeholder:text-card-text/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
-          )}
-        />
-        <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => setCreateWsOpen(false)}>
-            {t("cancel")}
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleCreateWorkspace}
-            isLoading={createWsLoading}
-            disabled={createWsLoading || !canCreateWorkspace}
-          >
-            Create
-          </Button>
-        </div>
-      </Modal>
 
       <Modal isOpen={isLogoutModalOpen} onClose={() => setLogoutModalOpen(false)}>
         <h2 className="text-lg font-semibold mb-2 text-text">{t("confirm_logout")}</h2>

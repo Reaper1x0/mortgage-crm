@@ -109,6 +109,48 @@ const SubmissionController = {
       submission: signedSubmission,
     });
   }),
+
+  getSubmissionSummary: catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const summary = await SubmissionService.getSubmissionSummary(id, req.workspaceId);
+
+    if (!summary) {
+      return R4XX(res, 404, "Submission not found");
+    }
+
+    return R2XX(res, "Submission summary fetched successfully", 200, { summary });
+  }),
+
+  getSubmissionIdentity: catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const submission = await SubmissionService.getSubmissionIdentity(id, req.workspaceId);
+
+    if (!submission) {
+      return R4XX(res, 404, "Submission not found");
+    }
+
+    const signed = await attachSignedUrlsDeep(submission);
+    return R2XX(res, "Submission identity fetched successfully", 200, {
+      submissionId: signed._id,
+      legal_name: signed.legal_name ?? null,
+      identity_document: signed.identity_document ?? null,
+    });
+  }),
+
+  listGeneratedDocuments: catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const submission = await SubmissionService.getGeneratedDocuments(id, req.workspaceId);
+
+    if (!submission) {
+      return R4XX(res, 404, "Submission not found");
+    }
+
+    const signed = await attachSignedUrlsDeep(submission);
+    return R2XX(res, "Generated documents fetched successfully", 200, {
+      submissionId: signed._id,
+      generated_documents: signed.generated_documents || [],
+    });
+  }),
 };
 
 module.exports = SubmissionController;

@@ -81,6 +81,13 @@ router.delete(
   requirePermission("workspace.submissions.manage"),
   SubmissionDocumentController.deleteDocument
 );
+router.delete(
+  "/:id/generated/:generatedDocId",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.submissions.manage"),
+  SubmissionDocumentController.deleteGeneratedDocument
+);
 
 router.post(
   "/",
@@ -95,6 +102,28 @@ router.post(
 router.put("/:key", isAuth, requireWorkspace, requirePermission("workspace.submissions.write"), SubmissionController.updateSubmission);
 
 router.get("/", isAuth, requireWorkspace, requirePermission("workspace.submissions.read"), SubmissionController.getAllSubmissions);
+
+router.get(
+  "/:id/summary",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.submissions.read"),
+  SubmissionController.getSubmissionSummary
+);
+router.get(
+  "/:id/identity",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.submissions.read"),
+  SubmissionController.getSubmissionIdentity
+);
+router.get(
+  "/:id/generated",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.submissions.read"),
+  SubmissionController.listGeneratedDocuments
+);
 
 router.get("/:key", isAuth, requireWorkspace, requirePermission("workspace.submissions.read"), SubmissionController.getSubmissionByKey);
 

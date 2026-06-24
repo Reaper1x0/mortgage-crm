@@ -53,7 +53,7 @@ export default function DocumentFileThumbnail({
         <img
           src={thumbnailUrl}
           alt=""
-          className="h-full w-full object-cover object-top transition-transform duration-300 group-hover/thumb:scale-[1.02]"
+          className="h-full w-full max-w-full object-cover object-top transition-transform duration-300 group-hover/thumb:scale-[1.02]"
           loading="lazy"
           draggable={false}
         />

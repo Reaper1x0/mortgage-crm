@@ -7,6 +7,8 @@ const AuditTrailService = require("./auditTrail.service");
 const { billingService } = require("./index");
 const { runFieldExtractionForSingleText } = require("./document/fieldExtraction.service");
 const documentIndexService = require("./rag/documentIndex.service");
+const { extractTextFromFile } = require("./textextraction.service");
+const llmService = require("./llm/llm.service");
 const { getSignedFileUrl } = require("../utils/fileUrl.utils");
 
 function submissionUploadFolder(submissionId) {
@@ -15,6 +17,142 @@ function submissionUploadFolder(submissionId) {
 
 function buildSubmissionFileMeta({ submissionId, workspaceId, organizationId, extra = {} }) {
   return { submissionId, workspaceId, organizationId, ...extra };
+}
+
+function submissionIdentityFolder(submissionId) {
+  return `${submissionUploadFolder(submissionId)}/identity`;
+}
+
+async function extractLegalNameFromIdentityText(text) {
+  const systemPrompt = `
+You are an extraction engine for Pakistani CNICs.
+Given the DOCUMENT TEXT, extract the full legal name of the card holder.
+Return ONLY a JSON object:
+
+{
+  "legal_name": "<exact name string or null>"
+}
+
+- Do NOT add any other keys.
+- If you are unsure, return "legal_name": null.
+DOCUMENT TEXT:
+<<<
+${text}
+>>>
+`;
+
+  const result = await llmService.extractJson({
+    systemPrompt,
+    userPrompt: "Extract legal_name as strict JSON.",
+    temperature: 0,
+    maxTokens: 512,
+  });
+  return result?.parsed?.legal_name || null;
+}
+
+async function uploadOrReplaceIdentityDocument({
+  submissionId,
+  file,
+  userId,
+  workspaceId,
+  organizationId,
+}) {
+  const submission = await Submission.findOne({ _id: submissionId, workspace: workspaceId });
+  if (!submission) {
+    const err = new Error("Submission not found.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const oldFileId = submission.identity_document?.file || null;
+
+  let savedFile;
+  try {
+    savedFile = await FileService.createFromUpload(
+      {
+        file,
+        displayName: file.originalname,
+        folder: submissionIdentityFolder(submissionId),
+        meta: buildSubmissionFileMeta({
+          submissionId,
+          workspaceId,
+          organizationId,
+          type: "identity_document",
+        }),
+      },
+      userId,
+      userId
+    );
+  } catch (uploadErr) {
+    const err = new Error(uploadErr?.message || "Failed to upload identity document.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  let text = "";
+  let legalName = null;
+  let extractionStatus = "extract_failed";
+  let extractionError = null;
+
+  try {
+    text = await extractTextFromFile({
+      ...file,
+      buffer: file.buffer,
+    });
+    if (!text || !String(text).trim()) {
+      extractionError = "No readable text found in ID image.";
+    } else {
+      legalName = await extractLegalNameFromIdentityText(text);
+      if (legalName) {
+        extractionStatus = "extracted";
+      } else {
+        extractionError = "Legal name could not be detected from this image.";
+      }
+    }
+  } catch (err) {
+    extractionError = err?.message || "Failed to extract text from ID image.";
+  }
+
+  submission.identity_document = {
+    file: savedFile._id,
+    document_name: file.originalname,
+    uploaded_at: new Date(),
+    uploaded_by: userId,
+    extraction_status: extractionStatus,
+    extraction_error: extractionError,
+    extracted_at: extractionStatus === "extracted" ? new Date() : null,
+  };
+
+  if (legalName) {
+    submission.legal_name = legalName;
+  }
+
+  await submission.save();
+
+  if (oldFileId && String(oldFileId) !== String(savedFile._id)) {
+    try {
+      const oldFile = await File.findById(oldFileId);
+      if (oldFile) await clearRagIndexForFile(oldFile);
+      await FileService.hardDelete(oldFileId, userId, userId);
+    } catch (deleteErr) {
+      console.error("Old identity file delete failed:", deleteErr);
+    }
+  }
+
+  if (legalName) {
+    await billingService.trackExtractionUsage({
+      organizationId,
+      amount: 1,
+    });
+  }
+
+  return {
+    legalName,
+    rawTextLength: String(text || "").length,
+    extractionStatus,
+    extractionError,
+    savedFile,
+  };
 }
 
 async function readPreparedDocumentText(fileDoc) {
@@ -412,11 +550,55 @@ async function deleteSubmissionDocument({ submissionId, docEntryId, userId, work
   };
 }
 
+async function deleteGeneratedDocument({ submissionId, generatedDocId, userId, workspaceId }) {
+  const submission = await Submission.findOne({ _id: submissionId, workspace: workspaceId });
+  if (!submission) {
+    const err = new Error("Submission not found.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const entry = submission.generated_documents.id(generatedDocId);
+  if (!entry) {
+    const err = new Error("Generated document not found.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const fileId = entry.file_id;
+
+  await Submission.updateOne(
+    { _id: submissionId, workspace: workspaceId },
+    { $pull: { generated_documents: { _id: generatedDocId } } }
+  );
+
+  const warnings = [];
+  try {
+    if (fileId) {
+      await FileService.hardDelete(fileId, userId, userId);
+    }
+  } catch (e) {
+    console.error("Generated file hard delete failed:", e);
+    warnings.push({
+      code: "FILE_DELETE_FAILED",
+      message: "File could not be deleted (will remain orphan until cleanup).",
+    });
+  }
+
+  return {
+    generatedDocId: String(generatedDocId),
+    fileId: fileId ? String(fileId) : null,
+    warnings,
+  };
+}
+
 module.exports = {
   uploadSubmissionDocument,
   uploadSubmissionDocuments,
   extractSubmissionDocumentFields,
   replaceSubmissionDocument,
   deleteSubmissionDocument,
+  deleteGeneratedDocument,
+  uploadOrReplaceIdentityDocument,
   inferExtractionStatus,
 };

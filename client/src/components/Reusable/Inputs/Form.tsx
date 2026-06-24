@@ -8,11 +8,11 @@ import RichTextEditor, { RichTextEditorProps } from "./RichTextEditor";
 import { cn } from "../../../utils/cn";
 
 type SupportedFieldProps =
-  | (InputProps & { fieldtype: "input"; handlechange?: (input: String) => void })
-  | (SelectInputProps & { fieldtype: "select"; handlechange?: (input: String) => void })
-  | (TextAreaProps & { fieldtype: "textarea"; handlechange?: (input: String) => void })
-  | (MultiSelectProps & { fieldtype: "multiselect"; handlechange?: (input: String) => void })
-  | (RichTextEditorProps & { fieldtype: "richtexteditor"; handlechange?: (input: String) => void });
+  | (InputProps & { fieldtype: "input"; handlechange?: (input: string) => void })
+  | (SelectInputProps & { fieldtype: "select"; handlechange?: (input: string) => void })
+  | (TextAreaProps & { fieldtype: "textarea"; handlechange?: (input: string) => void })
+  | (MultiSelectProps & { fieldtype: "multiselect"; handlechange?: (input: string) => void })
+  | (RichTextEditorProps & { fieldtype: "richtexteditor"; handlechange?: (input: string) => void });
 
 export interface FormSection {
   title?: string;

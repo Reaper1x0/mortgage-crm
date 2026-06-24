@@ -3,7 +3,7 @@ import { Outlet, useParams } from "react-router";
 import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { RiBuildingLine } from "react-icons/ri";
-import { FiCreditCard, FiUsers, FiShield } from "react-icons/fi";
+import { FiCreditCard, FiGrid, FiUsers, FiShield } from "react-icons/fi";
 import { usePermissions } from "../../context/PermissionContext";
 
 export default function SettingsLayout() {
@@ -15,6 +15,9 @@ export default function SettingsLayout() {
     const core: SidebarLink[] = [];
     if (canOrg("organization.organization.read")) {
       core.push({ to: `${base}/organization`, label: "Organization", icon: RiBuildingLine });
+    }
+    if (canOrg("organization.organization.read") || canOrg("organization.workspaces.create")) {
+      core.push({ to: `${base}/workspaces`, label: "Workspaces", icon: FiGrid });
     }
     if (canOrg("organization.members.read")) {
       core.push({ to: `${base}/users`, label: "Users", icon: FiUsers });

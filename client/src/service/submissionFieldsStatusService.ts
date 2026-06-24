@@ -5,7 +5,6 @@ type FieldValue = { raw: any; normalized?: any };
 export type SubmissionFieldStatusResponse = {
   message: string;
   success: boolean;
-  submission: any;
   eligibility: {
     eligible: boolean;
     required_total: number;
