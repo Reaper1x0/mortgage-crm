@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
-import { useLanguage } from "../../context/LanguageContext";
 import { useTheme } from "../../context/ThemeContext";
 import DropdownMenu from "../Reusable/DropdownMenu";
 import Modal from "../Reusable/Modal";
@@ -14,7 +13,6 @@ import { useAuth } from "../../context/AuthContext";
 import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
 
 const Navbar = () => {
-  const { t } = useLanguage();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -145,10 +143,10 @@ const Navbar = () => {
             {!isAuthenticated ? (
               <div className="flex items-center gap-2">
                 <Button variant="secondary" onClick={() => navigate("/")}>
-                  {t("login")}
+                  Login
                 </Button>
                 <Button variant="primary" onClick={() => navigate("/register")}>
-                  {t("register")}
+                  Register
                 </Button>
               </div>
             ) : (
@@ -357,7 +355,7 @@ const Navbar = () => {
                           "text-danger"
                         )}
                       >
-                        {t("logout")}
+                        Logout
                       </button>
                     </div>
                   </div>
@@ -369,15 +367,15 @@ const Navbar = () => {
       </header>
 
       <Modal isOpen={isLogoutModalOpen} onClose={() => setLogoutModalOpen(false)}>
-        <h2 className="text-lg font-semibold mb-2 text-text">{t("confirm_logout")}</h2>
-        <p className="mb-6 text-card-text">{t("are_you_sure_logout")}</p>
+        <h2 className="text-lg font-semibold mb-2 text-text">Log out?</h2>
+        <p className="mb-6 text-card-text">Are you sure you want to log out of your account?</p>
 
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setLogoutModalOpen(false)}>
-            {t("cancel")}
+            Cancel
           </Button>
           <Button variant="danger" onClick={handleLogoutClick} isLoading={logoutLoading}>
-            {t("logout")}
+            Logout
           </Button>
         </div>
       </Modal>

@@ -1,6 +1,5 @@
 import React, { FormEvent, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { useLanguage } from "../../context/LanguageContext";
 import AuthPage from "./AuthPage";
 import { AuthService } from "../../service/authService";
 import { addToast } from "../../redux/slices/toasterSlice";
@@ -9,7 +8,6 @@ import Input from "../Reusable/Inputs/Input";
 import Button from "../Reusable/Button";
 
 const Register: React.FC = () => {
-  const { t } = useLanguage();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const usernameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,18 +75,18 @@ const Register: React.FC = () => {
   const usernameUnavailable = Boolean(usernameError) || usernameChecking;
 
   return (
-    <AuthPage heading={t("signup")} subheading={t("create_account") || ""}>
+    <AuthPage heading="Sign up" subheading="Create your account to get started">
       <form onSubmit={handleSubmit} className="w-full">
         <div className="mb-5 text-center">
-          <h2 className="text-2xl font-bold text-text">{t("signup")}</h2>
+          <h2 className="text-2xl font-bold text-text">Sign up</h2>
           <p className="mt-1 text-sm text-card-text">Lets Get Started</p>
         </div>
 
         <div className="grid gap-3">
           <Input
             name="fullName"
-            label={t("full_name")}
-            placeholder={t("full_name")}
+            label="Full Name"
+            placeholder="Full Name"
             type="text"
             required
             value={fullName}
@@ -96,8 +94,8 @@ const Register: React.FC = () => {
           />
           <Input
             name="username"
-            label={t("username")}
-            placeholder={t("username")}
+            label="Username"
+            placeholder="Username"
             type="text"
             required
             value={username}
@@ -108,8 +106,8 @@ const Register: React.FC = () => {
           />
           <Input
             name="email"
-            label={t("email")}
-            placeholder={t("email")}
+            label="Email"
+            placeholder="Email"
             type="email"
             required
             value={email}
@@ -117,8 +115,8 @@ const Register: React.FC = () => {
           />
           <Input
             name="password"
-            label={t("password")}
-            placeholder={t("password")}
+            label="Password"
+            placeholder="Password"
             type="password"
             required
             value={password}
@@ -134,13 +132,13 @@ const Register: React.FC = () => {
             isLoading={loading}
             disabled={loading || usernameUnavailable}
           >
-            {t("signup")}
+            Sign up
           </Button>
         </div>
 
         <div className="mt-4 flex flex-col items-center gap-1">
           <Button type="button" variant="link" className="mt-2">
-            <Link to="/">{t("already_registered")}</Link>
+            <Link to="/">Already registered? Log in</Link>
           </Button>
         </div>
       </form>

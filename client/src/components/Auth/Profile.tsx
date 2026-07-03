@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, FormEvent } from "react";
-import { useLanguage } from "../../context/LanguageContext";
 import { AuthService } from "../../service/authService";
 import Form, { FormSection } from "../Reusable/Inputs/Form";
 import Input from "../Reusable/Inputs/Input";
@@ -15,7 +14,6 @@ import StatusBadge from "../Reusable/StatusBadge";
 import FileUploadZone, { type FileUploadZoneHandle } from "../Reusable/Inputs/FileUploadZone";
 
 const Profile = () => {
-  const { t } = useLanguage();
   const { user, refreshProfile } = useAuth();
   const [usernameError, setUserNameError] = useState<string | undefined>(undefined);
   const [uploadingPicture, setUploadingPicture] = useState(false);
@@ -255,8 +253,8 @@ const Profile = () => {
             <form onSubmit={handleProfileSubmit} className="space-y-4">
               <Input
                 name="fullName"
-                label={t("full_name")}
-                placeholder={t("full_name")}
+                label="Full Name"
+                placeholder="Full Name"
                 type="text"
                 required
                 value={fullName}
@@ -264,8 +262,8 @@ const Profile = () => {
               />
               <Input
                 name="username"
-                label={t("username")}
-                placeholder={t("username")}
+                label="Username"
+                placeholder="Username"
                 type="text"
                 required
                 value={username}
@@ -276,8 +274,8 @@ const Profile = () => {
               />
               <Input
                 name="email"
-                label={t("email")}
-                placeholder={t("email")}
+                label="Email"
+                placeholder="Email"
                 type="email"
                 required
                 value={user?.email || ""}

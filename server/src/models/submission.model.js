@@ -196,6 +196,9 @@ const SubmissionSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    /** Set once when status first transitions to completed (used for processing-time metrics). */
+    completedAt: { type: Date, default: null },
+
     submission_name: { type: String, required: true },
 
     legal_name: { type: String },

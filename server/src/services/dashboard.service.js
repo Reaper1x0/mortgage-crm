@@ -1,10 +1,6 @@
 const { Submission, MasterField } = require("../models");
 const mongoose = require("mongoose");
 
-/**
- * Helper: Calculate date range based on range type
- * Defaults: daily=last 14 days, weekly=last 12 weeks, monthly=last 12 months
- */
 const getDateRange = (range, startDate, endDate) => {
   const now = new Date();
   let start, end;
@@ -35,6 +31,37 @@ const getDateRange = (range, startDate, endDate) => {
   }
 
   return { start, end };
+};
+
+/**
+ * When a submission was marked complete (not last arbitrary update).
+ */
+const getCompletionTimestamp = (submission) => {
+  if (submission.completedAt) return new Date(submission.completedAt);
+
+  const reviewedDates = (submission.submission_fields || [])
+    .filter((f) => f.is_reviewed && f.reviewedAt)
+    .map((f) => new Date(f.reviewedAt).getTime())
+    .filter((t) => !Number.isNaN(t));
+
+  if (reviewedDates.length > 0) {
+    return new Date(Math.max(...reviewedDates));
+  }
+
+  if (submission.eligibility?.updatedAt) {
+    return new Date(submission.eligibility.updatedAt);
+  }
+
+  return new Date(submission.updatedAt);
+};
+
+const median = (values) => {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
 };
 
 /**
@@ -73,23 +100,103 @@ const getDateBucketFormat = (range) => {
   }
 };
 
+/**
+ * Build bucket key for a JS Date. Uses UTC to EXACTLY match MongoDB's aggregation
+ * ($dateToString / $dayOfYear default to UTC), so filled keys align with real buckets.
+ */
+const toBucketKey = (date, range) => {
+  const d = new Date(date);
+  switch (range) {
+    case "daily":
+      return d.toISOString().slice(0, 10);
+    case "weekly": {
+      const year = d.getUTCFullYear();
+      const startOfYear = Date.UTC(year, 0, 0);
+      const dayOfYear = Math.floor((d.getTime() - startOfYear) / (1000 * 60 * 60 * 24));
+      return `${year}-W${Math.floor(dayOfYear / 7)}`;
+    }
+    case "monthly":
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    default:
+      return d.toISOString().slice(0, 10);
+  }
+};
+
+/** Generate every bucket label in [start, end] so charts show a full timeline (UTC). */
+const generateBucketKeys = (range, start, end) => {
+  const keys = [];
+  const cursor = new Date(start);
+  cursor.setUTCHours(0, 0, 0, 0);
+  const endDate = new Date(end);
+  endDate.setUTCHours(23, 59, 59, 999);
+
+  if (range === "weekly") {
+    const seen = new Set();
+    while (cursor <= endDate) {
+      const key = toBucketKey(cursor, "weekly");
+      if (!seen.has(key)) {
+        seen.add(key);
+        keys.push(key);
+      }
+      cursor.setUTCDate(cursor.getUTCDate() + 7);
+    }
+    return keys;
+  }
+
+  if (range === "monthly") {
+    cursor.setUTCDate(1);
+    while (cursor <= endDate) {
+      keys.push(toBucketKey(cursor, "monthly"));
+      cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }
+    return keys;
+  }
+
+  // daily (default)
+  while (cursor <= endDate) {
+    keys.push(toBucketKey(cursor, "daily"));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return keys;
+};
+
+const fillTrendBuckets = (range, start, end, sparseTrends) => {
+  const byBucket = new Map(
+    (sparseTrends || []).map((t) => [t.bucket, t.casesProcessedCount])
+  );
+
+  const generated = generateBucketKeys(range, start, end);
+  const filled = generated.map((bucket) => ({
+    bucket,
+    casesProcessedCount: byBucket.get(bucket) ?? 0,
+  }));
+
+  // Safety net: never drop a real data bucket that the generated timeline missed
+  // (e.g. rare boundary mismatch). Append any leftovers so counts always show.
+  const generatedSet = new Set(generated);
+  for (const t of sparseTrends || []) {
+    if (!generatedSet.has(t.bucket)) {
+      filled.push({ bucket: t.bucket, casesProcessedCount: t.casesProcessedCount });
+    }
+  }
+
+  return filled;
+};
+
 const DashboardService = {
   /**
-   * Get summary metrics for the dashboard
+   * Get summary metrics for the dashboard (all-time / overall — not windowed by range).
    * Metrics:
    * - casesProcessedCount: submissions with status "review" or "completed"
-   * - avgProcessingTimeMinutes: average time from createdAt to updatedAt for completed submissions
+   * - avgProcessingTimeMinutes: median minutes from createdAt to completedAt for completed cases
    * - manualEditsRatePercent: percentage of fields with source.type === "manual"
    * - pendingReviewsCount: submissions with status "review"
    * - completedCasesCount: submissions with status "completed"
    */
-  getSummary: async (range, startDate, endDate, workspaceId) => {
-    const { start, end } = getDateRange(range, startDate, endDate);
-
-    // Get all submissions in the date range
+  getSummary: async (_range, _startDate, _endDate, workspaceId) => {
+    // Summary KPIs are overall totals for the workspace, so no date filtering.
     const submissions = await Submission.find({
       workspace: workspaceId,
-      createdAt: { $gte: start, $lte: end },
     }).lean();
 
     // Cases processed: status in ["review", "completed"]
@@ -97,20 +204,21 @@ const DashboardService = {
       (s) => s.status === "review" || s.status === "completed"
     ).length;
 
-    // Average processing time: for completed submissions, calculate createdAt to updatedAt
+    // Median processing time: createdAt → completedAt (per case, not aggregated wall time)
     const completedSubmissions = submissions.filter(
       (s) => s.status === "completed"
     );
     let avgProcessingTimeMinutes = 0;
     if (completedSubmissions.length > 0) {
-      const totalMinutes = completedSubmissions.reduce((sum, s) => {
-        const created = new Date(s.createdAt);
-        const updated = new Date(s.updatedAt);
-        const diffMs = updated - created;
-        const diffMinutes = diffMs / (1000 * 60);
-        return sum + diffMinutes;
-      }, 0);
-      avgProcessingTimeMinutes = totalMinutes / completedSubmissions.length;
+      const durations = completedSubmissions
+        .map((s) => {
+          const created = new Date(s.createdAt);
+          const completed = getCompletionTimestamp(s);
+          const diffMinutes = (completed.getTime() - created.getTime()) / (1000 * 60);
+          return Math.max(0, diffMinutes);
+        })
+        .filter((m) => Number.isFinite(m));
+      avgProcessingTimeMinutes = median(durations);
     }
 
     // Manual edits rate: count fields with source.type === "manual"
@@ -185,7 +293,7 @@ const DashboardService = {
     ];
 
     const trends = await Submission.aggregate(pipeline);
-    return trends;
+    return fillTrendBuckets(range, start, end, trends);
   },
 
   /**

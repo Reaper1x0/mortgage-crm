@@ -1,4 +1,3 @@
-import { useLanguage } from "../../context/LanguageContext";
 import { IconType } from "react-icons";
 
 export type SocialLink = {
@@ -8,13 +7,11 @@ export type SocialLink = {
 };
 
 function Footer() {
-  const { t } = useLanguage();
-
   return (
     <footer className="bg-card border-t border-card-border text-text transition-colors duration-300">   
       {/* Bottom */}
       <div className="border-t border-card py-4 text-center text-sm">
-        {t("copyright")}
+        © {new Date().getFullYear()} Mortgage CRM. All rights reserved.
       </div>
     </footer>
   );

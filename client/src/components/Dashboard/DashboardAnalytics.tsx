@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from "react";
-import { useDashboardAnalytics } from "../../hooks/useDashboardAnalytics";
+import {
+  useDashboardSummary,
+  useDashboardTrends,
+  useDashboardValidationFailures,
+  useDashboardWorkload,
+} from "../../hooks/useDashboardAnalytics";
 import { DashboardRange } from "../../service/dashboardService";
 import { AuditTrailService, AuditLog } from "../../service/auditTrailService";
 import PageHeader from "../Reusable/PageHeader";
 import Card from "../Reusable/Card";
-import Button from "../Reusable/Button";
 import LineTrendChart from "../charts/LineTrendChart";
 import DonutWorkloadChart from "../charts/DonutWorkloadChart";
 import StatusBadge from "../Reusable/StatusBadge";
 import Avatar from "../Reusable/Avatar";
+import CardRangeToggle from "./CardRangeToggle";
+import { formatProcessingTime } from "../../utils/formatDuration";
 import {
   FiAlertCircle,
   FiAlertTriangle,
@@ -22,74 +28,95 @@ import {
 import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { timeAgo } from "../../utils/date";
 
+type MetricCardProps = {
+  title: string;
+  subtitle?: string;
+  loading: boolean;
+  value: React.ReactNode;
+};
+
+function DashboardMetricCard({ title, subtitle, loading, value }: MetricCardProps) {
+  return (
+    <Card containerClassName="h-full" className="h-full">
+      <div className="flex h-full min-h-[120px] flex-col p-3 sm:p-4">
+        <div className="mb-2 min-w-0">
+          <div className="text-xs font-medium text-text-secondary sm:text-sm">{title}</div>
+          {subtitle ? (
+            <div className="mt-0.5 line-clamp-2 min-h-[28px] text-[10px] text-card-text sm:text-xs">
+              {subtitle}
+            </div>
+          ) : (
+            <div className="mt-0.5 min-h-[28px]" />
+          )}
+        </div>
+        <div className="mt-auto">
+          {loading ? (
+            <div className="h-7 w-20 animate-pulse rounded bg-card-border sm:h-8" />
+          ) : (
+            <div className="truncate text-2xl font-bold text-text sm:text-3xl">{value}</div>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+type ChartCardProps = {
+  title: string;
+  subtitle?: string;
+  range: DashboardRange;
+  onRangeChange: (range: DashboardRange) => void;
+  children: React.ReactNode;
+};
+
+function DashboardChartCard({
+  title,
+  subtitle,
+  range,
+  onRangeChange,
+  children,
+}: ChartCardProps) {
+  return (
+    <Card>
+      <div className="p-3 sm:p-4">
+        <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-text sm:text-lg">{title}</h3>
+            {subtitle ? <p className="mt-0.5 text-xs text-card-text sm:text-sm">{subtitle}</p> : null}
+          </div>
+          <CardRangeToggle value={range} onChange={onRangeChange} />
+        </div>
+        <div className="min-h-[280px] min-w-0">{children}</div>
+      </div>
+    </Card>
+  );
+}
+
 const DashboardAnalytics: React.FC = () => {
-  const [range, setRange] = useState<DashboardRange>("daily");
-  const { data, loading, error, retry } = useDashboardAnalytics(range);
+  const [trendsRange, setTrendsRange] = useState<DashboardRange>("daily");
+  const [workloadRange, setWorkloadRange] = useState<DashboardRange>("daily");
+  const [failuresRange, setFailuresRange] = useState<DashboardRange>("daily");
+
+  const summary = useDashboardSummary();
+  const trendsQuery = useDashboardTrends(trendsRange);
+  const workloadQuery = useDashboardWorkload(workloadRange);
+  const failuresQuery = useDashboardValidationFailures(failuresRange);
+
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [auditLogsLoading, setAuditLogsLoading] = useState(false);
 
-  // KPI Cards Data
-  const kpiCards = [
-    {
-      title: "Cases Processed",
-      value: data.summary?.casesProcessedCount ?? 0,
-      loading,
-    },
-    {
-      title: "Avg Processing Time",
-      value: data.summary
-        ? `${data.summary.avgProcessingTimeMinutes.toFixed(1)} min`
-        : "0 min",
-      loading,
-    },
-    {
-      title: "Manual Edit Rate",
-      value: data.summary
-        ? `${data.summary.manualEditsRatePercent.toFixed(1)}%`
-        : "0%",
-      loading,
-    },
-    {
-      title: "Pending Reviews",
-      value: data.summary?.pendingReviewsCount ?? 0,
-      loading,
-    },
-    {
-      title: "Completed",
-      value: data.summary?.completedCasesCount ?? 0,
-      loading,
-    },
-  ];
-
-  // Prepare trends data for chart
-  const trendsData = data.trends.map((t) => ({
-    bucket: t.bucket,
-    casesProcessedCount: t.casesProcessedCount,
-  }));
-
-  // Prepare workload data for donut chart
-  // Don't pass colors - let the chart component handle color mapping based on names
-  const workloadData = data.workload
+  const workloadData = workloadQuery.data
     ? [
-        {
-          name: "Pending",
-          value: data.workload.totals.pending,
-        },
-        {
-          name: "Completed",
-          value: data.workload.totals.completed,
-        },
+        { name: "Pending", value: workloadQuery.data.totals.pending },
+        { name: "Completed", value: workloadQuery.data.totals.completed },
       ].filter((d) => d.value > 0)
     : [];
 
-  // Fetch audit logs
   useEffect(() => {
     const fetchAuditLogs = async () => {
       setAuditLogsLoading(true);
       try {
-        const response = await AuditTrailService.getRecentAuditLogs({
-          limit: 20,
-        });
+        const response = await AuditTrailService.getRecentAuditLogs({ limit: 20 });
         setAuditLogs(response.audit_logs || []);
       } catch (err) {
         console.error("Failed to fetch audit logs:", err);
@@ -97,10 +124,9 @@ const DashboardAnalytics: React.FC = () => {
         setAuditLogsLoading(false);
       }
     };
-    fetchAuditLogs();
+    void fetchAuditLogs();
   }, []);
 
-  // Get action icon and label
   const getActionInfo = (action: string) => {
     const actionMap: Record<
       string,
@@ -201,192 +227,172 @@ const DashboardAnalytics: React.FC = () => {
     );
   };
 
+  const completedCount = summary.data?.completedCasesCount ?? 0;
+
   return (
-    <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-5 md:space-y-6">
+    <div className="space-y-4 p-3 sm:space-y-5 sm:p-4 md:space-y-6 md:p-6">
       <PageHeader
         title="Dashboard Analytics"
         description="View analytics and metrics for submissions and processing"
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={range === "daily" ? "primary" : "secondary"}
-              onClick={() => setRange("daily")}
-              className="text-xs px-2 sm:px-3"
-            >
-              Daily
-            </Button>
-            <Button
-              variant={range === "weekly" ? "primary" : "secondary"}
-              onClick={() => setRange("weekly")}
-              className="text-xs px-2 sm:px-3"
-            >
-              Weekly
-            </Button>
-            <Button
-              variant={range === "monthly" ? "primary" : "secondary"}
-              onClick={() => setRange("monthly")}
-              className="text-xs px-2 sm:px-3"
-            >
-              Monthly
-            </Button>
-          </div>
-        }
       />
 
-      {error && (
-        <Card>
-          <div className="p-4 text-danger">
-            <p>Error loading dashboard data: {error.message}</p>
-            <Button onClick={retry} variant="primary" className="mt-2">
-              Retry
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
-        {kpiCards.map((kpi, index) => (
-          <Card key={index}>
-            <div className="p-3 sm:p-4">
-              <div className="text-xs sm:text-sm text-text-secondary mb-1">
-                {kpi.title}
-              </div>
-              {loading ? (
-                <div className="h-6 sm:h-8 w-16 sm:w-20 bg-card-border animate-pulse rounded" />
-              ) : (
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-text">
-                  {kpi.value}
-                </div>
-              )}
-            </div>
-          </Card>
-        ))}
+      {/* KPI cards — overall (all-time) totals */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">
+        <DashboardMetricCard
+          title="Cases Processed"
+          subtitle="In review or completed"
+          loading={summary.loading}
+          value={summary.data?.casesProcessedCount ?? 0}
+        />
+        <DashboardMetricCard
+          title="Typical Processing Time"
+          subtitle={
+            completedCount > 0
+              ? `Median per case · ${completedCount} completed`
+              : "No completed cases yet"
+          }
+          loading={summary.loading}
+          value={formatProcessingTime(summary.data?.avgProcessingTimeMinutes)}
+        />
+        <DashboardMetricCard
+          title="Manual Edit Rate"
+          subtitle="% of fields edited manually"
+          loading={summary.loading}
+          value={
+            summary.data ? `${summary.data.manualEditsRatePercent.toFixed(1)}%` : "0%"
+          }
+        />
+        <DashboardMetricCard
+          title="Pending Reviews"
+          subtitle="Awaiting review"
+          loading={summary.loading}
+          value={summary.data?.pendingReviewsCount ?? 0}
+        />
+        <DashboardMetricCard
+          title="Completed"
+          subtitle="Fully completed cases"
+          loading={summary.loading}
+          value={summary.data?.completedCasesCount ?? 0}
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
-        {/* Trends Chart */}
-        <Card>
-          <div className="p-3 sm:p-4">
-            <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4">
-              Cases Processed Trends
-            </h3>
-            <div className="min-h-[280px] min-w-0">
-              <LineTrendChart data={trendsData} loading={loading} />
-            </div>
-          </div>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 sm:gap-5 md:gap-6 lg:grid-cols-2">
+        <DashboardChartCard
+          title="Cases Processed Trends"
+          subtitle="Volume over time"
+          range={trendsRange}
+          onRangeChange={setTrendsRange}
+        >
+          <LineTrendChart
+            data={trendsQuery.data ?? []}
+            loading={trendsQuery.loading}
+            range={trendsRange}
+          />
+        </DashboardChartCard>
 
-        {/* Workload Chart */}
-        <Card>
-          <div className="p-3 sm:p-4">
-            <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4">
-              Workload Distribution
-            </h3>
-            <div className="min-h-[280px] min-w-0">
-              <DonutWorkloadChart data={workloadData} loading={loading} />
-            </div>
-          </div>
-        </Card>
+        <DashboardChartCard
+          title="Workload Distribution"
+          subtitle="Pending vs completed in range"
+          range={workloadRange}
+          onRangeChange={setWorkloadRange}
+        >
+          <DonutWorkloadChart data={workloadData} loading={workloadQuery.loading} />
+        </DashboardChartCard>
       </div>
-      {/* Top Validation Failures */}
+
       <Card containerClassName="h-full">
-        <div className="p-3 sm:p-4 flex flex-col h-full">
-          <div className="mb-3 sm:mb-4 flex-shrink-0">
-            <h3 className="text-base sm:text-lg font-semibold text-text">
-              Top Validation Failures
-            </h3>
-            {!loading && data.validationFailures && (
-              <div className="text-xs sm:text-sm text-text-secondary mt-1">
-                {data.validationFailures.totalFailures} failures •{" "}
-                {data.validationFailures.uniqueRules} rules
-              </div>
-            )}
+        <div className="flex h-full flex-col p-3 sm:p-4">
+          <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-text sm:text-lg">
+                Top Validation Failures
+              </h3>
+              {!failuresQuery.loading && failuresQuery.data ? (
+                <div className="mt-0.5 text-xs text-text-secondary sm:text-sm">
+                  {failuresQuery.data.totalFailures} failures ·{" "}
+                  {failuresQuery.data.uniqueRules} rules
+                </div>
+              ) : null}
+            </div>
+            <CardRangeToggle value={failuresRange} onChange={setFailuresRange} />
           </div>
 
-          <div className="flex-1 min-h-0 overflow-hidden">
-            {loading ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {failuresQuery.loading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div
                     key={i}
-                    className="p-2 sm:p-3 rounded-lg border border-card-border bg-card animate-pulse"
+                    className="animate-pulse rounded-lg border border-card-border bg-card p-2 sm:p-3"
                   >
                     <div className="flex items-start justify-between gap-2 sm:gap-3">
-                      <div className="h-5 sm:h-6 bg-card-border rounded w-16 sm:w-20" />
-                      <div className="flex-1 min-w-0">
-                        <div className="h-3 sm:h-4 bg-card-border rounded w-3/4 mb-2" />
-                        <div className="h-2 sm:h-3 bg-card-border rounded w-1/2" />
+                      <div className="h-5 w-16 rounded bg-card-border sm:h-6 sm:w-20" />
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-2 h-3 w-3/4 rounded bg-card-border sm:h-4" />
+                        <div className="h-2 w-1/2 rounded bg-card-border sm:h-3" />
                       </div>
-                      <div className="h-5 sm:h-6 bg-card-border rounded w-12 sm:w-16" />
+                      <div className="h-5 w-12 rounded bg-card-border sm:h-6 sm:w-16" />
                     </div>
                   </div>
                 ))}
               </div>
-            ) : (data.validationFailures?.topValidationFailures || [])
-                .length === 0 ? (
-              <div className="h-64 flex flex-col items-center justify-center">
-                <FiInfo className="h-10 w-10 sm:h-12 sm:w-12 text-text-secondary mb-2" />
-                <div className="text-sm sm:text-base text-text-secondary">
-                  No validation failures
+            ) : (failuresQuery.data?.topValidationFailures || []).length === 0 ? (
+              <div className="flex h-64 flex-col items-center justify-center">
+                <FiInfo className="mb-2 h-10 w-10 text-text-secondary sm:h-12 sm:w-12" />
+                <div className="text-sm text-text-secondary sm:text-base">
+                  No validation failures in this period
                 </div>
               </div>
             ) : (
-              <div className="space-y-2 overflow-y-auto max-h-[500px] sm:max-h-[600px] pr-1">
-                {(data.validationFailures?.topValidationFailures || [])
+              <div className="max-h-[500px] space-y-2 overflow-y-auto pr-1 sm:max-h-[600px]">
+                {(failuresQuery.data?.topValidationFailures || [])
                   .slice(0, 10)
                   .map((failure, index) => (
                     <div
                       key={index}
-                      className="p-2 sm:p-3 rounded-lg border border-card-border hover:bg-card-hover transition"
+                      className="rounded-lg border border-card-border p-2 transition hover:bg-card-hover sm:p-3"
                     >
                       <div className="flex items-start justify-between gap-2 sm:gap-3">
-                        {/* Left: Severity badges */}
-                        <div className="flex flex-col gap-1 items-start min-w-[70px] sm:min-w-[90px] flex-shrink-0">
+                        <div className="flex min-w-[70px] flex-shrink-0 flex-col items-start gap-1 sm:min-w-[90px]">
                           {failure.severityCounts.error > 0 && (
                             <StatusBadge tone="danger" className="text-xs">
-                              <FiAlertCircle className="h-3 w-3 mr-1" />
+                              <FiAlertCircle className="mr-1 h-3 w-3" />
                               {failure.severityCounts.error}
                             </StatusBadge>
                           )}
                           {failure.severityCounts.warning > 0 && (
                             <StatusBadge tone="warning" className="text-xs">
-                              <FiAlertTriangle className="h-3 w-3 mr-1" />
+                              <FiAlertTriangle className="mr-1 h-3 w-3" />
                               {failure.severityCounts.warning}
                             </StatusBadge>
                           )}
                         </div>
 
-                        {/* Middle: Rule + optional message */}
-                        <div className="flex-1 min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div
-                            className="text-xs sm:text-sm font-medium text-text truncate"
+                            className="truncate text-xs font-medium text-text sm:text-sm"
                             title={failure.rule}
                           >
                             {failure.rule}
                           </div>
                           {failure.sampleMessages.length > 0 && (
-                            <div className="text-xs text-text-secondary italic truncate mt-0.5">
+                            <div className="mt-0.5 truncate text-xs italic text-text-secondary">
                               {failure.sampleMessages[0]}
                             </div>
                           )}
                           {failure.affectedFieldsCount > 0 && (
-                            <div className="text-xs text-text-secondary mt-1">
+                            <div className="mt-1 text-xs text-text-secondary">
                               {failure.affectedFieldsCount} field
-                              {failure.affectedFieldsCount !== 1 ? "s" : ""}{" "}
-                              affected
+                              {failure.affectedFieldsCount !== 1 ? "s" : ""} affected
                             </div>
                           )}
                         </div>
 
-                        {/* Right: Count + % */}
-                        <div className="text-right min-w-[60px] sm:min-w-[80px] flex-shrink-0">
-                          <div className="text-xs sm:text-sm font-bold text-text">
+                        <div className="min-w-[60px] flex-shrink-0 text-right sm:min-w-[80px]">
+                          <div className="text-xs font-bold text-text sm:text-sm">
                             {failure.count}
                           </div>
-                          <div className="text-xs text-text-secondary">
-                            {failure.percentage}%
-                          </div>
+                          <div className="text-xs text-text-secondary">{failure.percentage}%</div>
                         </div>
                       </div>
                     </div>
@@ -396,10 +402,10 @@ const DashboardAnalytics: React.FC = () => {
           </div>
         </div>
       </Card>
-      {/* Recent Activity / Audit Logs */}
+
       <Card>
         <div className="p-3 sm:p-4">
-          <h3 className="text-base sm:text-lg font-semibold text-text mb-3 sm:mb-4">
+          <h3 className="mb-3 text-base font-semibold text-text sm:mb-4 sm:text-lg">
             Recent Activity
           </h3>
           {auditLogsLoading ? (
@@ -407,34 +413,30 @@ const DashboardAnalytics: React.FC = () => {
               {[1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
-                  className="p-2 sm:p-3 rounded-lg border border-card-border bg-card animate-pulse"
+                  className="animate-pulse rounded-lg border border-card-border bg-card p-2 sm:p-3"
                 >
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="h-8 w-8 sm:h-10 sm:w-10 bg-card-border rounded-full flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="h-3 sm:h-4 bg-card-border rounded w-3/4 mb-2" />
-                      <div className="h-2 sm:h-3 bg-card-border rounded w-1/2" />
+                    <div className="h-8 w-8 flex-shrink-0 rounded-full bg-card-border sm:h-10 sm:w-10" />
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-2 h-3 w-3/4 rounded bg-card-border sm:h-4" />
+                      <div className="h-2 w-1/2 rounded bg-card-border sm:h-3" />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : auditLogs.length === 0 ? (
-            <div className="h-48 sm:h-64 flex flex-col items-center justify-center">
-              <FiInfo className="h-10 w-10 sm:h-12 sm:w-12 text-text-secondary mb-2" />
-              <div className="text-sm sm:text-base text-text-secondary">
-                No recent activity
-              </div>
+            <div className="flex h-48 flex-col items-center justify-center sm:h-64">
+              <FiInfo className="mb-2 h-10 w-10 text-text-secondary sm:h-12 sm:w-12" />
+              <div className="text-sm text-text-secondary sm:text-base">No recent activity</div>
             </div>
           ) : (
-            <div className="space-y-2 sm:space-y-3 max-h-[500px] sm:max-h-[600px] overflow-y-auto pr-1">
+            <div className="max-h-[500px] space-y-2 overflow-y-auto pr-1 sm:max-h-[600px] sm:space-y-3">
               {auditLogs.map((log) => {
                 const actionInfo = getActionInfo(log.action);
                 const user = log.user_id;
                 const submission =
-                  typeof log.submission_id === "object"
-                    ? log.submission_id
-                    : null;
+                  typeof log.submission_id === "object" ? log.submission_id : null;
                 const userName =
                   user?.fullName ||
                   user?.username ||
@@ -445,61 +447,44 @@ const DashboardAnalytics: React.FC = () => {
                 return (
                   <div
                     key={log._id}
-                    className="p-2 sm:p-3 rounded-lg border border-card-border hover:bg-card-hover transition"
+                    className="rounded-lg border border-card-border p-2 transition hover:bg-card-hover sm:p-3"
                   >
                     <div className="flex items-start gap-2 sm:gap-3">
-                      {/* Avatar */}
                       <div className="flex-shrink-0">
-                        <Avatar
-                          user={normalizeUserForAvatar(user)}
-                          size="sm"
-                        />
+                        <Avatar user={normalizeUserForAvatar(user)} size="sm" />
                       </div>
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-                          <span className="text-xs sm:text-sm font-semibold text-text">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                          <span className="text-xs font-semibold text-text sm:text-sm">
                             {userName}
                           </span>
-                          <span
-                            className={`flex items-center gap-1 ${actionInfo.color}`}
-                          >
+                          <span className={`flex items-center gap-1 ${actionInfo.color}`}>
                             {actionInfo.icon}
-                            <span className="text-xs sm:text-sm">
-                              {actionInfo.label}
-                            </span>
+                            <span className="text-xs sm:text-sm">{actionInfo.label}</span>
                           </span>
                         </div>
 
-                        {/* Additional context */}
-                        <div className="mt-1 text-xs text-card-text space-y-0.5">
+                        <div className="mt-1 space-y-0.5 text-xs text-card-text">
                           {log.document_name && (
                             <div className="truncate">
-                              <span className="font-medium">Document:</span>{" "}
-                              {log.document_name}
+                              <span className="font-medium">Document:</span> {log.document_name}
                             </div>
                           )}
                           {log.field_key && (
                             <div className="truncate">
-                              <span className="font-medium">Field:</span>{" "}
-                              {log.field_key}
+                              <span className="font-medium">Field:</span> {log.field_key}
                             </div>
                           )}
                           {submission && (
                             <div className="truncate">
                               <span className="font-medium">Submission:</span>{" "}
-                              {submission.submission_name ||
-                                submission.legal_name ||
-                                "N/A"}
+                              {submission.submission_name || submission.legal_name || "N/A"}
                             </div>
                           )}
                         </div>
 
-                        {/* Timestamp */}
-                        <div className="mt-1 text-xs text-card-text">
-                          {timeAgo(log.timestamp)}
-                        </div>
+                        <div className="mt-1 text-xs text-card-text">{timeAgo(log.timestamp)}</div>
                       </div>
                     </div>
                   </div>

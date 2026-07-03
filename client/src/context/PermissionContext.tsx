@@ -56,6 +56,10 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
 
   const [loading, setLoading] = useState(false);
   const [snapshot, setSnapshot] = useState<PermissionSnapshot>(emptySnapshot);
+  // Tracks which scope the current snapshot belongs to, so we can detect when the
+  // snapshot is stale relative to the active scope (e.g. right after creating/switching
+  // a workspace) and report "loading" instead of denying access with the previous scope's data.
+  const [snapshotKey, setSnapshotKey] = useState<string | null>(null);
 
   const scopeRef = useRef<PermissionScope | null>(null);
   const inflightKeyRef = useRef<string | null>(null);
@@ -94,6 +98,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       const cached = getPermissionSnapshot(cacheKey);
       if (cached) {
         setSnapshot(cached);
+        setSnapshotKey(cacheKey);
         setLoading(false);
         return;
       }
@@ -135,9 +140,11 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
 
       setPermissionSnapshot(cacheKey, next);
       setSnapshot(next);
+      setSnapshotKey(cacheKey);
     } catch {
       if (scopeRef.current?.cacheKey !== cacheKey) return;
       setSnapshot(emptySnapshot());
+      setSnapshotKey(cacheKey);
     } finally {
       if (inflightKeyRef.current === cacheKey) {
         inflightKeyRef.current = null;
@@ -153,6 +160,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       clearPermissionCache();
       inflightKeyRef.current = null;
       setSnapshot(emptySnapshot());
+      setSnapshotKey(null);
       setLoading(false);
       return;
     }
@@ -161,6 +169,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     if (!target) {
       inflightKeyRef.current = null;
       setSnapshot(emptySnapshot());
+      setSnapshotKey(null);
       setLoading(false);
       return;
     }
@@ -173,6 +182,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       clearPermissionCache();
       inflightKeyRef.current = null;
       setSnapshot(emptySnapshot());
+      setSnapshotKey(null);
       setLoading(false);
     };
     window.addEventListener("auth:user-logged-out", onLogout);
@@ -188,6 +198,13 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   const { organizationPermissions: orgPerms, workspacePermissions: wsPerms, effective, catalog } =
     snapshot;
 
+  // When the active scope has changed but its permissions have not been loaded yet, the
+  // snapshot still reflects the previous scope. Treat that as "loading" so guards wait for
+  // fresh data instead of denying access based on stale/empty permissions.
+  const currentScopeKey = scope?.cacheKey ?? null;
+  const snapshotStale = currentScopeKey !== null && snapshotKey !== currentScopeKey;
+  const effectiveLoading = loading || snapshotStale;
+
   const canOrg = useCallback((key: string) => orgPerms.has(key), [orgPerms]);
   const canWorkspace = useCallback((key: string) => wsPerms.has(key), [wsPerms]);
   const canAnyOrg = useCallback((keys: string[]) => keys.some((k) => orgPerms.has(k)), [orgPerms]);
@@ -198,7 +215,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<PermissionContextValue>(
     () => ({
-      loading,
+      loading: effectiveLoading,
       organizationPermissions: orgPerms,
       workspacePermissions: wsPerms,
       effective,
@@ -210,7 +227,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       refreshPermissions,
     }),
     [
-      loading,
+      effectiveLoading,
       orgPerms,
       wsPerms,
       effective,

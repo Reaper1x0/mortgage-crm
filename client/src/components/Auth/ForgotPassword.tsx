@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "../../redux/store";
 import Form from "../Reusable/Inputs/Form";
 import { Link, useNavigate } from "react-router";
-import { useLanguage } from "../../context/LanguageContext";
 import { forgotPassword } from "../../redux/slices/forgotPasswordSlice";
 import { verifyPasswordOtp } from "../../redux/slices/otpPasswordResetSlice";
 import { resetPassword } from "../../redux/slices/resetPasswordSlice";
@@ -17,7 +16,6 @@ const ForgotPassword: React.FC = () => {
 
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const { t } = useLanguage();
 
   const { loading: forgotLoading, error: forgotError } = useSelector((state: RootState) => state.forgotPassword);
   const { loading: otpLoading } = useSelector((state: RootState) => state.otp);
@@ -39,7 +37,7 @@ const ForgotPassword: React.FC = () => {
   const handleResetPassword = async (values: Record<string, any>) => {
     setLocalErrors({});
     if (values.newPassword !== values.confirmPassword) {
-      setLocalErrors({ confirmPassword: t("passwords_do_not_match") || "Passwords do not match" });
+      setLocalErrors({ confirmPassword: "Passwords do not match" });
       return;
     }
 
@@ -48,23 +46,23 @@ const ForgotPassword: React.FC = () => {
   };
 
   return (
-    <AuthPage heading={t("forgot_password")} subheading={t("reset_your_password") || ""}>
+    <AuthPage heading="Forgot password" subheading="Reset your password">
       {step === "email" && (
         <Form
-          title={t("forgot_password")}
+          title="Forgot password"
           subtitle={"Enter email to recieve code"}
           sections={[
             {
               fields: [
-                { fieldtype: "input", name: "email", label: t("email"), placeholder: t("enter_your_email"), type: "email", required: true },
+                { fieldtype: "input", name: "email", label: "Email", placeholder: "Enter your email", type: "email", required: true },
               ],
             },
           ]}
           buttons={[
-            { type: "submit", children: t("send_reset_link"), variant: "primary", isLoading: forgotLoading, disabled: forgotLoading },
+            { type: "submit", children: "Send reset link", variant: "primary", isLoading: forgotLoading, disabled: forgotLoading },
           ]}
           links={[
-            { type: "button", variant: "link", children: <Link to="/">{t("back_to_login")}</Link>, className: "mt-2" },
+            { type: "button", variant: "link", children: <Link to="/">Back to Login</Link>, className: "mt-2" },
           ]}
           onSubmit={handleEmailSubmit}
           errors={forgotError ? { email: forgotError } : {}}
@@ -74,8 +72,8 @@ const ForgotPassword: React.FC = () => {
 
       {step === "otp" && (
         <OtpInput
-          title={t("verify_otp") || "Verify OTP"}
-          subtitle={t("enter_code_sent") || "Enter the code we sent you."}
+          title="Verify OTP"
+          subtitle="Enter the code we sent you."
           onSubmit={handleOtpSubmit}
           isLoading={otpLoading}
         />
@@ -83,18 +81,18 @@ const ForgotPassword: React.FC = () => {
 
       {step === "reset" && (
         <Form
-          title={t("reset_password")}
-          subtitle={t("choose_new_password") || ""}
+          title="Reset password"
+          subtitle="Choose a new password"
           sections={[
             {
               fields: [
-                { fieldtype: "input", name: "newPassword", label: t("new_password"), placeholder: t("new_password"), type: "password", required: true },
-                { fieldtype: "input", name: "confirmPassword", label: t("confirm_password"), placeholder: t("confirm_password"), type: "password", required: true },
+                { fieldtype: "input", name: "newPassword", label: "New Password", placeholder: "New Password", type: "password", required: true },
+                { fieldtype: "input", name: "confirmPassword", label: "Confirm Password", placeholder: "Confirm Password", type: "password", required: true },
               ],
             },
           ]}
           buttons={[
-            { type: "submit", children: t("reset_password"), variant: "primary", isLoading: resetLoading, disabled: resetLoading },
+            { type: "submit", children: "Reset password", variant: "primary", isLoading: resetLoading, disabled: resetLoading },
           ]}
           onSubmit={handleResetPassword}
           errors={{ ...(resetError ? { newPassword: resetError } : {}), ...localErrors }}

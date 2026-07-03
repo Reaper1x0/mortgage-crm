@@ -77,12 +77,12 @@ export default function DocumentAssistantChat({
     return statusByFileId.get(scopeFileId)?.rag_chunk_count ?? 0;
   }, [scopeFileId, indexStatus, statusByFileId]);
 
-  const submitQuestion = async () => {
-    const question = input.trim();
+  const submitQuestion = async (questionOverride?: string) => {
+    const question = (questionOverride ?? input).trim();
     if (!question || loading || !documents.length) return;
 
     setError(null);
-    setInput("");
+    if (!questionOverride) setInput("");
     setMessages((prev) => [
       ...prev,
       { id: makeId(), role: "user", content: question, scopeLabel },
@@ -171,8 +171,9 @@ export default function DocumentAssistantChat({
                     <button
                       key={s}
                       type="button"
-                      onClick={() => setInput(s)}
-                      className="rounded-full border border-card-border bg-card px-3 py-1.5 text-xs text-text hover:border-primary-border"
+                      onClick={() => void submitQuestion(s)}
+                      disabled={loading || !documents.length}
+                      className="rounded-full border border-card-border bg-card px-3 py-1.5 text-xs text-text hover:border-primary-border disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {s}
                     </button>

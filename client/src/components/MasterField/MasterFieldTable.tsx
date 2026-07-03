@@ -493,20 +493,6 @@ const MasterFieldTable: React.FC = () => {
           variant="section"
           title={`${isEditModalOpen ? "Edit" : "Add"} field`}
           description="Configure the schema key, type, and validation rules."
-          actions={
-            selectedField ? (
-              <IconButton
-                icon={FiCopy as never}
-                size="md"
-                outline
-                fillBg
-                hoverable
-                title="Copy field JSON"
-                onClick={() => onCopyFieldJson(selectedField)}
-                disabled={!selectedField.key && !isAddModalOpen}
-              />
-            ) : null
-          }
         />
 
         <div className="mt-6">
@@ -657,13 +643,26 @@ const MasterFieldTable: React.FC = () => {
                   </Button>
                 </div>
               </div>
-              <div className="flex gap-2 pt-2">
+              <div className="flex flex-wrap items-center gap-2 pt-2">
                 <Button variant="secondary" type="button" onClick={closeAddEdit}>
                   Cancel
                 </Button>
                 <Button variant="primary" type="submit" disabled={list.loading}>
                   {isEditModalOpen ? "Save Changes" : "Add Field"}
                 </Button>
+                {selectedField && isEditModalOpen ? (
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    className="ml-auto"
+                    onClick={() => onCopyFieldJson(selectedField)}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <FiCopy className="h-4 w-4" />
+                      Copy JSON
+                    </span>
+                  </Button>
+                ) : null}
               </div>
             </div>
           </form>

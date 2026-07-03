@@ -322,12 +322,10 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
             }
           />
           {selectedDoc ? (
-            <Surface variant="soft" className="max-h-[70vh] overflow-auto p-4">
-              <ExtractedFieldsGrid
-                fields={selectedDoc.extracted_fields || []}
-                emptyText="No extracted fields for this document."
-              />
-            </Surface>
+            <ExtractedFieldsGrid
+              fields={selectedDoc.extracted_fields || []}
+              emptyText="No extracted fields for this document."
+            />
           ) : (
             <Callout tone="warning">No document selected.</Callout>
           )}

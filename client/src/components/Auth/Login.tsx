@@ -5,14 +5,12 @@ import { loginUser } from "../../redux/slices/authSlice";
 import Form, { FormSection } from "../Reusable/Inputs/Form";
 import { Link, useNavigate, useLocation } from "react-router";
 import AuthPage from "./AuthPage";
-import { useLanguage } from "../../context/LanguageContext";
 import { ButtonProps } from "../Reusable/Button";
 import { useAuth } from "../../context/AuthContext";
 import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
 
 const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const { loading, error } = useSelector((state: RootState) => state.auth);
@@ -23,16 +21,16 @@ const Login: React.FC = () => {
     {
       fieldtype: "input",
       name: "email",
-      label: t("email"),
-      placeholder: t("email"),
+      label: "Email",
+      placeholder: "Email",
       type: "email",
       required: true,
     },
     {
       fieldtype: "input",
       name: "password",
-      label: t("password"),
-      placeholder: t("password"),
+      label: "Password",
+      placeholder: "Password",
       type: "password",
       required: true,
     },
@@ -41,7 +39,7 @@ const Login: React.FC = () => {
   const buttons: ButtonProps[] = [
     {
       type: "submit",
-      children: t("login"),
+      children: "Login",
       variant: "primary",
       isLoading: loading,
       disabled: loading,
@@ -52,13 +50,13 @@ const Login: React.FC = () => {
     {
       type: "button",
       variant: "link",
-      children: <Link to="/register">{t("dont_have_account")}</Link>,
+      children: <Link to="/register">Don't have an account? Register</Link>,
       className: "mt-2",
     },
     {
       type: "button",
       variant: "link",
-      children: t("forgot_password?"),
+      children: "Forgot password?",
       className: "mt-1",
       onClick: () => navigate("/forgot-password"),
     },
@@ -105,9 +103,9 @@ const Login: React.FC = () => {
   }, [isAuthenticated, user, navigate, location.pathname, workspaces]);
 
   return (
-    <AuthPage heading={t("login")} subheading={t("enter_your_credentials") || ""}>
+    <AuthPage heading="Login" subheading="Enter your credentials to continue">
       <Form
-        title={t("login")}
+        title="Login"
         subtitle={"Welcome Back"}
         sections={sections}
         buttons={buttons}

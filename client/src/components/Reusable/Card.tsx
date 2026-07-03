@@ -22,9 +22,9 @@ const Card: React.FC<CardProps> = ({ children, className = "", containerClassNam
       )}
       roundedClassName="rounded-2xl"
     >
-      <div className="relative min-w-0">
+      <div className="relative h-full min-w-0">
         <Spotlight className="opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        <div className="relative z-10 min-w-0">{children}</div>
+        <div className="relative z-10 h-full min-w-0">{children}</div>
       </div>
     </HoverBorderGradient>
   );

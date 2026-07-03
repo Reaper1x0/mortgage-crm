@@ -2,7 +2,6 @@ import type { IconType } from "react-icons";
 import { FiAlertTriangle, FiCheckCircle, FiClock, FiDatabase, FiLayers } from "react-icons/fi";
 import type { SubmissionDocument } from "../../types/extraction.types";
 import StatusBadge from "../Reusable/StatusBadge";
-import IconButton from "../Reusable/IconButton";
 import {
   fileKindIcon,
   formatBytes,
@@ -29,13 +28,12 @@ function indexTone(status?: string): "success" | "warning" | "danger" | "neutral
   return "neutral";
 }
 
-function indexLabel(status?: string, chunkCount?: number): string {
+function indexLabel(status?: string, chunkCount?: number): string | null {
   if (status === "indexed") {
-    return chunkCount ? `indexed · ${chunkCount}` : "indexed";
+    return chunkCount ? String(chunkCount) : "✓";
   }
-  if (status === "failed") return "index failed";
-  if (status === "pending") return "not indexed";
-  return status || "not indexed";
+  if (status === "failed") return "!";
+  return null;
 }
 
 function ListRow({
@@ -71,8 +69,8 @@ function ListRow({
           <p className="truncate text-xs text-card-text">{subtitle}</p>
         </div>
         {status ? (
-          <StatusBadge tone={status.tone}>
-            {status.icon ? <status.icon className="h-3.5 w-3.5" /> : null}
+          <StatusBadge tone={status.tone} className="shrink-0 px-1.5 py-0.5 text-[10px]">
+            {status.icon ? <status.icon className="h-3 w-3" /> : null}
             {status.label}
           </StatusBadge>
         ) : null}
@@ -122,6 +120,9 @@ export default function AssistantDocumentList({
         const Icon = fileKindIcon(file?.content_type, file?.extension);
         const isIndexing = indexingFileId === fileId;
 
+        const label = indexLabel(indexStatus, st?.rag_chunk_count);
+        const showStatus = label !== null;
+
         return (
           <ListRow
             key={fileId}
@@ -130,32 +131,42 @@ export default function AssistantDocumentList({
             icon={Icon}
             title={name}
             subtitle={[ext, size, uploadedAt ? prettyDate(uploadedAt) : null].filter(Boolean).join(" · ")}
-            status={{
-              label: indexLabel(indexStatus, st?.rag_chunk_count),
-              tone: indexTone(indexStatus),
-              icon:
-                indexStatus === "indexed"
-                  ? FiCheckCircle
-                  : indexStatus === "failed"
-                    ? FiAlertTriangle
-                    : FiClock,
-            }}
+            status={
+              showStatus
+                ? {
+                    label,
+                    tone: indexTone(indexStatus),
+                    icon:
+                      indexStatus === "indexed"
+                        ? FiCheckCircle
+                        : indexStatus === "failed"
+                          ? FiAlertTriangle
+                          : FiClock,
+                  }
+                : undefined
+            }
             action={
               onIndexDocument ? (
-                <IconButton
-                  icon={FiDatabase}
-                  size="sm"
-                  outline
-                  fillBg
-                  hoverable
+                <button
+                  type="button"
                   title={indexStatus === "indexed" ? "Reindex document" : "Index document"}
                   disabled={isIndexing}
-                  isLoading={isIndexing}
                   onClick={(e) => {
                     e.stopPropagation();
                     onIndexDocument(fileId);
                   }}
-                />
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1 rounded-lg border border-card-border bg-background px-2 py-1 text-[10px] font-medium text-text transition",
+                    "hover:border-primary-border hover:bg-card-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  )}
+                >
+                  <span>{indexStatus === "indexed" ? "Reindex" : "Index Now"}</span>
+                  {isIndexing ? (
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-card-text border-t-transparent" />
+                  ) : (
+                    <FiDatabase className="h-3 w-3 text-card-text" />
+                  )}
+                </button>
               ) : null
             }
           />

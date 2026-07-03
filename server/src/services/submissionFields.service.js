@@ -348,6 +348,10 @@ async function recomputeSubmissionFields(submissionId, userId, workspaceId = nul
     status: nextStatus,
   };
 
+  if (nextStatus === "completed" && submission.status !== "completed") {
+    update.completedAt = new Date();
+  }
+
   // ✅ Atomic write (no VersionError)
   const updated = await Submission.findOneAndUpdate(
     { _id: submissionId, ...(workspaceId ? { workspace: workspaceId } : {}) },

@@ -50,14 +50,16 @@ export default function ProtectedRoute({
   const isWorkspaceScopedRoute = location.pathname.includes("/workspaces/");
   const isTenantScopedRoute = /^\/[a-f\d]{24}(\/|$)/i.test(location.pathname);
 
-  const permissionsPending =
-    perm?.loading && perm.effective === null && perm.organizationPermissions.size === 0;
+  // `perm.loading` is scope-aware: it stays true until the permissions for the current
+  // org/workspace scope have loaded (including right after onboarding creates a workspace),
+  // which prevents a false "access denied" flash from stale/empty permission data.
+  const permissionsPending = perm?.loading ?? false;
 
   if (!isOnboarding && isTenantScopedRoute && organizationPermissionsAny.length > 0) {
     if (permissionsPending) {
       return (
         <div className="min-h-[50vh] flex items-center justify-center">
-          <div className="text-sm text-slate-500">Loading permissions…</div>
+          <div className="text-sm text-slate-500">Loading…</div>
         </div>
       );
     }
@@ -76,7 +78,7 @@ export default function ProtectedRoute({
       if (permissionsPending) {
         return (
           <div className="min-h-[50vh] flex items-center justify-center">
-            <div className="text-sm text-slate-500">Loading permissions…</div>
+            <div className="text-sm text-slate-500">Loading…</div>
           </div>
         );
       }
