@@ -13,7 +13,7 @@ const ExtractionController = {
     const submissionId = req.params.id || req.body.submissionId;
 
     if (!submissionId) return R4XX(res, 400, "Submission id is required.");
-    if (!file) return R4XX(res, 400, "CNIC file is required.");
+    if (!file) return R4XX(res, 400, "Identity document file is required.");
 
     try {
       const result = await submissionDocumentService.uploadOrReplaceIdentityDocument({
@@ -37,7 +37,19 @@ const ExtractionController = {
         identity_document: signedIdentity.identity_document ?? null,
       };
 
+      const extractionMeta = {
+        nameConfidence: result.nameConfidence ?? null,
+        documentAuthenticity: result.documentAuthenticity ?? null,
+        authenticityNote: result.authenticityNote ?? null,
+        documentTypeDetected: result.documentTypeDetected ?? null,
+      };
+
       if (!result.legalName) {
+        console.log(
+          `[CNIC] API response: legal name missing for submission ${submissionId} — ` +
+            `status=${result.extractionStatus}, reason=${result.failureReason || result.extractionError || "unknown"}, ` +
+            `ocr_chars=${result.rawTextLength}`
+        );
         return R2XX(
           res,
           result.extractionError ||
@@ -47,16 +59,23 @@ const ExtractionController = {
             legalName: null,
             rawTextLength: result.rawTextLength,
             ...identityPayload,
+            ...extractionMeta,
             needsManualLegalName: true,
             extractionStatus: result.extractionStatus,
           }
         );
       }
 
-      return R2XX(res, "CNIC processed successfully.", 200, {
+      const successMessage =
+        result.documentAuthenticity === "likely_template_or_sample"
+          ? "Legal name extracted. Document may be a template or sample — verify authenticity separately."
+          : "Identity document processed successfully.";
+
+      return R2XX(res, successMessage, 200, {
         legalName: result.legalName,
         rawTextLength: result.rawTextLength,
         ...identityPayload,
+        ...extractionMeta,
         needsManualLegalName: false,
         extractionStatus: result.extractionStatus,
       });

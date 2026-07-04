@@ -137,6 +137,14 @@ export type IdentityDocument = {
   extraction_status?: "pending" | "extracted" | "extract_failed";
   extraction_error?: string | null;
   extracted_at?: string | null;
+  name_confidence?: "high" | "medium" | "low" | null;
+  document_authenticity?:
+    | "likely_genuine"
+    | "uncertain"
+    | "likely_template_or_sample"
+    | null;
+  authenticity_note?: string | null;
+  document_type_detected?: string | null;
 };
 
 export type SubmissionIdentitySlice = {

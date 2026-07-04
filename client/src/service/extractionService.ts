@@ -9,6 +9,14 @@ type CnicResponse = {
   rawTextLength: number;
   extractionStatus?: "pending" | "extracted" | "extract_failed";
   needsManualLegalName?: boolean;
+  nameConfidence?: "high" | "medium" | "low" | null;
+  documentAuthenticity?:
+    | "likely_genuine"
+    | "uncertain"
+    | "likely_template_or_sample"
+    | null;
+  authenticityNote?: string | null;
+  documentTypeDetected?: string | null;
 } & SubmissionIdentitySlice;
 
 export async function uploadCnicForName(

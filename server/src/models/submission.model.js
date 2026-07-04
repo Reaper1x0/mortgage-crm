@@ -98,6 +98,18 @@ const IdentityDocumentSchema = new mongoose.Schema({
   },
   extraction_error: { type: String, default: null },
   extracted_at: { type: Date, default: null },
+  name_confidence: {
+    type: String,
+    enum: ["high", "medium", "low"],
+    default: null,
+  },
+  document_authenticity: {
+    type: String,
+    enum: ["likely_genuine", "uncertain", "likely_template_or_sample"],
+    default: null,
+  },
+  authenticity_note: { type: String, default: null },
+  document_type_detected: { type: String, default: null },
 });
 
 /* -------------------- Submission-level aggregated fields -------------------- */

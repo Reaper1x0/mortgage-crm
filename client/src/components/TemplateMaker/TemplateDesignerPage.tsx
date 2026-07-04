@@ -245,7 +245,7 @@ export default function TemplateDesignerPage() {
           }
         />
 
-        <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:flex-row">
+        <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start">
           <div
             ref={pdfContainerRef}
             className="min-w-0 flex-1 overflow-hidden rounded-lg border border-card-border bg-card p-2 sm:p-3 md:p-4"
@@ -274,25 +274,11 @@ export default function TemplateDesignerPage() {
             />
           </div>
 
-          <div className="flex w-full min-w-0 shrink-0 flex-col lg:w-64 xl:w-72">
-            <details className="rounded-lg border border-card-border bg-card lg:hidden">
-              <summary className="cursor-pointer select-none px-4 py-3 font-semibold text-text">
-                Inspector
-              </summary>
-              <div className="p-4 pt-0">
-                <InspectorPanel
-                  selected={selectedPlacement}
-                  onChange={(patch) =>
-                    selectedPlacement && updatePlacement(selectedPlacement.placementId, patch)
-                  }
-                  onDelete={() =>
-                    selectedPlacement && deletePlacement(selectedPlacement.placementId)
-                  }
-                />
-              </div>
-            </details>
-
-            <div className="hidden lg:block">
+          <details className="rounded-lg border border-card-border bg-card lg:hidden">
+            <summary className="cursor-pointer select-none px-4 py-3 font-semibold text-text">
+              Inspector
+            </summary>
+            <div className="p-4 pt-0">
               <InspectorPanel
                 selected={selectedPlacement}
                 onChange={(patch) =>
@@ -303,7 +289,24 @@ export default function TemplateDesignerPage() {
                 }
               />
             </div>
-          </div>
+          </details>
+
+          <aside
+            className="sticky top-14 hidden w-full min-w-0 shrink-0 self-start py-4 lg:flex lg:w-64 lg:flex-col xl:w-72"
+            style={{ maxHeight: "calc(100vh - 56px)" }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <InspectorPanel
+                selected={selectedPlacement}
+                onChange={(patch) =>
+                  selectedPlacement && updatePlacement(selectedPlacement.placementId, patch)
+                }
+                onDelete={() =>
+                  selectedPlacement && deletePlacement(selectedPlacement.placementId)
+                }
+              />
+            </div>
+          </aside>
         </div>
       </div>
     </>

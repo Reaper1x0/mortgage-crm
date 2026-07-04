@@ -1,4 +1,5 @@
 import React, { ReactNode, useEffect } from "react";
+import ReactDOM from "react-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../redux/store";
 import { removeToast } from "../../redux/slices/toasterSlice";
@@ -53,9 +54,9 @@ const ToasterContainer: React.FC = () => {
 
   const handleRemove = (id: string) => dispatch(removeToast(id));
 
-  return (
+  return ReactDOM.createPortal(
     <div
-      className="fixed top-5 right-5 z-50 flex flex-col gap-3"
+      className="fixed top-5 right-5 z-[100] flex flex-col gap-3 pointer-events-none"
       aria-live="polite"
       aria-relevant="additions removals"
     >
@@ -67,7 +68,7 @@ const ToasterContainer: React.FC = () => {
           <div
             key={toast.id}
             className={[
-              "flex items-start gap-3",
+              "pointer-events-auto flex items-start gap-3",
               "w-[340px] max-w-[90vw]",
               "rounded-xl bg-card shadow-lg",
               "border border-card-border border-l-4",
@@ -107,7 +108,8 @@ const ToasterContainer: React.FC = () => {
           </div>
         );
       })}
-    </div>
+    </div>,
+    document.body
   );
 };
 

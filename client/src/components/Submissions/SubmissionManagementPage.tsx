@@ -84,11 +84,17 @@ export default function SubmissionManagementPage() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
 
   const [cnicName, setCnicName] = useState<string | null>(null);
+  const [nameConfidence, setNameConfidence] = useState<"high" | "medium" | "low" | null>(null);
+  const [documentAuthenticity, setDocumentAuthenticity] = useState<
+    "likely_genuine" | "uncertain" | "likely_template_or_sample" | null
+  >(null);
+  const [authenticityNote, setAuthenticityNote] = useState<string | null>(null);
   const [cnicLoading, setCnicLoading] = useState(false);
   const [cnicError, setCnicError] = useState<string | null>(null);
   const [manualLegalName, setManualLegalName] = useState("");
 
   const [extractingDocId, setExtractingDocId] = useState<string | null>(null);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
 
   const submissionId = summary?._id || id || "";
 
@@ -103,6 +109,7 @@ export default function SubmissionManagementPage() {
       const initialStep =
         stepParam === "2" || stepParam === "documents" ? 2 : 1;
       setCurrentStep(initialStep as Step);
+      if (initialStep === 2) setDocumentsLoading(true);
       try {
         const res = await SubmissionService.getSummary(id);
         if (cancelled) return;
@@ -138,6 +145,10 @@ export default function SubmissionManagementPage() {
           prev ? { ...prev, legal_name: res.legal_name ?? prev.legal_name } : prev
         );
       }
+      const idDoc = res.identity_document;
+      setNameConfidence(idDoc?.name_confidence ?? null);
+      setDocumentAuthenticity(idDoc?.document_authenticity ?? null);
+      setAuthenticityNote(idDoc?.authenticity_note ?? null);
     } catch (e) {
       console.error(e);
     }
@@ -146,10 +157,13 @@ export default function SubmissionManagementPage() {
   const refreshDocumentsSlice = async () => {
     if (!id) return;
     try {
+      setDocumentsLoading(true);
       const res = await SubmissionDocumentsService.list(id);
       setDocuments((res?.documents || []) as SubmissionDocument[]);
     } catch (e) {
       console.error(e);
+    } finally {
+      setDocumentsLoading(false);
     }
   };
 
@@ -174,6 +188,7 @@ export default function SubmissionManagementPage() {
       const legalName = resp.submission?.legal_name ?? name;
       setCnicName(legalName);
       setSummary((prev) => (prev ? { ...prev, legal_name: legalName } : prev));
+      setDocumentsLoading(true);
       setCurrentStep(2);
     } catch (e) {
       console.error(e);
@@ -191,6 +206,11 @@ export default function SubmissionManagementPage() {
     setCnicError(null);
     const resp = await uploadCnicForName(submissionId, file, onProgress);
     setIdentityDocument(resp.identity_document ?? null);
+    setNameConfidence(resp.nameConfidence ?? resp.identity_document?.name_confidence ?? null);
+    setDocumentAuthenticity(
+      resp.documentAuthenticity ?? resp.identity_document?.document_authenticity ?? null
+    );
+    setAuthenticityNote(resp.authenticityNote ?? resp.identity_document?.authenticity_note ?? null);
 
     const identitySaved = Boolean(resp.identity_document?.file);
     if (!identitySaved) throw new Error("Identity document was not saved.");
@@ -201,6 +221,21 @@ export default function SubmissionManagementPage() {
 
     if (resp.legalName) {
       setCnicName(resp.legalName);
+      if (
+        resp.documentAuthenticity === "likely_template_or_sample" ||
+        resp.nameConfidence === "low"
+      ) {
+        dispatch(
+          addToast({
+            message:
+              resp.authenticityNote ||
+              resp.message ||
+              "Name extracted, but document authenticity could not be verified.",
+            type: "warning",
+            duration: 9000,
+          })
+        );
+      }
       return;
     }
 
@@ -318,7 +353,10 @@ export default function SubmissionManagementPage() {
   };
 
   const goToStep = (step: number) => {
-    if (step >= 1 && step <= 4) setCurrentStep(step as Step);
+    if (step >= 1 && step <= 4) {
+      if (step === 2) setDocumentsLoading(true);
+      setCurrentStep(step as Step);
+    }
   };
 
   return (
@@ -353,6 +391,9 @@ export default function SubmissionManagementPage() {
               {currentStep === 1 && (
                 <Step1IdentityUpload
                   cnicName={cnicName}
+                  nameConfidence={nameConfidence}
+                  documentAuthenticity={documentAuthenticity}
+                  authenticityNote={authenticityNote}
                   identityPreviewUrl={identityPreviewUrl}
                   identityDocumentName={identityDocumentName}
                   manualSubmitting={cnicLoading}
@@ -363,7 +404,10 @@ export default function SubmissionManagementPage() {
                   manualName={manualLegalName}
                   setManualName={setManualLegalName}
                   onManualContinue={handleManualContinue}
-                  onContinue={() => setCurrentStep(2)}
+                  onContinue={() => {
+                    setDocumentsLoading(true);
+                    setCurrentStep(2);
+                  }}
                 />
               )}
 
@@ -372,6 +416,7 @@ export default function SubmissionManagementPage() {
                   clientTitle={summary?.submission_name}
                   clientLegalName={summary?.legal_name}
                   existingDocuments={documents}
+                  documentsLoading={documentsLoading}
                   uploadDocument={handleUploadDocument}
                   onDocumentsUploaded={handleDocumentsUploaded}
                   onUploadFailed={(message) =>

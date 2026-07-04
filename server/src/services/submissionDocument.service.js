@@ -23,18 +23,201 @@ function submissionIdentityFolder(submissionId) {
   return `${submissionUploadFolder(submissionId)}/identity`;
 }
 
+const CNIC_LOG = "[CNIC]";
+const OCR_TEXT_LOG_LIMIT = 4000;
+
+function truncateForLog(text, limit = OCR_TEXT_LOG_LIMIT) {
+  const s = String(text ?? "");
+  if (s.length <= limit) return s;
+  return `${s.slice(0, limit)}\n... [truncated ${s.length - limit} of ${s.length} chars]`;
+}
+
+function logCnic(message, details = {}) {
+  const { ocrText, ...rest } = details;
+  const lines = [`${CNIC_LOG} ${message}`];
+  for (const [key, value] of Object.entries(rest)) {
+    if (value === undefined || value === null || value === "") continue;
+    if (typeof value === "object") {
+      lines.push(`${CNIC_LOG}   ${key}: ${JSON.stringify(value)}`);
+    } else {
+      lines.push(`${CNIC_LOG}   ${key}: ${value}`);
+    }
+  }
+  if (ocrText !== undefined) {
+    lines.push(`${CNIC_LOG}   ocr_text:`);
+    lines.push(truncateForLog(ocrText) || "(empty)");
+  }
+  console.log(lines.join("\n"));
+}
+
+function normalizeLegalName(value) {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function titleCaseName(value) {
+  return String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+const TEMPLATE_MARKERS = [
+  "psdlegit",
+  "psd template",
+  "psd tamplaie",
+  "template",
+  "specimen",
+  "sample",
+  "demo",
+  "mock",
+  "not valid",
+  "quality product",
+  "fake",
+  "novelty",
+];
+
+function detectTemplateSignals(text) {
+  const lower = String(text || "").toLowerCase();
+  return TEMPLATE_MARKERS.filter((marker) => lower.includes(marker));
+}
+
+function parseNameFromOcrHeuristic(text) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const isLabelOrNoise = (line) =>
+    /^(id|sex|date|expiry|expiration|nationality|country|surname|given|nom|name|card|permanent|resident|canada|government|document|birth|place)/i.test(
+      line
+    ) ||
+    /\d{4}[-/]\d/.test(line) ||
+    line.length > 50;
+
+  const looksLikeNameLine = (line) =>
+    /^[A-Za-z][A-Za-z\s\-']{1,40}$/.test(line) && line.split(/\s+/).length <= 3;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^name\s*(?:\/\s*nom)?$/i.test(lines[i]) || /^nom$/i.test(lines[i])) {
+      const nameLines = [];
+      for (let j = i + 1; j < Math.min(i + 5, lines.length); j += 1) {
+        const line = lines[j];
+        if (isLabelOrNoise(line) && !/^[A-Za-z\-']{2,30}$/.test(line)) break;
+        if (looksLikeNameLine(line)) nameLines.push(line);
+      }
+
+      if (nameLines.length >= 2) {
+        const [firstLine, secondLine] = nameLines;
+        if (firstLine.split(/\s+/).length === 1 && secondLine.split(/\s+/).length === 1) {
+          return titleCaseName(`${secondLine} ${firstLine}`);
+        }
+        return titleCaseName(nameLines.join(" "));
+      }
+
+      if (nameLines.length === 1 && nameLines[0].includes(" ")) {
+        return titleCaseName(nameLines[0]);
+      }
+    }
+  }
+
+  const fullNamePattern = /^[A-Za-z]+(?:\s+[A-Za-z]+){1,2}$/;
+  const labelWords = new Set([
+    "canada",
+    "government",
+    "permanent",
+    "resident",
+    "card",
+    "passport",
+    "nationality",
+    "document",
+    "identity",
+    "sample",
+    "specimen",
+  ]);
+
+  for (const line of lines) {
+    if (!fullNamePattern.test(line) || line.length < 5 || line.length > 45) continue;
+    const words = line.toLowerCase().split(/\s+/);
+    if (words.some((word) => labelWords.has(word))) continue;
+    return titleCaseName(line);
+  }
+
+  return null;
+}
+
+function normalizeConfidence(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "high" || normalized === "medium" || normalized === "low") {
+    return normalized;
+  }
+  return null;
+}
+
+function normalizeAuthenticity(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (
+    normalized === "likely_genuine" ||
+    normalized === "uncertain" ||
+    normalized === "likely_template_or_sample"
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
+function buildAuthenticityAssessment({ llmParsed, templateHits, extractionMethod }) {
+  let documentAuthenticity =
+    normalizeAuthenticity(llmParsed?.document_authenticity) || "uncertain";
+  let authenticityNote = llmParsed?.authenticity_note
+    ? String(llmParsed.authenticity_note).trim()
+    : null;
+  let nameConfidence = normalizeConfidence(llmParsed?.name_confidence) || "medium";
+
+  if (templateHits.length) {
+    documentAuthenticity = "likely_template_or_sample";
+    const hitNote = `Document may be a template or sample (detected: ${templateHits.join(", ")}). Verify authenticity separately.`;
+    authenticityNote = authenticityNote ? `${authenticityNote} ${hitNote}` : hitNote;
+    if (nameConfidence === "high") nameConfidence = "medium";
+  }
+
+  if (extractionMethod === "heuristic") {
+    if (nameConfidence === "high") nameConfidence = "medium";
+    if (!authenticityNote) {
+      authenticityNote =
+        "Name extracted from OCR layout patterns; not confirmed by AI model.";
+    }
+  }
+
+  return { documentAuthenticity, authenticityNote, nameConfidence };
+}
+
 async function extractLegalNameFromIdentityText(text) {
   const systemPrompt = `
-You are an extraction engine for Pakistani CNICs.
-Given the DOCUMENT TEXT, extract the full legal name of the card holder.
+You are an extraction engine for government-issued identity documents from any country
+(passports, national ID cards, driver's licenses, permanent resident cards, etc.).
+
+Given the DOCUMENT TEXT (OCR output), extract the card holder's full legal name as it appears on the document.
+
 Return ONLY a JSON object:
 
 {
-  "legal_name": "<exact name string or null>"
+  "legal_name": "<full name string — provide your best guess if any holder name appears; use null ONLY if no personal name is visible>",
+  "name_confidence": "high" | "medium" | "low",
+  "document_authenticity": "likely_genuine" | "uncertain" | "likely_template_or_sample",
+  "authenticity_note": "<1-2 sentences about whether this appears genuine vs sample/template/fake — does NOT block name extraction>",
+  "document_type": "<brief label e.g. Canadian PR card, Pakistani CNIC, passport>"
 }
 
-- Do NOT add any other keys.
-- If you are unsure, return "legal_name": null.
+Rules:
+- ALWAYS extract the most likely holder name even if the document looks like a template, sample, PSD mockup, or demo card.
+- If multiple names conflict, pick the one most clearly labeled as the holder (Name, Nom, Given names, Surname, etc.).
+- name_confidence reflects certainty about the NAME text, not document authenticity.
+- document_authenticity is separate: flag template/sample markers (e.g. PSDLEGIT, SPECIMEN, SAMPLE, TEMPLATE).
+- Do NOT add keys beyond those listed.
 DOCUMENT TEXT:
 <<<
 ${text}
@@ -43,11 +226,71 @@ ${text}
 
   const result = await llmService.extractJson({
     systemPrompt,
-    userPrompt: "Extract legal_name as strict JSON.",
+    userPrompt: "Extract identity fields as strict JSON.",
     temperature: 0,
-    maxTokens: 512,
+    maxTokens: 768,
   });
-  return result?.parsed?.legal_name || null;
+
+  const llmParsed = result?.parsed ?? null;
+  const rawLegalName = llmParsed?.legal_name;
+  let legalName = normalizeLegalName(rawLegalName);
+  let extractionMethod = "llm";
+
+  const templateHits = detectTemplateSignals(text);
+
+  if (!legalName) {
+    const heuristicName = parseNameFromOcrHeuristic(text);
+    if (heuristicName) {
+      legalName = heuristicName;
+      extractionMethod = "heuristic";
+    }
+  }
+
+  const authenticity = buildAuthenticityAssessment({
+    llmParsed,
+    templateHits,
+    extractionMethod,
+  });
+
+  const documentTypeDetected = llmParsed?.document_type
+    ? String(llmParsed.document_type).trim()
+    : null;
+
+  let failureReason = null;
+  if (legalName) {
+    failureReason = null;
+  } else if (rawLegalName === null || rawLegalName === undefined) {
+    failureReason = "No holder name found in OCR text (LLM and heuristic both failed)";
+  } else {
+    failureReason = `LLM returned empty or invalid legal_name: ${JSON.stringify(rawLegalName)}`;
+  }
+
+  logCnic("LLM name extraction finished", {
+    provider: result?.provider,
+    model: result?.model,
+    llm_raw_json: result?.content,
+    llm_parsed: llmParsed,
+    legal_name: legalName ?? "(not extracted)",
+    extraction_method: extractionMethod,
+    name_confidence: authenticity.nameConfidence,
+    document_authenticity: authenticity.documentAuthenticity,
+    authenticity_note: authenticity.authenticityNote || undefined,
+    document_type_detected: documentTypeDetected || undefined,
+    template_markers: templateHits.length ? templateHits : undefined,
+    failure_reason: failureReason || undefined,
+  });
+
+  return {
+    legalName,
+    nameConfidence: authenticity.nameConfidence,
+    documentAuthenticity: authenticity.documentAuthenticity,
+    authenticityNote: authenticity.authenticityNote,
+    documentTypeDetected,
+    extractionMethod,
+    llmContent: result?.content ?? null,
+    llmParsed,
+    failureReason,
+  };
 }
 
 async function uploadOrReplaceIdentityDocument({
@@ -57,6 +300,13 @@ async function uploadOrReplaceIdentityDocument({
   workspaceId,
   organizationId,
 }) {
+  logCnic("Identity upload started", {
+    submission_id: submissionId,
+    file_name: file?.originalname,
+    mime_type: file?.mimetype,
+    size_bytes: file?.size,
+  });
+
   const submission = await Submission.findOne({ _id: submissionId, workspace: workspaceId });
   if (!submission) {
     const err = new Error("Submission not found.");
@@ -84,6 +334,10 @@ async function uploadOrReplaceIdentityDocument({
       userId
     );
   } catch (uploadErr) {
+    logCnic("Identity upload failed (file save)", {
+      submission_id: submissionId,
+      error: uploadErr?.message || String(uploadErr),
+    });
     const err = new Error(uploadErr?.message || "Failed to upload identity document.");
     err.statusCode = 400;
     throw err;
@@ -91,26 +345,88 @@ async function uploadOrReplaceIdentityDocument({
 
   let text = "";
   let legalName = null;
+  let nameConfidence = null;
+  let documentAuthenticity = null;
+  let authenticityNote = null;
+  let documentTypeDetected = null;
   let extractionStatus = "extract_failed";
   let extractionError = null;
+  let failureReason = null;
+  let llmContent = null;
+  let llmParsed = null;
 
   try {
     text = await extractTextFromFile({
       ...file,
       buffer: file.buffer,
     });
-    if (!text || !String(text).trim()) {
+    const trimmedText = String(text || "").trim();
+
+    logCnic("OCR text extracted from identity image", {
+      submission_id: submissionId,
+      file_name: file.originalname,
+      ocr_text_length: trimmedText.length,
+      ocrText: trimmedText,
+    });
+
+    if (!trimmedText) {
+      failureReason = "OCR_EMPTY";
       extractionError = "No readable text found in ID image.";
+      logCnic("Legal name not extracted", {
+        submission_id: submissionId,
+        outcome: "failed",
+        reason: failureReason,
+        detail: "OCR returned no text — image may be blank, too blurry, or unsupported format.",
+      });
     } else {
-      legalName = await extractLegalNameFromIdentityText(text);
+      const nameResult = await extractLegalNameFromIdentityText(trimmedText);
+      legalName = nameResult.legalName;
+      nameConfidence = nameResult.nameConfidence;
+      documentAuthenticity = nameResult.documentAuthenticity;
+      authenticityNote = nameResult.authenticityNote;
+      documentTypeDetected = nameResult.documentTypeDetected;
+      llmContent = nameResult.llmContent;
+      llmParsed = nameResult.llmParsed;
+      failureReason = nameResult.failureReason;
+
       if (legalName) {
         extractionStatus = "extracted";
+        logCnic("Legal name extracted successfully", {
+          submission_id: submissionId,
+          legal_name: legalName,
+          name_confidence: nameConfidence,
+          document_authenticity: documentAuthenticity,
+          authenticity_note: authenticityNote || undefined,
+          document_type_detected: documentTypeDetected || undefined,
+          extraction_method: nameResult.extractionMethod,
+          ocr_text_length: trimmedText.length,
+        });
       } else {
-        extractionError = "Legal name could not be detected from this image.";
+        extractionError = failureReason || "Legal name could not be detected from this image.";
+        logCnic("Legal name not extracted", {
+          submission_id: submissionId,
+          outcome: "failed",
+          reason: failureReason || "UNKNOWN",
+          ocr_text_length: trimmedText.length,
+          llm_raw_json: llmContent,
+          llm_parsed: llmParsed,
+          ocrText: trimmedText,
+          hint: "Check ocr_text above — if name is visible but LLM returned null, improve image quality or enter name manually.",
+        });
       }
     }
   } catch (err) {
+    failureReason = "EXTRACTION_EXCEPTION";
     extractionError = err?.message || "Failed to extract text from ID image.";
+    logCnic("Legal name extraction error", {
+      submission_id: submissionId,
+      outcome: "error",
+      reason: failureReason,
+      error: extractionError,
+      stack: err?.stack?.split("\n").slice(0, 3).join(" | "),
+      ocr_text_length: String(text || "").trim().length,
+      ocrText: String(text || "").trim() || undefined,
+    });
   }
 
   submission.identity_document = {
@@ -121,6 +437,10 @@ async function uploadOrReplaceIdentityDocument({
     extraction_status: extractionStatus,
     extraction_error: extractionError,
     extracted_at: extractionStatus === "extracted" ? new Date() : null,
+    name_confidence: nameConfidence,
+    document_authenticity: documentAuthenticity,
+    authenticity_note: authenticityNote,
+    document_type_detected: documentTypeDetected,
   };
 
   if (legalName) {
@@ -146,11 +466,25 @@ async function uploadOrReplaceIdentityDocument({
     });
   }
 
+  logCnic("Identity upload finished", {
+    submission_id: submissionId,
+    status: extractionStatus,
+    legal_name: legalName ?? "(not extracted)",
+    failure_reason: failureReason || undefined,
+    ocr_text_length: String(text || "").length,
+    needs_manual_entry: !legalName,
+  });
+
   return {
     legalName,
+    nameConfidence,
+    documentAuthenticity,
+    authenticityNote,
+    documentTypeDetected,
     rawTextLength: String(text || "").length,
     extractionStatus,
     extractionError,
+    failureReason,
     savedFile,
   };
 }

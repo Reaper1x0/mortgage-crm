@@ -10,6 +10,13 @@ import { cn } from "../../utils/cn";
 
 export type Step1Props = {
   cnicName: string | null;
+  nameConfidence?: "high" | "medium" | "low" | null;
+  documentAuthenticity?:
+    | "likely_genuine"
+    | "uncertain"
+    | "likely_template_or_sample"
+    | null;
+  authenticityNote?: string | null;
   identityPreviewUrl?: string | null;
   identityDocumentName?: string | null;
   manualSubmitting?: boolean;
@@ -25,6 +32,9 @@ export type Step1Props = {
 
 const Step1IdentityUpload: React.FC<Step1Props> = ({
   cnicName,
+  nameConfidence = null,
+  documentAuthenticity = null,
+  authenticityNote = null,
   identityPreviewUrl = null,
   identityDocumentName = null,
   manualSubmitting = false,
@@ -87,6 +97,25 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
   };
 
   const isReextract = extractedState === "found" || Boolean(identityPreviewUrl || localPreviewUrl);
+
+  const showAuthenticityWarning =
+    Boolean(cnicName) &&
+    (documentAuthenticity === "likely_template_or_sample" ||
+      documentAuthenticity === "uncertain" ||
+      nameConfidence === "low");
+
+  const authenticityTitle =
+    documentAuthenticity === "likely_template_or_sample"
+      ? "Verify document authenticity"
+      : "Name confidence";
+
+  const authenticityMessage =
+    authenticityNote ||
+    (documentAuthenticity === "likely_template_or_sample"
+      ? "This ID may be a template or sample. The extracted name is for data entry only — confirm it matches a genuine document."
+      : nameConfidence === "low"
+        ? "We extracted a name, but confidence is low. Double-check it against the physical ID."
+        : "Document authenticity could not be fully verified. Confirm the legal name manually.");
 
   const renderIdentityPreview = (className?: string) =>
     displayImageUrl ? (
@@ -155,7 +184,18 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
                     {displayDocumentName ? (
                       <p className="mt-1 text-xs text-card-text truncate">{displayDocumentName}</p>
                     ) : null}
+                    {nameConfidence ? (
+                      <p className="mt-2 text-xs text-card-text">
+                        Name confidence:{" "}
+                        <span className="font-medium capitalize text-text">{nameConfidence}</span>
+                      </p>
+                    ) : null}
                   </div>
+                  {showAuthenticityWarning ? (
+                    <Callout tone="warning" title={authenticityTitle}>
+                      {authenticityMessage}
+                    </Callout>
+                  ) : null}
                   <p className="text-sm text-card-text">
                     Name was read from the uploaded ID. Re-extract if you upload a different or clearer photo.
                   </p>
@@ -195,7 +235,7 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
           ) : (
             <div className="rounded-xl border border-dashed border-card-border bg-background p-6 text-center space-y-4">
               <p className="text-sm text-card-text">
-                Upload a CNIC or government ID. We&apos;ll extract the legal name automatically.
+                Upload a passport, driver&apos;s license, national ID, or other government ID. We&apos;ll extract the legal name automatically.
               </p>
               <Button variant="primary" onClick={openUploadModal} className="mx-auto">
                 <span className="inline-flex items-center gap-2">
@@ -242,7 +282,7 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
             <p className="mt-1 text-sm text-card-text">
               {isReextract
                 ? "Upload a new or clearer ID image. The previous file will be replaced."
-                : "Upload a CNIC or government ID. The name area should be readable."}
+                : "Upload any government-issued ID. The name area should be readable."}
             </p>
           </div>
 
@@ -256,7 +296,7 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
             name="cnic-upload-modal"
             accept="image/*"
             multiple={false}
-            hint="CNIC or government ID — JPG or PNG, name area readable"
+            hint="Passport, driver's license, national ID, or PR card — JPG or PNG, name area readable"
             resetWhen={uploadModalOpen}
             uploadButtonLabel={isReextract ? "Re-extract" : "Extract name"}
             uploadFile={uploadIdentity}

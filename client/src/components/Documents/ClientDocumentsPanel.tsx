@@ -12,12 +12,40 @@ import Button from "../Reusable/Button";
 import FileUploader from "../Reusable/Inputs/FileUploader";
 import type { FileUploadProgressCallback } from "../../utils/uploadProgress";
 import { FiFileText, FiPlus } from "react-icons/fi";
+import { Loader } from "../../assets/Loader";
 import { getFileName, getFileRef, sortDocumentsNewestFirst } from "./clientDocumentUtils";
+
+function DocumentCardSkeleton() {
+  return (
+    <div className="animate-pulse overflow-hidden rounded-2xl border border-card-border bg-card">
+      <div className="h-20 bg-card-hover" />
+      <div className="space-y-3 p-4">
+        <div className="h-4 w-3/4 rounded bg-card-hover" />
+        <div className="h-3 w-1/2 rounded bg-card-hover" />
+        <div className="flex gap-2">
+          <div className="h-6 w-16 rounded-full bg-card-hover" />
+          <div className="h-6 w-20 rounded-full bg-card-hover" />
+        </div>
+        <div className="flex justify-between pt-1">
+          <div className="flex gap-2">
+            <div className="h-8 w-8 rounded-lg bg-card-hover" />
+            <div className="h-8 w-8 rounded-lg bg-card-hover" />
+          </div>
+          <div className="flex gap-2">
+            <div className="h-8 w-8 rounded-lg bg-card-hover" />
+            <div className="h-8 w-8 rounded-lg bg-card-hover" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export type ClientDocumentsPanelProps = {
   clientTitle?: string;
   clientLegalName?: string | null;
   existingDocuments: SubmissionDocument[];
+  documentsLoading?: boolean;
   uploadDocument: (file: File, onProgress: FileUploadProgressCallback) => Promise<void>;
   onDocumentsUploaded?: () => void;
   onUploadFailed?: (message: string) => void;
@@ -36,6 +64,7 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
   clientTitle,
   clientLegalName,
   existingDocuments,
+  documentsLoading = false,
   uploadDocument,
   onDocumentsUploaded,
   onUploadFailed,
@@ -55,6 +84,8 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const [fieldsForId, setFieldsForId] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [extractModalOpen, setExtractModalOpen] = useState(false);
+  const [extractModalDoc, setExtractModalDoc] = useState<SubmissionDocument | null>(null);
 
   const sortedDocs = useMemo(
     () => sortDocumentsNewestFirst(existingDocuments),
@@ -100,7 +131,15 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
   };
 
   const handleExtract = async (docEntryId: string) => {
-    await onExtractFields(docEntryId);
+    const doc = sortedDocs.find((entry) => entry._id === docEntryId) || null;
+    setExtractModalDoc(doc);
+    setExtractModalOpen(true);
+    try {
+      await onExtractFields(docEntryId);
+    } finally {
+      setExtractModalOpen(false);
+      setExtractModalDoc(null);
+    }
   };
 
   const closeDelete = () => {
@@ -153,15 +192,27 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
           <div>
             <h2 className="text-lg font-extrabold text-text">All files</h2>
             <p className="mt-0.5 text-sm text-card-text">
-              {sortedDocs.length === 0
-                ? "No documents uploaded yet."
-                : `${sortedDocs.length} document${sortedDocs.length === 1 ? "" : "s"} on file`}
+              {documentsLoading
+                ? "Loading documents…"
+                : sortedDocs.length === 0
+                  ? "No documents uploaded yet."
+                  : `${sortedDocs.length} document${sortedDocs.length === 1 ? "" : "s"} on file`}
             </p>
           </div>
-          {sortedDocs.length > 0 ? <StatusBadge tone="neutral">{sortedDocs.length} total</StatusBadge> : null}
+          {documentsLoading ? (
+            <StatusBadge tone="neutral">Loading</StatusBadge>
+          ) : sortedDocs.length > 0 ? (
+            <StatusBadge tone="neutral">{sortedDocs.length} total</StatusBadge>
+          ) : null}
         </div>
 
-        {sortedDocs.length === 0 ? (
+        {documentsLoading ? (
+          <div className="mt-5 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <DocumentCardSkeleton key={`doc-skeleton-${index}`} />
+            ))}
+          </div>
+        ) : sortedDocs.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-dashed border-card-border bg-card-muted px-6 py-12 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-muted text-primary">
               <FiFileText className="h-7 w-7" />
@@ -297,6 +348,19 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
               </>
             }
           />
+        </div>
+      </Modal>
+
+      <Modal isOpen={extractModalOpen} onClose={() => {}} showCloseButton={false}>
+        <div className="flex flex-col items-center px-2 py-8 text-center sm:px-4">
+          <Loader className="h-10 w-10 text-primary" />
+          <h2 className="mt-5 text-lg font-semibold text-text">Extracting fields</h2>
+          <p className="mt-2 max-w-sm text-sm text-card-text">
+            {extractModalDoc
+              ? `Reading ${getFileName(extractModalDoc, getFileRef(extractModalDoc))} and matching master fields.`
+              : "Reading the document and matching master fields."}
+          </p>
+          <p className="mt-3 text-xs text-card-text">This may take a minute. Please keep this window open.</p>
         </div>
       </Modal>
 
