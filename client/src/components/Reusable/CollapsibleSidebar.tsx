@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { FiChevronLeft, FiChevronRight, FiX } from "react-icons/fi";
-import { FaBars } from "react-icons/fa";
+import { FiX } from "react-icons/fi";
+import { LuPanelLeft, LuPanelLeftOpen } from "react-icons/lu";
 import { cn } from "../../utils/cn";
+import Tooltip from "./Tooltip";
 
 export type CollapsibleSidebarState = {
   collapsed: boolean;
@@ -19,6 +20,36 @@ export interface CollapsibleSidebarProps {
   collapsedWidthClass?: string;
   stickyTopClass?: string;
   className?: string;
+}
+
+const sidebarToggleButtonClass = cn(
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center",
+  "rounded-lg border border-card-border bg-card",
+  "text-text shadow-sm transition-colors duration-200",
+  "hover:bg-card-hover"
+);
+
+function SidebarToggleButton({
+  collapsed,
+  onClick,
+}: {
+  collapsed: boolean;
+  onClick: () => void;
+}) {
+  const label = collapsed ? "Open sidebar" : "Close sidebar";
+
+  return (
+    <Tooltip content={label} placement="bottom">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={label}
+        className={sidebarToggleButtonClass}
+      >
+        {collapsed ? <LuPanelLeftOpen size={18} /> : <LuPanelLeft size={18} />}
+      </button>
+    </Tooltip>
+  );
 }
 
 const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
@@ -50,20 +81,16 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setMobileOpen((prev) => !prev)}
-        aria-label={mobileOpen ? "Close sidebar" : "Open sidebar"}
-        title={mobileOpen ? "Close sidebar" : "Open sidebar"}
-        className={cn(
-          "md:hidden",
-          "fixed left-2 top-2 z-[60]",
-          "inline-flex h-10 w-10 items-center justify-center",
-          "shadow-sm transition-all duration-200 hover:bg-card-hover"
-        )}
-      >
-        {mobileOpen ? <FiX size={22} /> : <FaBars size={22} />}
-      </button>
+      <Tooltip content={mobileOpen ? "Close sidebar" : "Open sidebar"} placement="bottom">
+        <button
+          type="button"
+          onClick={() => setMobileOpen((prev) => !prev)}
+          aria-label={mobileOpen ? "Close sidebar" : "Open sidebar"}
+          className={cn("md:hidden", "fixed left-2 top-2 z-[60]", sidebarToggleButtonClass)}
+        >
+          {mobileOpen ? <FiX size={18} /> : <LuPanelLeft size={18} />}
+        </button>
+      </Tooltip>
 
       <div
         className={cn(
@@ -122,19 +149,10 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
             <div className="shrink-0 px-3 py-3">
               <div className={cn("flex items-center gap-2", collapsed && "justify-center")}>
                 {showDesktopToggle ? (
-                  <button
-                    type="button"
+                  <SidebarToggleButton
+                    collapsed={collapsed}
                     onClick={() => setCollapsed((prev) => !prev)}
-                    aria-label="Toggle sidebar"
-                    title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-                    className={cn(
-                      "inline-flex h-9 w-9 shrink-0 items-center justify-center",
-                      "rounded-2xl border border-card-border bg-background",
-                      "shadow-sm transition-all duration-200 hover:bg-card-hover"
-                    )}
-                  >
-                    {collapsed ? <FiChevronRight size={18} /> : <FiChevronLeft size={18} />}
-                  </button>
+                  />
                 ) : null}
                 {!collapsed && renderDesktopHeader ? (
                   <div className="min-w-0 flex-1">{renderDesktopHeader}</div>
