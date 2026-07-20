@@ -6,6 +6,7 @@ import {
   FiDownload,
   FiEdit2,
   FiPlus,
+  FiRefreshCw,
   FiTrash2,
   FiUpload,
   FiXCircle,
@@ -125,6 +126,8 @@ const MasterFieldTable: React.FC = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [fieldToDelete, setFieldToDelete] = useState<MasterField | null>(null);
   const [downloadingSample, setDownloadingSample] = useState(false);
+  const [seedConfirmOpen, setSeedConfirmOpen] = useState(false);
+  const [seedingDefaults, setSeedingDefaults] = useState(false);
 
   const [selectedField, setSelectedField] = useState<MasterField | null>(null);
   const [ruleDraft, setRuleDraft] = useState("");
@@ -255,6 +258,23 @@ const MasterFieldTable: React.FC = () => {
       setDownloadingSample(false);
     }
   }, []);
+
+  const handleSeedDefaults = useCallback(async () => {
+    setSeedingDefaults(true);
+    try {
+      const res = await MasterFieldService.seedDefaults();
+      const upserted = res?.upsertedCount ?? 0;
+      const modified = res?.modifiedCount ?? 0;
+      toast(`Default fields seeded. Added ${upserted}, updated ${modified}.`, "success");
+      setSeedConfirmOpen(false);
+      await list.refetch();
+    } catch (error) {
+      console.error("Error seeding default fields:", error);
+      toast("Failed to seed default master fields.", "error");
+    } finally {
+      setSeedingDefaults(false);
+    }
+  }, [list, toast]);
 
   const addRule = useCallback(() => {
     const r = ruleDraft.trim();
@@ -410,6 +430,17 @@ const MasterFieldTable: React.FC = () => {
               <span className="inline-flex items-center gap-2">
                 <FiUpload className="h-4 w-4 shrink-0" aria-hidden />
                 Bulk Upload
+              </span>
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setSeedConfirmOpen(true)}
+              disabled={!canMasterFieldsWrite || seedingDefaults}
+              disabledTooltip={!canMasterFieldsWrite ? PERMISSION_TOOLTIPS.bulkMasterFields : undefined}
+            >
+              <span className="inline-flex items-center gap-2">
+                <FiRefreshCw className="h-4 w-4 shrink-0" aria-hidden />
+                {seedingDefaults ? "Seeding..." : "Seed Default Schema"}
               </span>
             </Button>
             <Button
@@ -703,6 +734,40 @@ const MasterFieldTable: React.FC = () => {
           </Button>
           <Button variant="danger" onClick={handleDeleteMultipleFields} disabled={list.loading}>
             Confirm Delete
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={seedConfirmOpen}
+        onClose={() => {
+          if (!seedingDefaults) setSeedConfirmOpen(false);
+        }}
+      >
+        <PageHeader
+          variant="section"
+          title="Seed default schema?"
+          description="This will load the default mortgage master field schema into the current workspace. Existing keys will be updated and missing keys will be created."
+        />
+        <p className="mt-4 text-sm text-card-text">
+          This is safe to run more than once. Fields you changed manually may be overwritten if they
+          share the same key as a default field.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setSeedConfirmOpen(false)}
+            disabled={seedingDefaults}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => void handleSeedDefaults()}
+            isLoading={seedingDefaults}
+            disabled={seedingDefaults}
+          >
+            Seed default schema
           </Button>
         </div>
       </Modal>

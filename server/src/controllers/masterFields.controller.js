@@ -18,6 +18,7 @@ const {
 } = require("../utils/spreadsheetImport.utils");
 const { MASTER_FIELD_TYPES } = require("../validations/masterFields.validation");
 const AuditTrailService = require("../services/auditTrail.service");
+const { seedMasterFieldsBulk } = require("../seeders/masterFields.seeder");
 
 const MASTER_FIELD_IMPORT_FIELDS = ["key", "label", "type", "required", "description", "validation_rules"];
 
@@ -345,6 +346,29 @@ const MasterFieldController = {
       importedRows,
       skippedRows,
       skippedReasons,
+    });
+  }),
+
+  seedDefaultMasterFields: catchAsync(async (req, res) => {
+    const result = await seedMasterFieldsBulk(req.workspaceId);
+
+    await AuditTrailService.log({
+      entity_type: "field",
+      entity_id: String(req.workspaceId),
+      user_id: req.user,
+      workspace: req.workspaceId,
+      action: "master_fields_seeded",
+      action_details: {
+        matchedCount: result?.matchedCount || 0,
+        modifiedCount: result?.modifiedCount || 0,
+        upsertedCount: result?.upsertedCount || 0,
+      },
+    });
+
+    return R2XX(res, "Default master fields seeded successfully.", 200, {
+      matchedCount: result?.matchedCount || 0,
+      modifiedCount: result?.modifiedCount || 0,
+      upsertedCount: result?.upsertedCount || 0,
     });
   }),
 };

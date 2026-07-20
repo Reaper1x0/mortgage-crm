@@ -7,10 +7,10 @@
 #   AWS_SECRET_ACCESS_KEY
 #
 # Variables (Repository variables tab):
-#   AWS_REGION          e.g. us-east-1
-#   AWS_ACCOUNT_ID      e.g. 539562402207
-#   ECS_CLUSTER         e.g. mortgage-crm-cluster
-#   ALB_URL             e.g. http://mortgage-crm-alb-1282448004.us-east-1.elb.amazonaws.com
+#   AWS_REGION          
+#   AWS_ACCOUNT_ID      
+#   ECS_CLUSTER        
+#   ALB_URL            
 #
 # IAM user policy needs: ecr:* (push), ecs:DescribeTaskDefinition,
 # ecs:RegisterTaskDefinition, ecs:UpdateService, ecs:DescribeServices

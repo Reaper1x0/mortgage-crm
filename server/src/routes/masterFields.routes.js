@@ -51,6 +51,14 @@ router.post(
 );
 
 router.post(
+  "/seed-defaults",
+  isAuth,
+  requireWorkspace,
+  requirePermission("workspace.masterfields.write"),
+  MasterFieldController.seedDefaultMasterFields,
+);
+
+router.post(
   "/bulk/import",
   isAuth,
   requireWorkspace,

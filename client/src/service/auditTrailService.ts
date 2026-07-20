@@ -38,6 +38,7 @@ export interface AuditLog {
     | "master_field_created"
     | "master_field_updated"
     | "master_field_deleted"
+    | "master_fields_seeded"
     | "submission_created"
     | "submission_updated"
     | "submission_completed"

@@ -1,8 +1,4 @@
 const MasterField = require("../models/masterFields.model");
-const mongoose = require("mongoose");
-
-require("dotenv").config();
-const MASTER_FIELDS_WORKSPACE_ID = "6a3be888beb5fc97a6ce70d3";
 
 const seedData = [
   {
@@ -1190,9 +1186,9 @@ const seedData = [
 ];
 
 // OPTIONAL: Faster bulk version (same behavior, keeps _id for existing docs)
-const seedMasterFieldsBulk = async () => {
+const seedMasterFieldsBulk = async (workspaceId) => {
   try {
-    const workspace = new mongoose.Types.ObjectId(MASTER_FIELDS_WORKSPACE_ID);
+    const workspace = workspaceId;
 
     const ops = seedData.map((field) => ({
       updateOne: {
@@ -1219,8 +1215,15 @@ const seedMasterFieldsBulk = async () => {
     console.log(
       `✅ MasterFields bulk seed complete. Matched: ${res.matchedCount} | Modified: ${res.modifiedCount} | Upserted: ${res.upsertedCount}`
     );
+
+    return {
+      matchedCount: res.matchedCount || 0,
+      modifiedCount: res.modifiedCount || 0,
+      upsertedCount: res.upsertedCount || 0,
+    };
   } catch (err) {
     console.error("❌ Bulk seed error:", err);
+    throw err;
   }
 };
 

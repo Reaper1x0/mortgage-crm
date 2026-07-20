@@ -76,4 +76,13 @@ export const MasterFieldService = {
     const response = await apiClient.post("/master-fields/bulk/import", payload);
     return response.data;
   },
+
+  seedDefaults: async () => {
+    const response = await apiClient.post("/master-fields/seed-defaults");
+    return response.data as {
+      matchedCount?: number;
+      modifiedCount?: number;
+      upsertedCount?: number;
+    };
+  },
 };

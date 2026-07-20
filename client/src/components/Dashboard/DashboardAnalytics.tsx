@@ -24,6 +24,7 @@ import {
   FiCheck,
   FiUpload,
   FiDownload,
+  FiRefreshCw,
 } from "react-icons/fi";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { timeAgo } from "../../utils/date";
@@ -181,6 +182,11 @@ const DashboardAnalytics: React.FC = () => {
         icon: <FiFile className="h-4 w-4" />,
         label: "Deleted Master Field",
         color: "text-danger",
+      },
+      master_fields_seeded: {
+        icon: <FiRefreshCw className="h-4 w-4" />,
+        label: "Seeded Master Fields",
+        color: "text-primary",
       },
       submission_created: {
         icon: <FiFile className="h-4 w-4" />,
