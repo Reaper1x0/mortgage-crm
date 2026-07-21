@@ -23,8 +23,8 @@ interface PdfViewerProps {
   onPageLoad: (numPages: number) => void;
   onRenderSuccess: () => void;
   onPageDimensions?: (width: number, height: number) => void;
-  pdfHostRef: React.RefObject<HTMLDivElement | null>;
-  pageWrapRef: React.RefObject<HTMLDivElement | null>;
+  pdfHostRef: React.Ref<HTMLDivElement>;
+  pageWrapRef: React.Ref<HTMLDivElement>;
 }
 
 export default function PdfViewer({
