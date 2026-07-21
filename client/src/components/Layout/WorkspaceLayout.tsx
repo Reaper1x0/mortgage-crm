@@ -64,12 +64,12 @@ export default function WorkspaceLayout() {
     <div className="min-h-screen bg-background text-text">
       <Navbar />
       <div className="pt-14">
-        <div className="flex w-full gap-4 px-4">
+        <div className="flex w-full">
           {!isOnboarding && !isTemplateDesigner && <Sidebar links={links} />}
           {isTemplateDesigner ? (
             <Outlet key={location.pathname} />
           ) : (
-            <main className="min-w-0 flex-1 overflow-x-hidden py-4">
+            <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-4">
               <Outlet key={location.pathname} />
             </main>
           )}

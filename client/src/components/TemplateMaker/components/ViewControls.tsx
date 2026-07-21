@@ -14,22 +14,26 @@ export default function ViewControls({
   onNextPage,
 }: ViewControlsProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2 mb-2 sm:mb-3">
-      <Button variant="secondary" onClick={onPrevPage} disabled={pageIndex === 0} className="text-xs sm:text-sm">
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        variant="secondary"
+        onClick={onPrevPage}
+        disabled={pageIndex === 0}
+        className="!px-2.5 !py-1 text-xs"
+      >
         Prev
       </Button>
       <Button
         variant="secondary"
         onClick={onNextPage}
         disabled={pageIndex >= pdfNumPages - 1}
-        className="text-xs sm:text-sm"
+        className="!px-2.5 !py-1 text-xs"
       >
         Next
       </Button>
-      <div className="text-xs sm:text-sm text-card-text">
-        Page <span className="text-text font-medium">{pageIndex + 1}</span> / {pdfNumPages}
+      <div className="text-xs text-card-text">
+        Page <span className="font-medium text-text">{pageIndex + 1}</span> / {pdfNumPages}
       </div>
     </div>
   );
 }
-

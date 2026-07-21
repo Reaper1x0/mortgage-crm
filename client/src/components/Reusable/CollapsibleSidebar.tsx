@@ -23,10 +23,10 @@ export interface CollapsibleSidebarProps {
 }
 
 const sidebarToggleButtonClass = cn(
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center",
-  "rounded-lg border border-card-border bg-card",
-  "text-text shadow-sm transition-colors duration-200",
-  "hover:bg-card-hover"
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center",
+  "rounded-lg border border-card-border bg-background",
+  "text-card-text transition-colors duration-200",
+  "hover:bg-card-hover hover:text-text"
 );
 
 function SidebarToggleButton({
@@ -36,17 +36,17 @@ function SidebarToggleButton({
   collapsed: boolean;
   onClick: () => void;
 }) {
-  const label = collapsed ? "Open sidebar" : "Close sidebar";
+  const label = collapsed ? "Expand sidebar" : "Collapse sidebar";
 
   return (
-    <Tooltip content={label} placement="bottom">
+    <Tooltip content={label} placement="top">
       <button
         type="button"
         onClick={onClick}
         aria-label={label}
         className={sidebarToggleButtonClass}
       >
-        {collapsed ? <LuPanelLeftOpen size={18} /> : <LuPanelLeft size={18} />}
+        {collapsed ? <LuPanelLeftOpen size={16} /> : <LuPanelLeft size={16} />}
       </button>
     </Tooltip>
   );
@@ -58,8 +58,8 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
   mobileTitle = "Menu",
   defaultCollapsed = false,
   showDesktopToggle = true,
-  expandedWidthClass = "w-[280px]",
-  collapsedWidthClass = "w-[88px]",
+  expandedWidthClass = "w-[240px]",
+  collapsedWidthClass = "w-[72px]",
   stickyTopClass = "top-14",
   className,
 }) => {
@@ -113,7 +113,7 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
 
         <aside
           className={cn(
-            "absolute left-0 top-0 h-full bg-background",
+            "absolute left-0 top-0 h-full bg-card border-r border-card-border",
             "w-[280px] max-w-[85vw]",
             "py-4 pt-20",
             "transition-transform duration-300 ease-out",
@@ -121,11 +121,11 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
-          <div className="relative flex h-full flex-col overflow-hidden rounded-3xl">
+          <div className="relative flex h-full flex-col overflow-hidden">
             {mobileTitle ? (
               <div className="px-4 pb-2 text-sm font-semibold text-text">{mobileTitle}</div>
             ) : null}
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-3">
               {renderContent({ ...sidebarState, collapsed: false })}
             </div>
           </div>
@@ -137,33 +137,40 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
           "hidden md:flex md:flex-col",
           "sticky self-start shrink-0",
           stickyTopClass,
-          "py-4",
+          "border-r border-card-border bg-card",
           "transition-[width] duration-200 ease-out",
           widthClass,
           className
         )}
         style={{ height: "calc(100vh - 56px)" }}
       >
-        <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-3xl">
-          {(showDesktopToggle || renderDesktopHeader) && (
-            <div className="shrink-0 px-3 py-3">
-              <div className={cn("flex items-center gap-2", collapsed && "justify-center")}>
-                {showDesktopToggle ? (
-                  <SidebarToggleButton
-                    collapsed={collapsed}
-                    onClick={() => setCollapsed((prev) => !prev)}
-                  />
-                ) : null}
-                {!collapsed && renderDesktopHeader ? (
-                  <div className="min-w-0 flex-1">{renderDesktopHeader}</div>
-                ) : null}
-              </div>
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
+          {renderDesktopHeader ? (
+            <div className={cn("shrink-0 px-3 py-3", collapsed && "flex justify-center")}>
+              {!collapsed ? (
+                <div className="min-w-0">{renderDesktopHeader}</div>
+              ) : null}
             </div>
-          )}
+          ) : null}
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-3">
             {renderContent(sidebarState)}
           </div>
+
+          {showDesktopToggle ? (
+            <div
+              className={cn(
+                "shrink-0 border-t border-card-border px-2 py-2",
+                "flex",
+                collapsed ? "justify-center" : "justify-end"
+              )}
+            >
+              <SidebarToggleButton
+                collapsed={collapsed}
+                onClick={() => setCollapsed((prev) => !prev)}
+              />
+            </div>
+          ) : null}
         </div>
       </aside>
     </>

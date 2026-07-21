@@ -28,6 +28,7 @@ export const TemplateService = {
   getTemplateFile: async (id: string) => {
     const res = await apiClient.get(`/templates/${id}/file`, {
       responseType: "arraybuffer",
+      skipErrorToast: true,
       headers: {
         "Cache-Control": "no-cache",
         Pragma: "no-cache",

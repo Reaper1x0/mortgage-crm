@@ -86,7 +86,21 @@ const TemplateController = {
     const template = await templateService.getTemplateById(id, req.workspaceId);
     if (!template) return R4XX(res, 404, "Template not found");
 
-    const fileBuffer = await storageService.getObjectBuffer(template.file.storagePath);
+    const storagePath = template.file?.storagePath;
+    if (!storagePath) {
+      return R4XX(res, 404, "Template PDF file is missing. Re-upload the template.");
+    }
+
+    let fileBuffer;
+    try {
+      fileBuffer = await storageService.getObjectBuffer(storagePath);
+    } catch (error) {
+      if (error?.code === "STORAGE_OBJECT_NOT_FOUND" || error?.statusCode === 404) {
+        return R4XX(res, 404, "Template PDF file is missing from storage. Re-upload the template.");
+      }
+      throw error;
+    }
+
     const fileName = template.file.originalName || `template-${id}.pdf`;
 
     res.setHeader("Content-Type", template.file.mimeType || "application/pdf");

@@ -17,9 +17,9 @@ export default function AccountSettingsLayout() {
     <div className="min-h-screen bg-background text-text">
       <Navbar />
       <div className="pt-14">
-        <div className="flex w-full gap-4 px-4">
+        <div className="flex w-full">
           <Sidebar links={links} />
-          <main className="min-w-0 flex-1 py-4">
+          <main className="min-w-0 flex-1 px-4 py-4">
             <Outlet />
           </main>
         </div>

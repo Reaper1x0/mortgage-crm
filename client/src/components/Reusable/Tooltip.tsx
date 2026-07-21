@@ -17,6 +17,7 @@ type TooltipProps = {
   placement?: TooltipPlacement;
   offset?: number;
   className?: string;
+  triggerClassName?: string;
   disabled?: boolean;
 };
 
@@ -35,6 +36,7 @@ export default function Tooltip({
   placement = "top",
   offset = DEFAULT_OFFSET,
   className,
+  triggerClassName,
   disabled = false,
 }: TooltipProps) {
   const [open, setOpen] = useState(false);
@@ -146,7 +148,7 @@ export default function Tooltip({
     <>
       <span
         ref={triggerRef}
-        className="inline-flex"
+        className={cn("inline-flex", triggerClassName)}
         onMouseEnter={() => {
           if (!disabled) setOpen(true);
         }}

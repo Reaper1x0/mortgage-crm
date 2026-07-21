@@ -39,21 +39,22 @@ const NavItem: React.FC<NavItemProps> = ({
     <NavLink
       to={to}
       onClick={onNavigate}
+      title={collapsed ? label : undefined}
       className={({ isActive }) =>
         cn(
           "group relative flex items-center gap-3",
-          "rounded-2xl px-2 py-1",
-          "text-sm font-semibold",
-          "transition-all duration-200 outline-none",
+          "rounded-lg px-2 py-1.5",
+          "text-sm font-medium",
+          "transition-colors duration-150 outline-none",
           collapsed ? "justify-center px-1" : "",
           isActive
-            ? "bg-card text-text"
-            : "bg-background text-text hover:bg-card-hover"
+            ? "bg-primary-muted text-text"
+            : "text-card-text hover:bg-card-hover hover:text-text"
         )
       }
     >
-      <span className={cn("flex h-9 w-9 items-center justify-center")}>
-        {Icon ? <Icon size={18} /> : <span className="inline-block h-6 w-6" />}
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+        {Icon ? <Icon size={18} /> : <span className="inline-block h-5 w-5" />}
       </span>
 
       {!collapsed && <span className="truncate">{label}</span>}
@@ -69,7 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({ links = [] }) => {
   return (
     <CollapsibleSidebar mobileTitle="Navigation">
       {({ collapsed, closeMobile }) => (
-        <nav className="mt-1 space-y-1">
+        <nav className="space-y-0.5">
           {groupedLinks.map((link) => (
             <NavItem
               key={link.to}

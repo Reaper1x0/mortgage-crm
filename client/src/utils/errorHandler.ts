@@ -15,11 +15,36 @@ interface BackendErrorResponse {
 }
 
 /**
+ * Parses axios response data that may be JSON, ArrayBuffer, or Blob (e.g. file downloads).
+ */
+const parseBackendErrorPayload = (data: unknown): BackendErrorResponse | undefined => {
+  if (!data) return undefined;
+
+  if (typeof data === "object" && !(data instanceof ArrayBuffer) && !(data instanceof Blob)) {
+    return data as BackendErrorResponse;
+  }
+
+  try {
+    if (data instanceof ArrayBuffer) {
+      const text = new TextDecoder("utf-8").decode(new Uint8Array(data));
+      return JSON.parse(text) as BackendErrorResponse;
+    }
+    if (typeof data === "string") {
+      return JSON.parse(data) as BackendErrorResponse;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+};
+
+/**
  * Extracts error message from various error formats
  * 
  * Handles:
  * - Backend consistent format: { success: false, reason: "..." }
- * - Axios errors with response data
+ * - Axios errors with response data (including arraybuffer/blob downloads)
  * - Network errors
  * - Standard Error objects
  * - String errors
@@ -30,7 +55,7 @@ interface BackendErrorResponse {
 export const extractErrorMessage = (error: unknown): string => {
   // Axios error with backend response
   if (error instanceof AxiosError) {
-    const response = error.response?.data as BackendErrorResponse | undefined;
+    const response = parseBackendErrorPayload(error.response?.data);
     
     if (response) {
       // Backend consistent format: { success: false, reason: "..." }

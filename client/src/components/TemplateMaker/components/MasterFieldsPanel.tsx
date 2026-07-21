@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { MasterField } from "../../../types/template.types";
 import Input from "../../Reusable/Inputs/Input";
 import CollapsibleSidebar from "../../Reusable/CollapsibleSidebar";
+import Tooltip from "../../Reusable/Tooltip";
 import { cn } from "../../../utils/cn";
 
 interface MasterFieldsPanelProps {
@@ -9,6 +10,51 @@ interface MasterFieldsPanelProps {
   onFieldSelect: (fieldKey: string) => void;
   loading?: boolean;
   className?: string;
+}
+
+function FieldTooltipContent({ field }: { field: MasterField }) {
+  return (
+    <div className="space-y-1.5 text-left">
+      <div className="whitespace-normal break-words font-semibold text-text">
+        {field.label || field.key}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="rounded bg-background px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-card-text">
+          {field.type}
+        </span>
+        <span
+          className={cn(
+            "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+            field.required
+              ? "bg-danger-muted text-danger-text"
+              : "bg-success-muted text-success-text",
+          )}
+        >
+          {field.required ? "Required" : "Optional"}
+        </span>
+      </div>
+      {field.description ? (
+        <p className="whitespace-normal break-words text-[11px] leading-relaxed text-card-text">
+          {field.description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function RequiredPill({ required }: { required: boolean }) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none",
+        required
+          ? "bg-danger-muted text-danger-text"
+          : "bg-success-muted text-success-text",
+      )}
+    >
+      {required ? "Required" : "Optional"}
+    </span>
+  );
 }
 
 function FieldButton({
@@ -20,47 +66,54 @@ function FieldButton({
   collapsed: boolean;
   onSelect: () => void;
 }) {
-  const shortLabel = (field.label || field.key).slice(0, 2).toUpperCase();
+  const label = field.label || field.key;
+  const shortLabel = label.slice(0, 2).toUpperCase();
 
   if (collapsed) {
     return (
-      <button
-        type="button"
-        onClick={onSelect}
-        title={`${field.label || field.key} (${field.type})`}
-        className={cn(
-          "mx-auto flex h-10 w-10 items-center justify-center rounded-xl",
-          "border border-card-border bg-background text-xs font-bold text-text",
-          "hover:bg-card-hover hover:border-primary-border transition-all",
-          "focus:outline-none focus:ring-2 focus:ring-primary-border"
-        )}
+      <Tooltip
+        content={<FieldTooltipContent field={field} />}
+        placement="right"
+        className="!max-w-[240px] !whitespace-normal break-words"
+        triggerClassName="mx-auto"
       >
-        {shortLabel}
-      </button>
+        <button
+          type="button"
+          onClick={onSelect}
+          className={cn(
+            "flex h-9 w-9 items-center justify-center rounded-lg",
+            "text-xs font-semibold text-card-text",
+            "hover:bg-card-hover hover:text-text transition-colors",
+            "focus:outline-none focus:ring-2 focus:ring-primary-shadow",
+          )}
+        >
+          {shortLabel}
+        </button>
+      </Tooltip>
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        "w-full text-left rounded-md border border-card-border bg-background px-3 py-2",
-        "hover:bg-card-hover hover:border-primary-border transition-all active:scale-[0.98]",
-        "focus:outline-none focus:ring-2 focus:ring-primary-border"
-      )}
+    <Tooltip
+      content={<FieldTooltipContent field={field} />}
+      placement="right"
+      className="!max-w-[260px] !whitespace-normal break-words"
+      triggerClassName="w-full"
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm text-text truncate font-medium">{field.label || field.key}</div>
-        <div className="text-xs text-card-text shrink-0 px-2 py-0.5 rounded bg-card border border-card-border">
-          {field.type}
-        </div>
-      </div>
-      <div className="text-xs text-card-text opacity-75 mt-0.5 truncate">{field.key}</div>
-      {field.description ? (
-        <div className="text-xs text-card-text opacity-80 line-clamp-2 mt-1">{field.description}</div>
-      ) : null}
-    </button>
+      <button
+        type="button"
+        onClick={onSelect}
+        className={cn(
+          "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors",
+          "hover:bg-card-hover focus:outline-none focus:ring-2 focus:ring-primary-shadow",
+        )}
+      >
+        <span className="min-w-0 flex-1 whitespace-normal break-words text-sm font-medium leading-snug text-text">
+          {label}
+        </span>
+        <RequiredPill required={field.required} />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -105,9 +158,6 @@ function FieldList({
   );
 }
 
-/**
- * Master fields list in a collapsible left sidebar shell.
- */
 export default function MasterFieldsPanel({
   masterFields,
   onFieldSelect,
@@ -123,7 +173,7 @@ export default function MasterFieldsPanel({
       (f) =>
         f.key.toLowerCase().includes(q) ||
         (f.label || "").toLowerCase().includes(q) ||
-        f.description.toLowerCase().includes(q)
+        (f.description || "").toLowerCase().includes(q),
     );
   }, [masterFields, fieldSearch]);
 
@@ -133,21 +183,20 @@ export default function MasterFieldsPanel({
     <CollapsibleSidebar
       className={className}
       mobileTitle={`Master Fields (${fieldCountLabel})`}
+      expandedWidthClass="w-[260px]"
+      collapsedWidthClass="w-[64px]"
       desktopHeader={
         <div className="flex items-center justify-between gap-2">
-          <div className="truncate font-semibold text-text">Master Fields</div>
-          <div className="shrink-0 rounded border border-card-border bg-card px-2 py-1 text-xs text-card-text">
-            {fieldCountLabel}
-          </div>
+          <div className="truncate text-sm font-semibold text-text">Master Fields</div>
+          <div className="shrink-0 text-xs tabular-nums text-card-text">{fieldCountLabel}</div>
         </div>
       }
     >
       {({ collapsed }) => (
         <div className="flex h-full min-h-0 flex-col">
           {!collapsed ? (
-            <div className="shrink-0 pb-3">
+            <div className="shrink-0 pb-2">
               <Input
-                label="Search"
                 name="search"
                 value={fieldSearch}
                 onChange={(e) => setFieldSearch(e.target.value)}
@@ -157,7 +206,12 @@ export default function MasterFieldsPanel({
             </div>
           ) : null}
 
-          <div className={cn("min-h-0 flex-1 overflow-y-auto", collapsed ? "space-y-1.5" : "space-y-2")}>
+          <div
+            className={cn(
+              "min-h-0 flex-1 overflow-y-auto",
+              collapsed ? "space-y-1" : "space-y-0.5",
+            )}
+          >
             <FieldList
               collapsed={collapsed}
               loading={loading}

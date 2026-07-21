@@ -48,6 +48,14 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks);
 }
 
+function isObjectNotFoundError(error) {
+  if (!error) return false;
+  const code = error.Code || error.code || error.name;
+  if (code === "NoSuchKey" || code === "NotFound" || code === "NoSuchBucket") return true;
+  if (error.$metadata?.httpStatusCode === 404) return true;
+  return false;
+}
+
 function getAwsClientConfig(region) {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
@@ -176,13 +184,25 @@ class S3StorageService {
   async getObjectBuffer(storagePath) {
     if (!storagePath) throw new Error("getObjectBuffer: storagePath is required");
     const normalizedStoragePath = String(storagePath).replace(/\\/g, "/");
-    const response = await this.client.send(
-      new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: normalizedStoragePath,
-      })
-    );
-    return streamToBuffer(response.Body);
+    try {
+      const response = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: normalizedStoragePath,
+        })
+      );
+      return streamToBuffer(response.Body);
+    } catch (error) {
+      if (isObjectNotFoundError(error)) {
+        const missing = new Error(`Storage object not found: ${normalizedStoragePath}`);
+        missing.code = "STORAGE_OBJECT_NOT_FOUND";
+        missing.statusCode = 404;
+        missing.storagePath = normalizedStoragePath;
+        missing.cause = error;
+        throw missing;
+      }
+      throw error;
+    }
   }
 
   async uploadJson({ key, body }) {

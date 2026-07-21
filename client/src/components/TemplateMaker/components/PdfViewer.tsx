@@ -2,9 +2,8 @@ import { Document, Page, pdfjs, type DocumentProps } from "react-pdf";
 import { Placement } from "../../../types/template.types";
 import PlacementBox from "../PlacementBox";
 import { rectToPx, pxToRect } from "../utils/placementUtils";
+import { cn } from "../../../utils/cn";
 
-// Must be configured in the same module as <Document>/<Page> (react-pdf requirement).
-// Vite bundles the worker from pdfjs-dist so version always matches react-pdf.
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url,
@@ -12,6 +11,8 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 interface PdfViewerProps {
   pdfFile: DocumentProps["file"];
+  emptyMessage?: string;
+  isError?: boolean;
   pageIndex: number;
   pageWidth: number;
   pagePx: { w: number; h: number };
@@ -22,12 +23,14 @@ interface PdfViewerProps {
   onPageLoad: (numPages: number) => void;
   onRenderSuccess: () => void;
   onPageDimensions?: (width: number, height: number) => void;
-  pdfHostRef: React.RefObject<HTMLDivElement>;
-  pageWrapRef: React.RefObject<HTMLDivElement>;
+  pdfHostRef: React.RefObject<HTMLDivElement | null>;
+  pageWrapRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function PdfViewer({
   pdfFile,
+  emptyMessage = "Upload or load a template to start.",
+  isError = false,
   pageIndex,
   pageWidth,
   pagePx,
@@ -45,7 +48,6 @@ export default function PdfViewer({
 
   const handlePageLoadSuccess = (page: any) => {
     if (page && onPageDimensions) {
-      // Get the viewport which has the actual dimensions
       const viewport = page.viewport;
       if (viewport) {
         onPageDimensions(viewport.width, viewport.height);
@@ -55,24 +57,40 @@ export default function PdfViewer({
   };
 
   return (
-    <div className="mt-3 w-full min-w-0 overflow-x-auto">
+    <div className="flex h-full w-full min-w-0 flex-col">
       {!pdfFile ? (
-        <div className="text-card-text">Upload or load a template to start.</div>
+        <div
+          className={cn(
+            "flex min-h-[280px] flex-1 items-center justify-center rounded-xl border border-dashed px-6 py-12 text-center",
+            isError
+              ? "border-danger-border bg-danger-muted"
+              : "border-card-border bg-card",
+          )}
+        >
+          <p
+            className={cn(
+              "max-w-md text-sm leading-relaxed",
+              isError ? "text-danger-text" : "text-card-text",
+            )}
+          >
+            {emptyMessage}
+          </p>
+        </div>
       ) : (
         <div
           ref={pdfHostRef}
-          className="w-full min-w-0 flex justify-center items-start rounded-md bg-background p-2 sm:p-3 md:p-4"
+          className="mx-auto flex w-full min-w-0 justify-center overflow-x-auto rounded-xl border border-card-border bg-card p-3 sm:p-4"
         >
-          <div className="relative inline-block leading-none max-w-full" ref={pageWrapRef}>
+          <div className="relative inline-block max-w-full leading-none" ref={pageWrapRef}>
             <Document
               file={pdfFile}
               onLoadSuccess={(d) => onPageLoad(d.numPages)}
               onLoadError={(error) => {
                 console.error("react-pdf failed to load document:", error);
               }}
-              loading={<div className="text-card-text p-3">Loading PDF...</div>}
+              loading={<div className="p-3 text-card-text">Loading PDF...</div>}
               error={
-                <div className="text-danger-text p-3">
+                <div className="p-3 text-danger">
                   Failed to load PDF file. Check the browser console for details.
                 </div>
               }
@@ -119,4 +137,3 @@ export default function PdfViewer({
     </div>
   );
 }
-
