@@ -694,6 +694,19 @@ async function extractSubmissionDocumentFields({
       limit: -1,
       workspaceId,
     });
+    const masterFieldCount = Array.isArray(masterSchemaFields?.items)
+      ? masterSchemaFields.items.length
+      : 0;
+
+    if (masterFieldCount === 0) {
+      throw new Error(
+        "No master fields found in this workspace. Import or create a master field schema before extracting.",
+      );
+    }
+
+    console.log(
+      `[extract] workspaceId=${workspaceId} masterFields=${masterFieldCount} file=${fileName} textLen=${text.length}`,
+    );
 
     const extracted_fields = await runFieldExtractionForSingleText({
       text,

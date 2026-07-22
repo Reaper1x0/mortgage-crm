@@ -13,6 +13,7 @@ import { useDispatch } from "react-redux";
 import { FiTrash2 } from "react-icons/fi";
 import { addToast } from "../../redux/slices/toasterSlice";
 import { resolveFileUrl } from "../../utils/fileUrl";
+import { Loader } from "../../assets/Loader";
 import type { GeneratedDocument } from "../../types/extraction.types";
 import ClientDocumentCard from "./ClientDocumentCard";
 import {
@@ -130,7 +131,6 @@ export default function Step4GenerateDocument({
     setGenerating(true);
     setError(null);
     setGeneratedUrl(null);
-    const previewTab = window.open("", "_blank", "noopener,noreferrer");
 
     try {
       const slimValues: Record<string, any> = {};
@@ -145,11 +145,6 @@ export default function Step4GenerateDocument({
       const full = resolveFileUrl(url);
       if (!full) throw new Error("Failed to build document URL");
       setGeneratedUrl(full);
-      if (previewTab) {
-        previewTab.location.href = full;
-      } else {
-        window.open(full, "_blank");
-      }
 
       try {
         await refreshGeneratedDocuments();
@@ -173,7 +168,6 @@ export default function Step4GenerateDocument({
     } catch (e: any) {
       console.error("Error generating document:", e);
       setError(e?.message || "Failed to generate PDF");
-      if (previewTab && !previewTab.closed) previewTab.close();
       dispatch(addToast({ message: e?.message || "Failed to generate PDF", type: "error" }));
     } finally {
       setGenerating(false);
@@ -402,6 +396,19 @@ export default function Step4GenerateDocument({
           </div>
         </Surface>
       ) : null}
+
+      <Modal isOpen={generating} onClose={() => {}} showCloseButton={false}>
+        <div className="flex flex-col items-center px-2 py-8 text-center sm:px-4">
+          <Loader className="h-10 w-10 text-primary" />
+          <h2 className="mt-5 text-lg font-semibold text-text">Generating PDF</h2>
+          <p className="mt-2 max-w-sm text-sm text-card-text">
+            {selected
+              ? `Filling “${selected.name}” with reviewed field values.`
+              : "Filling the selected template with reviewed field values."}
+          </p>
+          <p className="mt-3 text-xs text-card-text">This may take a minute. Please keep this window open.</p>
+        </div>
+      </Modal>
 
       <Modal isOpen={deleteOpen} onClose={closeDelete}>
         <div className="space-y-4">
