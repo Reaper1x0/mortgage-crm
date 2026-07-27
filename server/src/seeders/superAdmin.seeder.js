@@ -1,8 +1,8 @@
 const { User } = require("../models");
 const { envConfig } = require("../config");
 
-const DEFAULT_SUPER_ADMIN_EMAIL = "superadmin@mortgagecrm.local";
-const DEFAULT_SUPER_ADMIN_PASSWORD = "ChangeMe123!";
+const DEFAULT_SUPER_ADMIN_EMAIL = "admin@example.com";
+const DEFAULT_SUPER_ADMIN_PASSWORD = "Password@123";
 
 async function normalizeSystemRoles() {
   await User.updateMany(
