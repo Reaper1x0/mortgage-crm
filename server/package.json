@@ -8,7 +8,8 @@
     "dev:watch": "cross-env NODE_ENV=development node --watch --watch-path=./src ./src/bin/www.js",
     "start": "cross-env NODE_ENV=production node ./src/bin/www.js",
     "prod": "npm run start",
-    "build": "pm2 start ecosystem.config.js"
+    "build": "pm2 start ecosystem.config.js",
+    "reset:fresh": "node scripts/reset-fresh.js --confirm"
   },
   "author": "",
   "license": "ISC",
