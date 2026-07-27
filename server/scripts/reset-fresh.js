@@ -116,7 +116,8 @@ async function main() {
   console.log("\nDone. Next steps:");
   console.log("  1. Start the API: npm run dev");
   console.log("  2. Super admin is created automatically on startup (see docs/user-manual.html)");
-  console.log("  3. Register a user, complete onboarding, then seed master fields in the workspace\n");
+  console.log("  3. Standard billing plan is seeded automatically on startup");
+  console.log("  4. Register a user, complete onboarding, then set up master fields in the workspace\n");
 }
 
 main().catch((err) => {
