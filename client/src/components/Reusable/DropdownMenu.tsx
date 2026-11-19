@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "../../utils/cn";
 
 interface DropdownMenuProps {
   button: React.ReactNode;
@@ -15,13 +16,63 @@ interface DropdownMenuProps {
     | "down"
     | "left"
     | "right";
-  offset?: number; // gap between trigger and menu
+  offset?: number;
   closeOnSelect?: boolean;
 }
 
 type XY = { top: number; left: number };
 
-const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+const VIEWPORT_PAD = 8;
+
+function placeMenu(
+  trigger: DOMRect,
+  menu: DOMRect,
+  position: NonNullable<DropdownMenuProps["position"]>,
+  offset: number,
+): XY {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const width = menu.width;
+  const height = menu.height;
+
+  const alignLeft = () => trigger.left;
+  const alignRight = () => trigger.right - width;
+  const alignCenter = () => trigger.left + trigger.width / 2 - width / 2;
+
+  let left = alignLeft();
+  let top = trigger.bottom + offset;
+
+  if (position === "left-down" || position === "left-up") left = alignRight();
+  else if (position === "down" || position === "up") left = alignCenter();
+  else if (position === "left") left = trigger.left - width - offset;
+  else if (position === "right") left = trigger.right + offset;
+
+  if (position === "left-up" || position === "right-up" || position === "up") {
+    top = trigger.top - height - offset;
+  } else if (position === "left" || position === "right") {
+    top = trigger.top + trigger.height / 2 - height / 2;
+  }
+
+  const overflowsRight = left + width > vw - VIEWPORT_PAD;
+  const overflowsLeft = left < VIEWPORT_PAD;
+  if (position === "left" && overflowsLeft) left = trigger.right + offset;
+  else if (position === "right" && overflowsRight) left = trigger.left - width - offset;
+  else if (overflowsRight && !overflowsLeft) left = alignRight();
+  else if (overflowsLeft && !overflowsRight) left = alignLeft();
+
+  const overflowsBottom = top + height > vh - VIEWPORT_PAD;
+  const overflowsTop = top < VIEWPORT_PAD;
+  if ((position.endsWith("down") || position === "down") && overflowsBottom) {
+    top = trigger.top - height - offset;
+  } else if ((position.endsWith("up") || position === "up") && overflowsTop) {
+    top = trigger.bottom + offset;
+  }
+
+  left = Math.min(Math.max(left, VIEWPORT_PAD), Math.max(VIEWPORT_PAD, vw - width - VIEWPORT_PAD));
+  top = Math.min(Math.max(top, VIEWPORT_PAD), Math.max(VIEWPORT_PAD, vh - height - VIEWPORT_PAD));
+
+  return { top, left };
+}
 
 const DropdownMenu: React.FC<DropdownMenuProps> = ({
   button,
@@ -29,227 +80,100 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
   menuClassName = "",
   children,
   position = "right-down",
-  offset = 10,
+  offset = 8,
   closeOnSelect = false,
 }) => {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [coords, setCoords] = useState<XY>({ top: 0, left: 0 });
-
+  const [coords, setCoords] = useState<XY | null>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Mount guard for portal (prevents hydration weirdness if ever used)
-  useEffect(() => setMounted(true), []);
-
-  const computePosition = useCallback(() => {
-    const btn = buttonRef.current;
+  const updatePosition = useCallback(() => {
+    const trigger = buttonRef.current;
     const menu = menuRef.current;
-    if (!btn || !menu) return;
-
-    const rect = btn.getBoundingClientRect();
-    const menuRect = menu.getBoundingClientRect();
-
-    const scrollY = window.scrollY;
-    const scrollX = window.scrollX;
-
-    // initial desired position
-    let top = 0;
-    let left = 0;
-
-    switch (position) {
-      case "right-down":
-        top = rect.bottom + scrollY + offset;
-        left = rect.left + scrollX;
-        break;
-      case "left-down":
-        top = rect.bottom + scrollY + offset;
-        left = rect.right + scrollX - menuRect.width;
-        break;
-      case "right-up":
-        top = rect.top + scrollY - menuRect.height - offset;
-        left = rect.left + scrollX;
-        break;
-      case "left-up":
-        top = rect.top + scrollY - menuRect.height - offset;
-        left = rect.right + scrollX - menuRect.width;
-        break;
-      case "up":
-        top = rect.top + scrollY - menuRect.height - offset;
-        left = rect.left + scrollX + rect.width / 2 - menuRect.width / 2;
-        break;
-      case "down":
-        top = rect.bottom + scrollY + offset;
-        left = rect.left + scrollX + rect.width / 2 - menuRect.width / 2;
-        break;
-      case "left":
-        top = rect.top + scrollY + rect.height / 2 - menuRect.height / 2;
-        left = rect.left + scrollX - menuRect.width - offset;
-        break;
-      case "right":
-        top = rect.top + scrollY + rect.height / 2 - menuRect.height / 2;
-        left = rect.right + scrollX + offset;
-        break;
-      default:
-        top = rect.bottom + scrollY + offset;
-        left = rect.left + scrollX;
-    }
-
-    // viewport collision handling (simple clamp)
-    const padding = 10;
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-
-    const minLeft = scrollX + padding;
-    const maxLeft = scrollX + viewportW - menuRect.width - padding;
-
-    const minTop = scrollY + padding;
-    const maxTop = scrollY + viewportH - menuRect.height - padding;
-
-    left = clamp(left, minLeft, maxLeft);
-    top = clamp(top, minTop, maxTop);
-
-    setCoords({ top, left });
+    if (!trigger || !menu) return;
+    setCoords(placeMenu(trigger.getBoundingClientRect(), menu.getBoundingClientRect(), position, offset));
   }, [position, offset]);
 
-  // Close on outside click
+  useLayoutEffect(() => {
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    updatePosition();
+  }, [open, updatePosition]);
+
   useEffect(() => {
-    const onDocMouseDown = (event: MouseEvent) => {
-      const t = event.target as Node;
-      if (buttonRef.current?.contains(t)) return;
-      if (menuRef.current?.contains(t)) return;
+    if (!open) return;
+
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (buttonRef.current?.contains(target) || menuRef.current?.contains(target)) return;
       setOpen(false);
     };
-
-    document.addEventListener("mousedown", onDocMouseDown);
-    return () => document.removeEventListener("mousedown", onDocMouseDown);
-  }, []);
-
-  // Close on escape
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
+    const onMove = () => updatePosition();
 
-  // IMPORTANT FIX:
-  // Use layout effect so measurement happens after DOM commit
-  // and then schedule a second pass on the next animation frame.
-  useLayoutEffect(() => {
-    if (!open) return;
-
-    // First pass
-    computePosition();
-
-    // Second pass after paint (fixes “first click wrong”)
-    const raf = requestAnimationFrame(() => computePosition());
-
-    return () => cancelAnimationFrame(raf);
-  }, [open, computePosition]);
-
-  // Reposition on scroll/resize while open
-  useEffect(() => {
-    if (!open) return;
-
-    const onScroll = () => computePosition();
-    const onResize = () => computePosition();
-
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onResize);
-
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onMove);
+    window.addEventListener("scroll", onMove, true);
     return () => {
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onResize);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onMove);
+      window.removeEventListener("scroll", onMove, true);
     };
-  }, [open, computePosition]);
+  }, [open, updatePosition]);
 
-  const handleButtonClick = () => {
-    setOpen((prev) => !prev);
-  };
-
-  // Optional: close when clicking an item inside the menu
-  const handleMenuClickCapture = () => {
-    if (closeOnSelect) setOpen(false);
-  };
-
-  // animation origin based on direction
-  const origin = useMemo(() => {
-    if (position.includes("up")) return "bottom";
-    if (position.includes("down")) return "top";
-    if (position === "left") return "right";
-    if (position === "right") return "left";
-    return "top";
-  }, [position]);
+  const origin =
+    position.endsWith("up") || position === "up"
+      ? "bottom"
+      : position === "left"
+        ? "right"
+        : position === "right"
+          ? "left"
+          : "top";
 
   return (
     <>
       <div
         ref={buttonRef}
-        onClick={handleButtonClick}
-        className={`inline-flex justify-center items-center cursor-pointer ${buttonClassName}`}
+        onClick={() => setOpen((current) => !current)}
+        className={cn("inline-flex cursor-pointer items-center justify-center", buttonClassName)}
       >
         {button}
       </div>
 
-      {mounted &&
-        open &&
-        createPortal(
-          <div
-            ref={menuRef}
-            style={{
-              position: "absolute",
-              top: coords.top,
-              left: coords.left,
-              zIndex: 50,
-            }}
-            className={[
-              // Base panel styles (use your tokens only)
-              "rounded-2xl border border-card-border bg-card",
-              "p-2",
-              // Animation
-              "transition-all duration-200 ease-out",
-              "animate-dropdownIn",
-              menuClassName,
-            ].join(" ")}
-            onClickCapture={handleMenuClickCapture}
-            data-origin={origin}
-          >
-            {children}
-          </div>,
-          document.body
-        )}
-
-      {/* Local styles for animation (no tailwind opacity classes needed) */}
-      <style>
-        {`
-          @keyframes dropdownInTop {
-            from { transform: translateY(-6px) scale(0.98); opacity: 0; }
-            to   { transform: translateY(0)   scale(1);    opacity: 1; }
-          }
-          @keyframes dropdownInBottom {
-            from { transform: translateY(6px) scale(0.98); opacity: 0; }
-            to   { transform: translateY(0)  scale(1);    opacity: 1; }
-          }
-          @keyframes dropdownInLeft {
-            from { transform: translateX(-6px) scale(0.98); opacity: 0; }
-            to   { transform: translateX(0)    scale(1);    opacity: 1; }
-          }
-          @keyframes dropdownInRight {
-            from { transform: translateX(6px) scale(0.98); opacity: 0; }
-            to   { transform: translateX(0)   scale(1);    opacity: 1; }
-          }
-
-          /* default */
-          .animate-dropdownIn { animation: dropdownInTop 200ms ease-out both; transform-origin: top; }
-
-          /* use data-origin to change animation direction */
-          [data-origin="bottom"].animate-dropdownIn { animation: dropdownInBottom 200ms ease-out both; transform-origin: bottom; }
-          [data-origin="left"].animate-dropdownIn { animation: dropdownInLeft 200ms ease-out both; transform-origin: left; }
-          [data-origin="right"].animate-dropdownIn { animation: dropdownInRight 200ms ease-out both; transform-origin: right; }
-        `}
-      </style>
+      {open
+        ? createPortal(
+            <div
+              ref={menuRef}
+              role="menu"
+              data-origin={origin}
+              style={{
+                position: "fixed",
+                top: coords?.top ?? 0,
+                left: coords?.left ?? 0,
+                visibility: coords ? "visible" : "hidden",
+                transformOrigin: origin,
+              }}
+              className={cn(
+                "z-[80] rounded-2xl border border-card-border bg-card p-2 shadow-lg",
+                "menu-pop",
+                menuClassName,
+              )}
+              onClickCapture={() => {
+                if (closeOnSelect) setOpen(false);
+              }}
+            >
+              {children}
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 };

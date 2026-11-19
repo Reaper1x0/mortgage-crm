@@ -87,13 +87,41 @@ const AuthController = {
     );
   }),
 
+  // Idempotent. A dead access token must still be able to revoke the refresh
+  // token — requiring isAuth here made logout return 401 and the client retried forever.
   logout: catchAsync(async (req, res) => {
-    const user = await userService.getUserById(req.user);
-    if (!user) return R4XX(res, 404, "User not found");
-    user.refreshTokens = user.refreshTokens.filter(
-      (i) => i.device_id !== req.device
-    );
-    await user.save();
+    const deviceId = req.headers.device_id || null;
+    const accessToken = req.headers.authorization;
+    const refreshToken = req.headers["refresh-token"];
+
+    let user = null;
+    if (accessToken) {
+      try {
+        const decoded = await jwtUtils.verifyToken(accessToken);
+        if (decoded?.sub) user = await userService.getUserById(decoded.sub);
+      } catch {
+        user = null;
+      }
+    }
+
+    if (!user && refreshToken) {
+      try {
+        const decoded = await jwtUtils.verifyToken(refreshToken, TOKENS.REFRESH);
+        if (decoded?.sub) user = await userService.getUserById(decoded.sub);
+      } catch {
+        user = null;
+      }
+    }
+
+    if (user) {
+      user.refreshTokens = (user.refreshTokens || []).filter((entry) => {
+        if (refreshToken && entry.token === refreshToken) return false;
+        if (deviceId && entry.device_id === deviceId) return false;
+        return true;
+      });
+      await user.save();
+    }
+
     R2XX(res, "Logged out successfully", 200);
   }),
   //Used to resend the OTP the users' email. Will delete the old tokens from the database and save the new one.

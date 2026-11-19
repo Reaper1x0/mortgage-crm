@@ -2,7 +2,7 @@ const { Router } = require("express");
 const multer = require("multer");
 const { leadValidation } = require("../validations");
 const { leadController } = require("../controllers");
-const { validate, isAuth, requireWorkspace, requirePermission } = require("../middlewares");
+const { validate, isAuth, requireWorkspace, requirePermission, requireActiveSubscription } = require("../middlewares");
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -38,6 +38,7 @@ router.post(
   "/bulk/move-to-clients",
   isAuth,
   requireWorkspace,
+  requireActiveSubscription,
   requirePermission("workspace.leads.write"),
   validate(leadValidation.bulkMoveLeadsToClients),
   leadController.bulkMoveLeadsToClients
@@ -91,6 +92,7 @@ router.post(
   "/:id/move-to-client",
   isAuth,
   requireWorkspace,
+  requireActiveSubscription,
   requirePermission("workspace.leads.write"),
   validate(leadValidation.moveLeadToClient),
   leadController.moveLeadToClient

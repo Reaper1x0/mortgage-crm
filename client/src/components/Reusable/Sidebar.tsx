@@ -3,6 +3,7 @@ import { NavLink } from "react-router";
 import type { IconType } from "react-icons";
 import { cn } from "../../utils/cn";
 import CollapsibleSidebar from "./CollapsibleSidebar";
+import Tooltip from "./Tooltip";
 
 /* -------------------- Types -------------------- */
 
@@ -36,11 +37,10 @@ const NavItem: React.FC<NavItemProps> = ({
   collapsed,
   onNavigate,
 }) => {
-  return (
+  const link = (
     <NavLink
       to={to}
       onClick={onNavigate}
-      title={collapsed ? label : undefined}
       className={({ isActive }) =>
         cn(
           "group relative flex items-center gap-3",
@@ -60,6 +60,14 @@ const NavItem: React.FC<NavItemProps> = ({
 
       {!collapsed && <span className="truncate">{label}</span>}
     </NavLink>
+  );
+
+  if (!collapsed) return link;
+
+  return (
+    <Tooltip content={label} placement="right">
+      {link}
+    </Tooltip>
   );
 };
 

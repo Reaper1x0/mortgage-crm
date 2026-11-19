@@ -8,6 +8,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../utils/cn";
+import { useTheme } from "../../context/ThemeContext";
 
 export type TooltipPlacement = "top" | "bottom" | "left" | "right";
 
@@ -24,10 +25,32 @@ type TooltipProps = {
 type Coords = { top: number; left: number; placement: TooltipPlacement };
 
 const VIEWPORT_PADDING = 8;
-const DEFAULT_OFFSET = 8;
+const DEFAULT_OFFSET = 10;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
+}
+
+function Arrow({ placement, lightSurface }: { placement: TooltipPlacement; lightSurface: boolean }) {
+  const edge =
+    placement === "top"
+      ? "left-1/2 top-full -mt-1.5 -translate-x-1/2 border-b border-r"
+      : placement === "bottom"
+        ? "left-1/2 bottom-full -mb-1.5 -translate-x-1/2 border-l border-t"
+        : placement === "left"
+          ? "left-full top-1/2 -ml-1.5 -translate-y-1/2 border-r border-t"
+          : "right-full top-1/2 -mr-1.5 -translate-y-1/2 border-b border-l";
+
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute h-2.5 w-2.5 rotate-45",
+        lightSurface ? "border-[#e2e8f0] bg-[#f8fafc]" : "border-[#334155] bg-[#0f172a]",
+        edge
+      )}
+    />
+  );
 }
 
 export default function Tooltip({
@@ -39,6 +62,8 @@ export default function Tooltip({
   triggerClassName,
   disabled = false,
 }: TooltipProps) {
+  const { theme } = useTheme();
+  const lightSurface = theme === "dark";
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [coords, setCoords] = useState<Coords | null>(null);
@@ -135,20 +160,11 @@ export default function Tooltip({
 
   const show = open && !disabled && content != null && content !== "";
 
-  const arrowClass =
-    coords?.placement === "top"
-      ? "top-full left-1/2 -translate-x-1/2 -mt-px border-t-card-border"
-      : coords?.placement === "bottom"
-        ? "bottom-full left-1/2 -translate-x-1/2 -mb-px border-b-card-border"
-        : coords?.placement === "left"
-          ? "left-full top-1/2 -translate-y-1/2 -ml-px border-l-card-border"
-          : "right-full top-1/2 -translate-y-1/2 -mr-px border-r-card-border";
-
   return (
     <>
       <span
         ref={triggerRef}
-        className={cn("inline-flex", triggerClassName)}
+        className={cn("inline-flex max-w-full", triggerClassName)}
         onMouseEnter={() => {
           if (!disabled) setOpen(true);
         }}
@@ -167,7 +183,11 @@ export default function Tooltip({
               ref={tooltipRef}
               role="tooltip"
               className={cn(
-                "pointer-events-none fixed z-[10000] whitespace-nowrap rounded-md border border-card-border bg-card px-2 py-1 text-xs text-text shadow-lg",
+                "pointer-events-none fixed z-[10000] max-w-xs rounded-lg border px-2.5 py-1.5 text-xs font-medium leading-snug shadow-lg",
+                lightSurface
+                  ? "border-[#e2e8f0] bg-[#f8fafc] text-[#0f172a]"
+                  : "border-[#334155] bg-[#0f172a] text-[#f8fafc]",
+                "whitespace-normal break-words",
                 className
               )}
               style={{
@@ -177,10 +197,7 @@ export default function Tooltip({
               }}
             >
               {content}
-              <div
-                className={cn("absolute h-0 w-0 border-4 border-transparent", arrowClass)}
-                aria-hidden
-              />
+              {coords ? <Arrow placement={coords.placement} lightSurface={lightSurface} /> : null}
             </div>,
             document.body
           )

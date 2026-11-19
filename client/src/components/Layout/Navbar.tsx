@@ -9,8 +9,11 @@ import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { cn } from "../../utils/cn";
 import { FiSun, FiMoon, FiChevronDown, FiCheck } from "react-icons/fi";
 import { RiBuildingLine } from "react-icons/ri";
+import OrgLogo from "../Reusable/OrgLogo";
+import { resolveOrganizationLogoUrl } from "../../utils/orgLogo";
 import { useAuth } from "../../context/AuthContext";
 import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
+import Tooltip from "../Reusable/Tooltip";
 
 const Navbar = () => {
   const { theme, setTheme } = useTheme();
@@ -27,7 +30,9 @@ const Navbar = () => {
     activeWorkspaceId,
     setActiveOrganizationId,
     setActiveWorkspaceId,
+    refreshWorkspaces,
   } = useAuth();
+  const logoRefreshAt = useRef(0);
 
   const [isLogoutModalOpen, setLogoutModalOpen] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
@@ -45,11 +50,22 @@ const Navbar = () => {
       : null) ||
     null;
   const organizationName = activeOrganization?.name || activeWorkspace?.organization?.name || "Mortgage CRM";
-  const organizationLogo =
-    activeOrganization?.branding?.logoUrl || activeWorkspace?.branding?.organization?.logoUrl || null;
-  const pickerLabel = activeWorkspace
-    ? `${organizationName} · ${activeWorkspace.name}`
-    : organizationName || "Organization";
+  const organizationLogo = resolveOrganizationLogoUrl(activeOrganization, activeWorkspace);
+  const refreshLogo = () => {
+    const now = Date.now();
+    if (now - logoRefreshAt.current < 15000) return;
+    logoRefreshAt.current = now;
+    void refreshWorkspaces();
+  };
+  const pickerPrimary = activeWorkspace?.name || organizationName || "Organization";
+  const pickerSecondary = activeWorkspace ? organizationName : "Organization";
+  const currentOrganizationId = activeOrganization?.organizationId || activeOrganizationId;
+  const orderedOrganizations = [...organizations].sort((a, b) => {
+    const aCurrent = a.organizationId === currentOrganizationId;
+    const bCurrent = b.organizationId === currentOrganizationId;
+    if (aCurrent === bCurrent) return 0;
+    return aCurrent ? -1 : 1;
+  });
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -58,8 +74,15 @@ const Navbar = () => {
         setPickerOpen(false);
       }
     };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPickerOpen(false);
+    };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, [pickerOpen]);
 
   const mode: "light" | "dark" = theme === "dark" ? "dark" : "light";
@@ -115,15 +138,13 @@ const Navbar = () => {
             }
             className="min-w-0 inline-flex items-center gap-2 text-text"
           >
-            {organizationLogo ? (
-              <span className="inline-flex h-8 max-w-[64px] items-center justify-center rounded-md border border-card-border bg-background overflow-hidden">
-                <img
-                  src={organizationLogo}
-                  alt={organizationName}
-                  className="max-h-full w-auto object-contain"
-                />
-              </span>
-            ) : null}
+            <OrgLogo
+              src={organizationLogo}
+              alt={organizationName}
+              size="nav"
+              fallback="none"
+              onLoadError={refreshLogo}
+            />
             <span className="truncate font-extrabold tracking-tight">{organizationName}</span>
             {activeWorkspace?.name ? (
               <span className="hidden md:inline text-sm font-medium text-card-text">· {activeWorkspace.name}</span>
@@ -147,23 +168,31 @@ const Navbar = () => {
                     <button
                       type="button"
                       onClick={() => setPickerOpen((open) => !open)}
+                      aria-haspopup="menu"
+                      aria-expanded={pickerOpen}
+                      aria-label="Switch workspace"
                       className={cn(
-                        "inline-flex items-center gap-2 rounded-lg border border-card-border bg-background px-3 py-1.5 text-sm font-medium text-text",
+                        "inline-flex items-center gap-2 rounded-lg border border-card-border bg-background px-2.5 py-1 text-left",
                         "focus:outline-none focus:ring-2 focus:ring-primary-shadow"
                       )}
                     >
-                      <RiBuildingLine className="h-4 w-4 text-card-text" />
-                      <span className="max-w-[220px] truncate">{pickerLabel}</span>
-                      <FiChevronDown className={cn("h-4 w-4 text-card-text transition-transform", pickerOpen && "rotate-180")} />
+                      <RiBuildingLine className="h-4 w-4 shrink-0 text-card-text" />
+                      <span className="min-w-0 max-w-[200px] leading-tight">
+                        <span className="block truncate text-sm font-medium text-text">{pickerPrimary}</span>
+                        <span className="block truncate text-[11px] text-card-text">{pickerSecondary}</span>
+                      </span>
+                      <FiChevronDown className={cn("h-4 w-4 shrink-0 text-card-text transition-transform", pickerOpen && "rotate-180")} />
                     </button>
 
                     {pickerOpen ? (
-                      <div className="absolute right-0 top-full z-50 mt-2 w-[280px] rounded-xl border border-card-border bg-card py-1.5 shadow-lg">
+                      <div
+                        role="menu"
+                        className="absolute right-0 top-full z-50 mt-2 w-[300px] rounded-xl border border-card-border bg-card py-1.5 shadow-lg"
+                      >
                         <div className="max-h-80 overflow-y-auto">
-                          {organizations.map((org, orgIndex) => {
-                            const isActiveOrg =
-                              org.organizationId === activeOrganizationId && !activeWorkspaceId;
-                            const orgLogo = org.branding?.logoUrl || null;
+                          {orderedOrganizations.map((org, orgIndex) => {
+                            const orgLogo = resolveOrganizationLogoUrl(org, org.workspaces[0]);
+                            const hasWorkspaces = org.workspaces.length > 0;
 
                             return (
                               <div key={org.organizationId}>
@@ -171,47 +200,43 @@ const Navbar = () => {
                                   <div className="my-1.5 border-t border-card-border" />
                                 ) : null}
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleOrganizationSelect(org.organizationId)}
-                                  className={cn(
-                                    "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors",
-                                    "hover:bg-card-hover",
-                                    isActiveOrg && "bg-primary-muted"
-                                  )}
-                                >
-                                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-card-border bg-background">
-                                    {orgLogo ? (
-                                      <img src={orgLogo} alt="" className="h-full w-full object-contain" />
-                                    ) : (
-                                      <RiBuildingLine className="h-3.5 w-3.5 text-card-text" />
-                                    )}
-                                  </span>
-                                  <span className="min-w-0 flex-1 truncate font-medium text-text">
+                                <div className="flex items-center gap-2.5 px-3 py-2">
+                                  <OrgLogo
+                                    src={orgLogo}
+                                    alt=""
+                                    size="menu"
+                                    onLoadError={refreshLogo}
+                                  />
+                                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-text">
                                     {org.name}
                                   </span>
-                                  {isActiveOrg ? (
-                                    <FiCheck className="h-4 w-4 shrink-0 text-primary" />
-                                  ) : (
-                                    <span className="shrink-0 text-xs text-card-text">
-                                      {org.organizationRole || "Member"}
-                                    </span>
-                                  )}
-                                </button>
+                                  <span className="shrink-0 text-[11px] text-card-text">
+                                    {org.organizationRole || "Member"}
+                                  </span>
+                                </div>
+
+                                {hasWorkspaces ? (
+                                  <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-card-text">
+                                    Workspaces
+                                  </p>
+                                ) : (
+                                  <p className="px-3 pb-1 text-sm text-card-text">No workspaces yet</p>
+                                )}
 
                                 {org.workspaces.map((workspace) => {
                                   const isActiveWorkspace =
                                     workspace.workspaceId === activeWorkspaceId &&
-                                    org.organizationId === activeOrganizationId;
+                                    org.organizationId === currentOrganizationId;
                                   return (
                                     <button
                                       key={workspace.workspaceId}
                                       type="button"
+                                      role="menuitem"
                                       onClick={() =>
                                         handleWorkspaceChange(org.organizationId, workspace.workspaceId)
                                       }
                                       className={cn(
-                                        "flex w-full items-center gap-2.5 py-2 pl-11 pr-3 text-left text-sm transition-colors",
+                                        "mx-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors",
                                         "hover:bg-card-hover",
                                         isActiveWorkspace && "bg-primary-muted"
                                       )}
@@ -220,15 +245,20 @@ const Navbar = () => {
                                         {workspace.name}
                                       </span>
                                       {isActiveWorkspace ? (
-                                        <FiCheck className="h-4 w-4 shrink-0 text-primary" />
-                                      ) : (
-                                        <span className="shrink-0 text-xs text-card-text">
-                                          {workspace.role}
-                                        </span>
-                                      )}
+                                        <FiCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                                      ) : null}
                                     </button>
                                   );
                                 })}
+
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => handleOrganizationSelect(org.organizationId)}
+                                  className="mx-2 mb-1 mt-0.5 flex w-[calc(100%-1rem)] items-center rounded-lg px-2 py-1.5 text-left text-xs font-medium text-card-text transition-colors hover:bg-card-hover hover:text-text"
+                                >
+                                  Organization settings
+                                </button>
                               </div>
                             );
                           })}
@@ -238,11 +268,14 @@ const Navbar = () => {
                   </div>
                 )}
                 {/* Theme Toggle (icon-only, replaces dropdown) */}
+                <Tooltip
+                  content={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                  placement="bottom"
+                >
                 <button
                   type="button"
                   onClick={toggleTheme}
                   aria-label="Toggle theme"
-                  title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                   className={cn(
                     "group inline-flex items-center justify-center",
                     "h-10 w-10 rounded-full",
@@ -275,6 +308,7 @@ const Navbar = () => {
                   {/* keeps button height stable */}
                   <span className="h-5 w-5 opacity-0">.</span>
                 </button>
+                </Tooltip>
 
                 {/* User dropdown */}
                 <DropdownMenu

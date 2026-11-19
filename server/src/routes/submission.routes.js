@@ -70,6 +70,7 @@ router.put(
   "/:id/documents/:docEntryId",
   isAuth,
   requireWorkspace,
+  requireActiveSubscription,
   requirePermission("workspace.submissions.write"),
   upload.single("file"),
   SubmissionDocumentController.replaceDocument

@@ -84,7 +84,7 @@ router.put(
   authController.resetPassword
 );
 
-router.delete("/logout", isAuth, getDeviceId, authController.logout);
+router.delete("/logout", authController.logout);
 
 router.get("/refresh", getDeviceId, authController.refresh);
 

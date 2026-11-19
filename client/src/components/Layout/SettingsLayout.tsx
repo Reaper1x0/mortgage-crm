@@ -5,6 +5,7 @@ import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { RiBuildingLine } from "react-icons/ri";
 import { FiCreditCard, FiGrid, FiUsers, FiShield } from "react-icons/fi";
 import { usePermissions } from "../../context/PermissionContext";
+import BillingAccessBanner from "../Reusable/BillingAccessBanner";
 
 export default function SettingsLayout() {
   const { organizationId } = useParams();
@@ -38,6 +39,7 @@ export default function SettingsLayout() {
         <div className="flex w-full">
           <Sidebar links={links} sectionLabel="Organization settings" />
           <main className="min-w-0 flex-1 px-8 py-8">
+            <BillingAccessBanner />
             <Outlet />
           </main>
         </div>

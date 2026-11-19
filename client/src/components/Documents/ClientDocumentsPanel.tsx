@@ -14,6 +14,8 @@ import type { FileUploadProgressCallback } from "../../utils/uploadProgress";
 import { FiFileText, FiPlus } from "react-icons/fi";
 import { Loader } from "../../assets/Loader";
 import { getFileName, getFileRef, sortDocumentsNewestFirst } from "./clientDocumentUtils";
+import { useBillingAccessOptional } from "../../context/BillingAccessContext";
+import { BILLING_TOOLTIPS } from "../../utils/billingUi";
 
 function DocumentCardSkeleton() {
   return (
@@ -74,6 +76,9 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
   onBack,
   extractingDocId = null,
 }) => {
+  const billing = useBillingAccessOptional();
+  const uploadBlocked = Boolean(billing?.isPaidBlocked);
+  const uploadTooltip = billing?.paidActionTooltip(BILLING_TOOLTIPS.upload);
   const [addOpen, setAddOpen] = useState(false);
 
   const [replaceOpen, setReplaceOpen] = useState(false);
@@ -180,7 +185,13 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
         back={onBack ? { label: "Back", onClick: onBack } : undefined}
         actions={
           sortedDocs.length > 0 ? (
-            <Button variant="primary" type="button" onClick={() => setAddOpen(true)}>
+            <Button
+              variant="primary"
+              type="button"
+              onClick={() => setAddOpen(true)}
+              disabled={uploadBlocked}
+              disabledTooltip={uploadTooltip}
+            >
               <span className="inline-flex items-center gap-2">
                 <FiPlus /> Upload documents
               </span>
@@ -223,7 +234,14 @@ const ClientDocumentsPanel: React.FC<ClientDocumentsPanelProps> = ({
             <p className="mx-auto mt-1 max-w-md text-sm text-card-text">
               Upload PDFs, Word files, or images. Extract fields when you are ready.
             </p>
-            <Button variant="primary" type="button" className="mt-3" onClick={() => setAddOpen(true)}>
+            <Button
+              variant="primary"
+              type="button"
+              className="mt-3"
+              onClick={() => setAddOpen(true)}
+              disabled={uploadBlocked}
+              disabledTooltip={uploadTooltip}
+            >
               <span className="inline-flex items-center gap-2">
                 <FiPlus /> Upload documents
               </span>

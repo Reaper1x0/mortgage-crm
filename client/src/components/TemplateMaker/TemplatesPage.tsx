@@ -14,13 +14,20 @@ import Callout from "../Reusable/Callout";
 import ActionBar from "../Reusable/ActionBar";
 import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
 import { usePermissions } from "../../context/PermissionContext";
+import { useBillingAccess } from "../../context/BillingAccessContext";
 import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
+import { BILLING_TOOLTIPS } from "../../utils/billingUi";
 
 export default function TemplatesPage() {
   const navigate = useNavigate();
   const { canWorkspace, canAnyWorkspace } = usePermissions();
+  const billing = useBillingAccess();
   const canManageTemplates = canWorkspace("workspace.templates.manage");
   const canOpenTemplateManage = canAnyWorkspace(["workspace.templates.manage", "workspace.templates.write"]);
+  const createTemplateBlocked = !canManageTemplates || billing.isPaidBlocked;
+  const createTemplateTooltip = !canManageTemplates
+    ? PERMISSION_TOOLTIPS.createTemplate
+    : billing.paidActionTooltip(BILLING_TOOLTIPS.createTemplate);
   const [templates, setTemplates] = useState<TemplateDoc[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -149,8 +156,8 @@ export default function TemplatesPage() {
           <Button
             variant="primary"
             onClick={() => setCreateOpen(true)}
-            disabled={!canManageTemplates}
-            disabledTooltip={!canManageTemplates ? PERMISSION_TOOLTIPS.createTemplate : undefined}
+            disabled={createTemplateBlocked}
+            disabledTooltip={createTemplateTooltip}
           >
             <span className="inline-flex items-center gap-2">
               <FiPlus className="h-4 w-4 shrink-0" aria-hidden />

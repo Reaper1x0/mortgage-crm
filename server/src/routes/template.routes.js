@@ -29,6 +29,13 @@ router.put("/:id/placements", isAuth, requireWorkspace, requirePermission("works
 router.delete("/:id", isAuth, requireWorkspace, requirePermission("workspace.templates.manage"), TemplateController.deleteTemplate);
 
 // Admin: Render template
-router.post("/:id/render", isAuth, requireWorkspace, requirePermission("workspace.templates.write"), TemplateController.renderTemplate);
+router.post(
+  "/:id/render",
+  isAuth,
+  requireWorkspace,
+  requireActiveSubscription,
+  requirePermission("workspace.templates.write"),
+  TemplateController.renderTemplate
+);
 
 module.exports = router;

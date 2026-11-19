@@ -14,15 +14,51 @@
   }
 }
 
+html.theme-dark {
+  color-scheme: dark;
+}
+
+html.theme-light {
+  color-scheme: light;
+}
+
+.theme-dark select,
 .theme-dark input[type="date"],
 .theme-dark input[type="datetime-local"] {
   color-scheme: dark;
+}
+
+.theme-light select {
+  color-scheme: light;
+}
+
+.theme-dark select option {
+  background-color: var(--color-card);
+  color: var(--color-text);
+}
+
+.theme-light select option {
+  background-color: var(--color-card);
+  color: var(--color-text);
 }
 
 .theme-dark input[type="date"]::-webkit-calendar-picker-indicator,
 .theme-dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 1;
+}
+
+@keyframes menu-pop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.menu-pop {
+  animation: menu-pop 100ms ease-out;
 }
 
 .react-pdf__Page {

@@ -1,6 +1,6 @@
-// components/Checkbox.tsx
 import React from "react";
 import { FaCheckSquare, FaRegSquare } from "react-icons/fa";
+import Tooltip from "./Tooltip";
 
 interface CheckboxProps {
   label?: string;
@@ -10,6 +10,7 @@ interface CheckboxProps {
   error?: string;
   className?: string;
   size?: "xs" | "sm" | "md" | "lg";
+  title?: string;
   [key: string]: any;
 }
 
@@ -28,18 +29,18 @@ const Checkbox: React.FC<CheckboxProps> = ({
   error,
   className = "",
   size = "md",
+  title,
   ...rest
 }) => {
   const { icon, label: labelClass } = sizeMap[size];
 
-  return (
+  const control = (
     <div className={`text-text ${className}`}>
       <label
         className={`inline-flex items-center gap-3 cursor-pointer ${
           disabled ? "opacity-50 cursor-not-allowed" : ""
         }`}
       >
-        {/* Hidden native checkbox */}
         <input
           type="checkbox"
           checked={checked}
@@ -49,7 +50,6 @@ const Checkbox: React.FC<CheckboxProps> = ({
           {...rest}
         />
 
-        {/* Custom Icon Toggle */}
         <div className="transition-transform duration-200">
           {checked ? (
             <FaCheckSquare size={icon} className="text-text" />
@@ -58,15 +58,21 @@ const Checkbox: React.FC<CheckboxProps> = ({
           )}
         </div>
 
-        {/* Label */}
         {label && <span className={`${labelClass} select-none`}>{label}</span>}
       </label>
 
-      {/* Error Message */}
       {error && (
         <p className="mt-1 text-sm text-error font-medium">{error}</p>
       )}
     </div>
+  );
+
+  if (!title) return control;
+
+  return (
+    <Tooltip content={title} placement="top">
+      {control}
+    </Tooltip>
   );
 };
 

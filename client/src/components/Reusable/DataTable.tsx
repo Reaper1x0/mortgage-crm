@@ -10,6 +10,7 @@ import {
 import HoverBorderGradient from "./Aceternity UI/HoverBorderGradient";
 import Spotlight from "./Aceternity UI/Spotlight";
 import Checkbox from "./Checkbox";
+import Tooltip from "./Tooltip";
 import { cn } from "../../utils/cn";
 import type { SortOrder } from "../../types/listQuery";
 
@@ -98,7 +99,6 @@ function ColumnResizeHandle({
       role="separator"
       aria-orientation="vertical"
       aria-label={`Resize ${colId} column`}
-      title="Drag to resize column"
       onMouseDown={onMouseDown}
       className={cn(
         "absolute -right-px top-0 z-20 flex h-full w-3 items-center justify-center",
@@ -129,6 +129,91 @@ function ColumnResizeHandle({
   );
 }
 
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100];
+
+function PageSizeSelect({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: number;
+  disabled?: boolean;
+  onChange: (size: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Rows per page"
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "inline-flex h-8 min-w-[4.5rem] items-center justify-between gap-2 rounded-lg border bg-card px-2.5 text-xs text-text shadow-sm",
+          "focus:outline-none",
+          open ? "border-primary-border" : "border-card-border",
+          disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-card-hover",
+        )}
+      >
+        <span>{value}</span>
+        <HiChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-card-text transition-transform", open && "rotate-180")} />
+      </button>
+      {open ? (
+        <ul
+          role="listbox"
+          aria-label="Rows per page"
+          className="absolute bottom-full right-0 z-30 mb-1 w-full overflow-hidden rounded-lg border border-card-border bg-card py-1 shadow-sm"
+        >
+          {PAGE_SIZE_OPTIONS.map((opt) => {
+            const selected = opt === value;
+            return (
+              <li key={opt}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={cn(
+                    "flex w-full items-center px-3 py-1.5 text-left text-xs",
+                    selected ? "bg-primary-muted text-text" : "text-text hover:bg-card-hover",
+                  )}
+                  onClick={() => {
+                    onChange(opt);
+                    setOpen(false);
+                  }}
+                >
+                  {opt}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function IconPageButton({
   onClick,
   disabled,
@@ -143,31 +228,25 @@ function IconPageButton({
   className?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={title}
-      className={cn(
-        // base
-        "relative inline-flex items-center justify-center rounded-xl",
-        "border border-card-border bg-background text-text",
-        "shadow-sm transition-all duration-200",
-        "hover:bg-card-hover hover:shadow-md hover:-translate-y-[1px]",
-        "active:translate-y-[0px]",
-        "focus:outline-none focus:ring-2 focus:ring-primary",
-        // responsive sizing (smaller on mobile)
-        "h-8 w-8 sm:h-9 sm:w-9",
-        disabled
-          ? "cursor-not-allowed opacity-40 hover:bg-background hover:shadow-sm hover:translate-y-0"
-          : "",
-        className || ""
-      )}
-    >
-      <span className="absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-300 hover:opacity-100 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.14),transparent_45%)]" />
-      <span className="relative z-10">{children}</span>
-    </button>
+    <Tooltip content={title} placement="top">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={title}
+        className={cn(
+          "inline-flex items-center justify-center rounded-lg bg-transparent text-text",
+          "transition-colors duration-150",
+          "hover:bg-card-hover",
+          "focus:outline-none focus:ring-2 focus:ring-primary",
+          "h-8 w-8",
+          disabled ? "cursor-not-allowed opacity-40 hover:bg-transparent" : "",
+          className || ""
+        )}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -224,13 +303,6 @@ export default function DataTable<T = any>({
     if (!isPaginated || !onPageChange || loading) return;
     const next = Math.max(1, Math.min(totalPages, p));
     if (next !== safePage) onPageChange(next);
-  };
-
-  const handlePageSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (!onPageSizeChange || loading) return;
-    const newSize = Number(e.target.value || 10);
-    onPageSizeChange(newSize);
-    onPageChange?.(1);
   };
 
   const skeletonRowCount = Math.max(6, Math.min(pageSize || 10, 10));
@@ -606,59 +678,53 @@ export default function DataTable<T = any>({
               </tbody>
             </table>
           </div>
-          {isPaginated ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-card-border px-4 py-2">
-              <div className="text-sm text-card-text">
-                {loading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <HiOutlineArrowPath className="h-4 w-4 animate-spin" />
-                    Loading…
-                  </span>
-                ) : (
-                  <span>
-                    <span className="font-semibold text-text">{startItem}</span>
-                    –
-                    <span className="font-semibold text-text">{endItem}</span>
-                    <span> of </span>
-                    <span className="font-semibold text-text">{total}</span>
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-card-text" htmlFor="table-page-size">
-                  Rows
-                </label>
-                <select
-                  id="table-page-size"
-                  className="h-8 rounded-lg border border-card-border bg-background px-2 text-xs text-text"
-                  value={pageSize}
-                  onChange={handlePageSizeChange}
-                  disabled={loading}
-                >
-                  {[5, 10, 25, 50, 100].map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-                {totalPages > 1 ? (
-                  <div className="flex items-center gap-1">
-                    <IconPageButton onClick={() => goTo(safePage - 1)} disabled={!canPrev} title="Previous page">
-                      <HiChevronLeft className="h-4 w-4" />
-                    </IconPageButton>
-                    <span className="px-1 text-xs text-card-text">
-                      {safePage} / {totalPages}
-                    </span>
-                    <IconPageButton onClick={() => goTo(safePage + 1)} disabled={!canNext} title="Next page">
-                      <HiChevronRight className="h-4 w-4" />
-                    </IconPageButton>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
         </div>
       </HoverBorderGradient>
+      {isPaginated ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-transparent px-1">
+          <div className="text-sm text-card-text">
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <HiOutlineArrowPath className="h-4 w-4 animate-spin" />
+                Loading…
+              </span>
+            ) : (
+              <span>
+                <span className="font-semibold text-text">{startItem}</span>
+                –
+                <span className="font-semibold text-text">{endItem}</span>
+                <span> of </span>
+                <span className="font-semibold text-text">{total}</span>
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-card-text">Rows</span>
+            <PageSizeSelect
+              value={pageSize || 10}
+              disabled={loading}
+              onChange={(size) => {
+                if (!onPageSizeChange || loading) return;
+                onPageSizeChange(size);
+                onPageChange?.(1);
+              }}
+            />
+            {totalPages > 1 ? (
+              <div className="flex items-center gap-1">
+                <IconPageButton onClick={() => goTo(safePage - 1)} disabled={!canPrev} title="Previous page">
+                  <HiChevronLeft className="h-4 w-4" />
+                </IconPageButton>
+                <span className="px-1 text-xs text-card-text">
+                  {safePage} / {totalPages}
+                </span>
+                <IconPageButton onClick={() => goTo(safePage + 1)} disabled={!canNext} title="Next page">
+                  <HiChevronRight className="h-4 w-4" />
+                </IconPageButton>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

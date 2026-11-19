@@ -5,9 +5,10 @@ import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { LuBraces, LuInbox } from "react-icons/lu";
 import { RiFileEditFill } from "react-icons/ri";
-import { FiUsers, FiUserPlus } from "react-icons/fi";
+import { FiActivity, FiUsers, FiUserPlus } from "react-icons/fi";
 import { GrDashboard } from "react-icons/gr";
 import { useEffect, useMemo } from "react";
+import BillingAccessBanner from "../Reusable/BillingAccessBanner";
 
 export default function WorkspaceLayout() {
   const { activeWorkspaceId, setActiveWorkspaceId, setActiveOrganizationId, workspaces } = useAuth();
@@ -50,10 +51,18 @@ export default function WorkspaceLayout() {
   const showUsersNav =
     perm?.canAnyWorkspace(["workspace.users.read"]) || perm?.effective?.isOrgOwner;
 
-  const links: SidebarLink[] = useMemo(
-    () => (showUsersNav ? [...defaultLinks, { to: withWorkspace("users"), label: "Users", icon: FiUsers }] : defaultLinks),
-    [defaultLinks, showUsersNav, workspaceId, organizationId]
-  );
+  const showActivityNav =
+    perm?.canAnyWorkspace(["workspace.audit.read"]) || perm?.effective?.isOrgOwner;
+
+  const links: SidebarLink[] = useMemo(() => {
+    const nav = showUsersNav
+      ? [...defaultLinks, { to: withWorkspace("users"), label: "Users", icon: FiUsers }]
+      : [...defaultLinks];
+    if (showActivityNav) {
+      nav.push({ to: withWorkspace("activity"), label: "Activity", icon: FiActivity });
+    }
+    return nav;
+  }, [defaultLinks, showUsersNav, showActivityNav, workspaceId, organizationId]);
 
   useEffect(() => {
     if (organizationId) setActiveOrganizationId(organizationId);
@@ -78,6 +87,7 @@ export default function WorkspaceLayout() {
             <Outlet key={location.pathname} />
           ) : (
             <main className="min-w-0 flex-1 overflow-x-hidden px-8 py-8">
+              {!isOnboarding ? <BillingAccessBanner /> : null}
               <Outlet key={location.pathname} />
             </main>
           )}

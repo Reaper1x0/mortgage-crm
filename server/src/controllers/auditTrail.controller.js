@@ -1,29 +1,39 @@
-const { R2XX, R4XX } = require("../Responses");
+const { R2XX } = require("../Responses");
 const { catchAsync } = require("../utils");
+const { parsePagination, buildPaginationMeta } = require("../utils/pagination.utils");
 const AuditTrailService = require("../services/auditTrail.service");
 
 const AuditTrailController = {
   /**
    * GET /audit-trail/recent
-   * Get recent audit logs for dashboard
-   * Query params: limit (default 50), entity_type (optional filter)
+   * Recent workspace audit logs.
+   * Query params: page, limit, sortBy, sortOrder, entity_type, action
    */
   getRecentAuditLogs: catchAsync(async (req, res) => {
-    const limit = parseInt(req.query.limit || "50", 10);
     const entityType = req.query.entity_type || null;
     const action = req.query.action || null;
+    const { page, limit, skip, sort, isAll } = parsePagination(req.query, {
+      defaultLimit: 10,
+      maxLimit: 100,
+      defaultSortBy: "timestamp",
+      defaultSortOrder: "desc",
+      allowedSortBy: ["timestamp", "action", "entity_type"],
+    });
 
     const filter = {};
     if (entityType) filter.entity_type = entityType;
     if (action) filter.action = action;
 
-    const auditLogs = await AuditTrailService.getRecentAuditLogs(filter, {
+    const { auditLogs, total } = await AuditTrailService.getRecentAuditLogs(filter, {
       limit,
+      skip,
+      sort,
       workspaceId: req.workspaceId,
     });
 
     return R2XX(res, "Recent audit logs fetched successfully", 200, {
       audit_logs: auditLogs,
+      pagination: buildPaginationMeta({ page, limit, total, isAll }),
     });
   }),
 

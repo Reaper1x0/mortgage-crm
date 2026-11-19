@@ -22,6 +22,8 @@ import {
   sortGeneratedDocumentsNewestFirst,
 } from "./clientDocumentUtils";
 import { isResolvableUser } from "../Reusable/UserActionAvatar";
+import { useBillingAccessOptional } from "../../context/BillingAccessContext";
+import { BILLING_TOOLTIPS } from "../../utils/billingUi";
 
 type TemplateCatalogItem = {
   _id: string;
@@ -43,6 +45,9 @@ export default function Step4GenerateDocument({
   submissionId: string;
   onBack: () => void;
 }) {
+  const billing = useBillingAccessOptional();
+  const generateBlocked = Boolean(billing?.isPaidBlocked);
+  const generateTooltip = billing?.paidActionTooltip(BILLING_TOOLTIPS.generatePdf);
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<TemplateCatalogItem[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
@@ -317,7 +322,8 @@ export default function Step4GenerateDocument({
                   variant="primary"
                   onClick={generate}
                   isLoading={generating}
-                  disabled={!selectedId || generating}
+                  disabled={!selectedId || generating || generateBlocked}
+                  disabledTooltip={generateBlocked ? generateTooltip : undefined}
                   className="w-full"
                 >
                   Generate PDF

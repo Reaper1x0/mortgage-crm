@@ -1,4 +1,5 @@
 import apiClient from "../api/apiClient";
+import type { PaginationMeta } from "../types/listQuery";
 
 export interface AuditLogUser {
   _id: string;
@@ -62,6 +63,7 @@ export interface AuditLogsResponse {
   message: string;
   success: boolean;
   audit_logs: AuditLog[];
+  pagination?: PaginationMeta;
 }
 
 export const AuditTrailService = {
@@ -69,7 +71,10 @@ export const AuditTrailService = {
    * Get recent audit logs for dashboard
    */
   getRecentAuditLogs: async (params?: {
+    page?: number;
     limit?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
     entity_type?: string;
     action?: string;
   }) => {

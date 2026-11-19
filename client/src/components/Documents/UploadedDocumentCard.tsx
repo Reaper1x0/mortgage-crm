@@ -11,6 +11,8 @@ import {
   resolveExtractionStatus,
   resolveUploadStatus,
 } from "./clientDocumentUtils";
+import { useBillingAccessOptional } from "../../context/BillingAccessContext";
+import { BILLING_TOOLTIPS } from "../../utils/billingUi";
 
 export type UploadedDocumentCardProps = {
   doc: SubmissionDocument;
@@ -31,6 +33,11 @@ export default function UploadedDocumentCard({
   onReplace,
   onDelete,
 }: UploadedDocumentCardProps) {
+  const billing = useBillingAccessOptional();
+  const billingBlocked = Boolean(billing?.isPaidBlocked);
+  const extractBillingTooltip = billing?.paidActionTooltip(BILLING_TOOLTIPS.extract);
+  const uploadBillingTooltip = billing?.paidActionTooltip(BILLING_TOOLTIPS.upload);
+
   const id = doc._id as string;
   const file = getFileRef(doc);
   const name = getFileName(doc, file);
@@ -57,7 +64,8 @@ export default function UploadedDocumentCard({
       key: "extract",
       icon: FiZap,
       title: showReExtract ? "Re-extract fields" : "Extract fields",
-      disabled: cardBusy || uploadStatus !== "uploaded",
+      disabled: cardBusy || uploadStatus !== "uploaded" || billingBlocked,
+      disabledTooltip: billingBlocked ? extractBillingTooltip : undefined,
       isLoading: isExtracting,
       onClick: () => onExtract?.(id),
     });
@@ -88,7 +96,8 @@ export default function UploadedDocumentCard({
           key: "replace",
           icon: FiRefreshCw,
           title: "Replace document",
-          disabled: cardBusy,
+          disabled: cardBusy || billingBlocked,
+          disabledTooltip: billingBlocked ? uploadBillingTooltip : undefined,
           onClick: () => onReplace?.(id),
         },
         {

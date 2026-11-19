@@ -7,6 +7,8 @@ import Callout from "../Reusable/Callout";
 import Modal from "../Reusable/Modal";
 import type { FileUploadProgressCallback } from "../../utils/uploadProgress";
 import { cn } from "../../utils/cn";
+import { useBillingAccessOptional } from "../../context/BillingAccessContext";
+import { BILLING_TOOLTIPS } from "../../utils/billingUi";
 
 export type Step1Props = {
   cnicName: string | null;
@@ -47,6 +49,9 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
   onManualContinue,
   onContinue,
 }) => {
+  const billing = useBillingAccessOptional();
+  const extractBlocked = Boolean(billing?.isPaidBlocked);
+  const extractTooltip = billing?.paidActionTooltip(BILLING_TOOLTIPS.extract);
   const [mode, setMode] = useState<"upload" | "manual">("upload");
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
@@ -203,7 +208,12 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
                     Name was read from the uploaded ID. Re-extract if you upload a different or clearer photo.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" onClick={openUploadModal}>
+                    <Button
+                      variant="secondary"
+                      onClick={openUploadModal}
+                      disabled={extractBlocked}
+                      disabledTooltip={extractTooltip}
+                    >
                       <span className="inline-flex items-center gap-2">
                         <FiRefreshCw className="h-4 w-4" />
                         Re-extract
@@ -226,7 +236,12 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
                   <Callout tone="warning" title="Name not detected">
                     ID was saved, but we couldn&apos;t read a name. Upload a clearer photo or enter the name manually.
                   </Callout>
-                  <Button variant="secondary" onClick={openUploadModal}>
+                  <Button
+                    variant="secondary"
+                    onClick={openUploadModal}
+                    disabled={extractBlocked}
+                    disabledTooltip={extractTooltip}
+                  >
                     <span className="inline-flex items-center gap-2">
                       <FiRefreshCw className="h-4 w-4" />
                       Re-extract
@@ -240,7 +255,13 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
               <p className="text-sm text-card-text">
                 Upload a passport, driver&apos;s license, national ID, or other government ID. We&apos;ll extract the legal name automatically.
               </p>
-              <Button variant="primary" onClick={openUploadModal} className="mx-auto">
+              <Button
+                variant="primary"
+                onClick={openUploadModal}
+                className="mx-auto"
+                disabled={extractBlocked}
+                disabledTooltip={extractTooltip}
+              >
                 <span className="inline-flex items-center gap-2">
                   <FiUpload className="h-4 w-4" />
                   Upload ID

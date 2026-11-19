@@ -193,16 +193,16 @@ class AuditTrailService {
   }
 
   /**
-   * Get recent audit logs (for dashboard)
+   * Get recent audit logs for a workspace, with optional paging.
    * @param {Object} filter - Filter criteria (entity_type, action, etc.)
-   * @param {Object} options - Options (limit, sort)
+   * @param {Object} options - Options (limit, skip, sort, workspaceId)
    */
   static async getRecentAuditLogs(filter = {}, options = {}) {
-    const { limit = 50, sort = { timestamp: -1 }, workspaceId = null } = options;
-    
+    const { limit = 50, skip = 0, sort = { timestamp: -1 }, workspaceId = null } = options;
+
     const query = { ...filter, ...(workspaceId ? { workspace: workspaceId } : {}) };
-    
-    return AuditTrail.find(query)
+
+    const listQuery = AuditTrail.find(query)
       .populate({
         path: "user_id",
         select: "fullName email username",
@@ -216,8 +216,16 @@ class AuditTrailService {
         select: "submission_name legal_name status"
       })
       .sort(sort)
-      .limit(limit)
-      .lean();
+      .skip(skip);
+
+    if (limit > 0) listQuery.limit(limit);
+
+    const [auditLogs, total] = await Promise.all([
+      listQuery.lean(),
+      AuditTrail.countDocuments(query),
+    ]);
+
+    return { auditLogs, total };
   }
 }
 

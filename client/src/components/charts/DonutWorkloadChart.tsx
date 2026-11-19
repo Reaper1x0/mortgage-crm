@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  Tooltip, 
-  Legend 
-} from "recharts";
+import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
+import { chartTooltipStyles } from "./chartTooltip";
 import { cn } from "../../utils/cn";
 import { useTheme } from "../../context/ThemeContext";
 import ChartResponsiveContainer, {
   CHART_HEIGHT,
   chartPlaceholderStyle,
 } from "./ChartResponsiveContainer";
+
+const LEGEND_HEIGHT = 50;
 
 export interface WorkloadDataPoint {
   name: string;
@@ -100,6 +97,8 @@ const DonutWorkloadChart: React.FC<DonutWorkloadChartProps> = ({
     data.map((item, index) => getColorForItem(item, index)),
     [data, colors]
   );
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  const tooltipStyles = chartTooltipStyles(theme);
 
   if (loading) {
     return (
@@ -133,7 +132,8 @@ const DonutWorkloadChart: React.FC<DonutWorkloadChartProps> = ({
   }
 
   return (
-    <ChartResponsiveContainer className={className} height={CHART_HEIGHT}>
+    <div className={cn("relative w-full min-w-0", className)} style={{ height: CHART_HEIGHT }}>
+    <ChartResponsiveContainer className="absolute inset-0" height={CHART_HEIGHT}>
       <PieChart>
           <Pie
             data={data}
@@ -141,39 +141,25 @@ const DonutWorkloadChart: React.FC<DonutWorkloadChartProps> = ({
             cy="50%"
             labelLine={false}
             label={false}
-            outerRadius={75}
-            innerRadius={45}
-            paddingAngle={8}
+            outerRadius={78}
+            innerRadius={52}
+            paddingAngle={data.length > 1 ? 5 : 0}
             dataKey="value"
-            cornerRadius={6}
+            cornerRadius={16}
             stroke="none"
           >
             {data.map((_, index) => (
-              <Cell 
-                key={`cell-${index}`} 
+              <Cell
+                key={`cell-${index}`}
                 fill={chartColors[index]}
                 stroke="none"
               />
             ))}
           </Pie>
           <Tooltip
-            contentStyle={{
-              backgroundColor: colors.card,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "8px",
-              padding: "10px 14px",
-              boxShadow: `0 2px 8px rgba(0, 0, 0, 0.15)`,
-            }}
-            labelStyle={{ 
-              color: colors.text,
-              fontWeight: 600,
-              marginBottom: "6px",
-              fontSize: "12px",
-            }}
-            itemStyle={{ 
-              color: colors.text,
-              fontSize: "13px",
-            }}
+            contentStyle={tooltipStyles.contentStyle}
+            labelStyle={tooltipStyles.labelStyle}
+            itemStyle={tooltipStyles.itemStyle}
             formatter={(value: any, name: any) => {
               if (typeof value !== "number" || typeof name !== "string") {
                 return [null, ""];
@@ -185,7 +171,7 @@ const DonutWorkloadChart: React.FC<DonutWorkloadChartProps> = ({
           />
           <Legend
             verticalAlign="bottom"
-            height={50}
+            height={LEGEND_HEIGHT}
             iconType="none"
             wrapperStyle={{ 
               fontSize: "13px",
@@ -217,6 +203,14 @@ const DonutWorkloadChart: React.FC<DonutWorkloadChartProps> = ({
           />
         </PieChart>
     </ChartResponsiveContainer>
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 flex flex-col items-center justify-center"
+        style={{ bottom: LEGEND_HEIGHT }}
+      >
+        <span className="text-[22px] font-bold leading-none text-text tabular-nums">{total}</span>
+        <span className="mt-1 text-[11px] font-medium text-card-text">Total</span>
+      </div>
+    </div>
   );
 };
 

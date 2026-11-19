@@ -14,7 +14,6 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { FiRefreshCw } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
-import { AuthService } from "../../service/authService";
 import axios from "axios";
 import { WorkspaceService } from "../../service/workspaceService";
 import { OrganizationService, OnboardingSessionState } from "../../service/organizationService";
@@ -112,9 +111,14 @@ const WorkspaceOnboarding: React.FC = () => {
       setStep(serverStep);
     } catch (err: unknown) {
       const status = axios.isAxiosError(err) ? err.response?.status : undefined;
-      if (status === 401 || status === 403) {
+      // 401 is handled by the api client: one refresh, then a single redirect to sign-in.
+      // Calling logout here as well used to stack another refresh/logout cycle.
+      if (status === 401) {
         setSessionError("Your session has expired. Redirecting to sign in…");
-        await AuthService.logout();
+        return;
+      }
+      if (status === 403) {
+        setSessionError("You don't have access to finish setup with this account.");
         return;
       }
       setSessionError("Could not reach the server. Check your connection and try again.");

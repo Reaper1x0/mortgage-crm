@@ -14,6 +14,7 @@ import {
   formatTrendBucketLabel,
   formatTrendBucketTooltip,
 } from "../../utils/dashboardTrendBuckets";
+import { chartTooltipStyles } from "./chartTooltip";
 import ChartResponsiveContainer, {
   CHART_HEIGHT,
   chartPlaceholderStyle,
@@ -142,23 +143,7 @@ const LineTrendChart: React.FC<LineTrendChartProps> = ({
           width={36}
         />
         <Tooltip
-          contentStyle={{
-            backgroundColor: colors.card,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "8px",
-            padding: "10px 14px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-          }}
-          labelStyle={{
-            color: colors.text,
-            fontWeight: 600,
-            marginBottom: "6px",
-            fontSize: "12px",
-          }}
-          itemStyle={{
-            color: colors.text,
-            fontSize: "13px",
-          }}
+          {...chartTooltipStyles(theme)}
           cursor={{
             stroke: colors.primary,
             strokeWidth: 1,

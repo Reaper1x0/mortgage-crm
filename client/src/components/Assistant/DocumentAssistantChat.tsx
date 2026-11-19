@@ -8,6 +8,9 @@ import type {
 } from "../../types/assistant.types";
 import StatusBadge from "../Reusable/StatusBadge";
 import Modal from "../Reusable/Modal";
+import Tooltip from "../Reusable/Tooltip";
+import { useBillingAccessOptional } from "../../context/BillingAccessContext";
+import { BILLING_TOOLTIPS } from "../../utils/billingUi";
 
 type DocumentAssistantChatProps = {
   submissionId: string;
@@ -28,6 +31,9 @@ export default function DocumentAssistantChat({
   scopeLabel,
   onReindexComplete,
 }: DocumentAssistantChatProps) {
+  const billing = useBillingAccessOptional();
+  const assistantBlocked = Boolean(billing?.isPaidBlocked);
+  const assistantTooltip = billing?.paidActionTooltip(BILLING_TOOLTIPS.assistant) || BILLING_TOOLTIPS.assistant;
   const [messages, setMessages] = useState<AssistantChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -79,7 +85,7 @@ export default function DocumentAssistantChat({
 
   const submitQuestion = async (questionOverride?: string) => {
     const question = (questionOverride ?? input).trim();
-    if (!question || loading || !documents.length) return;
+    if (!question || loading || !documents.length || assistantBlocked) return;
 
     setError(null);
     if (!questionOverride) setInput("");
@@ -242,7 +248,7 @@ export default function DocumentAssistantChat({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  if (!loading && input.trim() && documents.length) {
+                  if (!loading && !assistantBlocked && input.trim() && documents.length) {
                     void submitQuestion();
                   }
                 }
@@ -250,17 +256,24 @@ export default function DocumentAssistantChat({
               placeholder={`Ask about ${scopeLabel}…`}
               rows={1}
               maxLength={2000}
-              disabled={loading || !documents.length}
+              disabled={loading || !documents.length || assistantBlocked}
               className="max-h-32 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm leading-5 text-text placeholder:text-card-text focus:outline-none disabled:opacity-60"
             />
-            <button
-              type="submit"
-              disabled={loading || !input.trim() || !documents.length}
-              className="mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-text transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <FiSend className="h-4 w-4" />
-            </button>
+            <Tooltip content={assistantBlocked ? assistantTooltip : "Send"} placement="top">
+              <span className={assistantBlocked || loading || !input.trim() || !documents.length ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                <button
+                  type="submit"
+                  disabled={loading || !input.trim() || !documents.length || assistantBlocked}
+                  className="mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-text transition hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <FiSend className="h-4 w-4" />
+                </button>
+              </span>
+            </Tooltip>
           </div>
+          {assistantBlocked ? (
+            <p className="mt-2 text-xs text-card-text">{assistantTooltip}</p>
+          ) : null}
         </form>
       </div>
 

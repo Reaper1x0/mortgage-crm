@@ -12,15 +12,26 @@ import PageHeader from "../Reusable/PageHeader";
 import { showWarningToast, showSuccessToast } from "../../utils/errorHandler";
 import { Lead, LeadService } from "../../service/leadService";
 import { usePermissions } from "../../context/PermissionContext";
+import { useBillingAccess } from "../../context/BillingAccessContext";
 import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
+import { BILLING_TOOLTIPS } from "../../utils/billingUi";
 
 const getRowId = (row: Submission) => row._id || "";
 
 const SubmissionsPage: React.FC = () => {
   const { canWorkspace } = usePermissions();
+  const billing = useBillingAccess();
   const canCreateClient = canWorkspace("workspace.submissions.manage");
   const canEditClient = canWorkspace("workspace.submissions.write");
   const canOpenClientDetail = canWorkspace("workspace.submissions.read");
+  const createClientBlocked = !canCreateClient || billing.isPaidBlocked;
+  const createClientTooltip = !canCreateClient
+    ? PERMISSION_TOOLTIPS.addClient
+    : billing.paidActionTooltip(BILLING_TOOLTIPS.createClient);
+  const assistantBlocked = !canOpenClientDetail || billing.isPaidBlocked;
+  const assistantTooltip = !canOpenClientDetail
+    ? PERMISSION_TOOLTIPS.manageClient
+    : billing.paidActionTooltip(BILLING_TOOLTIPS.assistant);
   const [rows, setRows] = useState<Submission[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -247,8 +258,8 @@ const SubmissionsPage: React.FC = () => {
             <Button
               variant="secondary"
               onClick={() => navigate(`${row._id}/assistant`)}
-              disabled={!canOpenClientDetail}
-              disabledTooltip={!canOpenClientDetail ? PERMISSION_TOOLTIPS.manageClient : undefined}
+              disabled={assistantBlocked}
+              disabledTooltip={assistantTooltip}
             >
               Ask assistant
             </Button>
@@ -266,7 +277,7 @@ const SubmissionsPage: React.FC = () => {
         ),
       },
     ],
-    [openEdit, navigate, canEditClient, canOpenClientDetail],
+    [openEdit, navigate, canEditClient, canOpenClientDetail, assistantBlocked, assistantTooltip],
   );
 
   return (
@@ -278,8 +289,8 @@ const SubmissionsPage: React.FC = () => {
           <Button
             variant="primary"
             onClick={openCreate}
-            disabled={!canCreateClient}
-            disabledTooltip={!canCreateClient ? PERMISSION_TOOLTIPS.addClient : undefined}
+            disabled={createClientBlocked}
+            disabledTooltip={createClientTooltip}
           >
             <span className="inline-flex items-center gap-2">
               <FiPlus className="h-4 w-4 shrink-0" aria-hidden />

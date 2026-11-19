@@ -16,6 +16,8 @@ import {
   sortDocumentsNewestFirst,
 } from "../Documents/clientDocumentUtils";
 import { buildWorkspacePath } from "../../utils/tenantRouting";
+import { useBillingAccessOptional } from "../../context/BillingAccessContext";
+import { BILLING_TOOLTIPS } from "../../utils/billingUi";
 
 function scopeLabel(scopeFileId: string | null, options: AssistantDocumentOption[]) {
   if (!scopeFileId) {
@@ -28,6 +30,9 @@ function scopeLabel(scopeFileId: string | null, options: AssistantDocumentOption
 const PANEL_HEIGHT_CLASS = "h-[600px] max-h-[calc(100vh-14rem)]";
 
 export default function ClientAssistantPage() {
+  const billing = useBillingAccessOptional();
+  const assistantBlocked = Boolean(billing?.isPaidBlocked);
+  const assistantTooltip = billing?.paidActionTooltip(BILLING_TOOLTIPS.assistant);
   const { organizationId, workspaceId, id } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -192,7 +197,8 @@ export default function ClientAssistantPage() {
               variant="secondary"
               type="button"
               onClick={handleReindex}
-              disabled={reindexing || !docCount}
+              disabled={reindexing || !docCount || assistantBlocked}
+              disabledTooltip={assistantBlocked ? assistantTooltip : undefined}
               isLoading={reindexing}
             >
               <span className="inline-flex items-center gap-2">

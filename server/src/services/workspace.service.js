@@ -15,6 +15,19 @@ const slugify = (value = "") =>
     .replace(/^-|-$/g, "");
 
 /** Maps workspace role slug to legacy UI role strings used by the client router. */
+const LOGO_URL_MINUTES = 12 * 60;
+
+function brandingHasLogo(branding) {
+  return !!(branding && (branding.logoFile || branding.logoUrl));
+}
+
+/** Workspace branding only wins when it actually has a logo. An empty object must not hide the organization logo. */
+function effectiveBranding(workspaceBranding, organizationBranding) {
+  if (brandingHasLogo(workspaceBranding)) return workspaceBranding;
+  if (brandingHasLogo(organizationBranding)) return organizationBranding;
+  return workspaceBranding || organizationBranding || null;
+}
+
 function workspaceSlugToLegacyRole(slug) {
   const s = String(slug || "").toLowerCase();
   if (s === "admin" || s === "owner" || s === "full-access") return "Admin";
@@ -41,7 +54,7 @@ async function buildWorkspaceRowFromWorkspaceDoc(wsDoc, roleSlug) {
     branding: {
       organization: org?.branding || null,
       workspace: wsDoc.branding || null,
-      effective: wsDoc.branding || org?.branding || null,
+      effective: effectiveBranding(wsDoc.branding, org?.branding),
     },
   };
   return row;
@@ -160,7 +173,7 @@ const WorkspaceService = {
       const signedById = new Map();
       await Promise.all(
         files.map(async (f) => {
-          const url = await getSignedFileUrl(f.storage_path, 60);
+          const url = await getSignedFileUrl(f.storage_path, LOGO_URL_MINUTES);
           signedById.set(String(f._id), url);
         })
       );
@@ -174,7 +187,7 @@ const WorkspaceService = {
         if (wsBranding?.logoFile) {
           wsBranding.logoUrl = signedById.get(String(wsBranding.logoFile)) || wsBranding.logoUrl || null;
         }
-        row.branding.effective = wsBranding || orgBranding || null;
+        row.branding.effective = effectiveBranding(wsBranding, orgBranding);
       });
     }
 
@@ -359,7 +372,7 @@ const WorkspaceService = {
         .lean();
       await Promise.all(
         files.map(async (f) => {
-          const url = await getSignedFileUrl(f.storage_path, 60);
+          const url = await getSignedFileUrl(f.storage_path, LOGO_URL_MINUTES);
           signedOrgLogoByFileId.set(String(f._id), url);
         })
       );

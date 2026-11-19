@@ -8,8 +8,10 @@ import Button from "../Reusable/Button";
 import Modal from "../Reusable/Modal";
 import { useAuth } from "../../context/AuthContext";
 import { usePermissions } from "../../context/PermissionContext";
+import { useBillingAccess } from "../../context/BillingAccessContext";
 import { WorkspaceService, OrganizationWorkspaceSummary } from "../../service/workspaceService";
 import { buildWorkspacePath } from "../../utils/tenantRouting";
+import { BILLING_TOOLTIPS } from "../../utils/billingUi";
 
 type WorkspaceRow = OrganizationWorkspaceSummary & { workspaceId: string };
 
@@ -27,8 +29,13 @@ export default function OrganizationWorkspacesSettings() {
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const canCreateWorkspace =
+  const billing = useBillingAccess();
+  const canCreateWorkspacePerm =
     Boolean(effective?.isOrgOwner) || canOrg("organization.workspaces.create");
+  const canCreateWorkspace = canCreateWorkspacePerm && !billing.isPaidBlocked;
+  const createWorkspaceTooltip = !canCreateWorkspacePerm
+    ? "You don't have permission to create workspaces."
+    : billing.paidActionTooltip(BILLING_TOOLTIPS.createWorkspace);
 
   const orgMembership = useMemo(
     () => organizations.find((o) => o.organizationId === organizationId) || null,
@@ -149,8 +156,13 @@ export default function OrganizationWorkspacesSettings() {
         title="Workspaces"
         description="Workspaces in this organization that you can access. Open a workspace or create a new one."
         actions={
-          canCreateWorkspace ? (
-            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+          canCreateWorkspacePerm ? (
+            <Button
+              variant="primary"
+              onClick={() => setCreateOpen(true)}
+              disabled={!canCreateWorkspace}
+              disabledTooltip={createWorkspaceTooltip}
+            >
               <span className="inline-flex items-center gap-2">
                 <FiPlus className="h-4 w-4" />
                 Create workspace
@@ -194,7 +206,7 @@ export default function OrganizationWorkspacesSettings() {
           </div>
           {!canCreateWorkspace ? (
             <p className="rounded-xl border border-warning-border bg-warning-muted px-3 py-2 text-sm text-warning">
-              You do not have permission to create workspaces in this organization.
+              {createWorkspaceTooltip || "You cannot create a workspace right now."}
             </p>
           ) : null}
           <Input

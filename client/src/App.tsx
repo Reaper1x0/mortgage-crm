@@ -19,6 +19,7 @@ import TemplateMaker from "./components/TemplateMaker/TemplatesPage";
 import TemplateDesignerPage from "./components/TemplateMaker/TemplateDesignerPage";
 import WorkspaceUsersPage from "./components/Users/WorkspaceUsersPage";
 import DashboardAnalytics from "./components/Dashboard/DashboardAnalytics";
+import ActivityPage from "./components/Dashboard/ActivityPage";
 import LeadsPage from "./components/Leads/LeadsPage";
 import WorkspaceOnboarding from "./components/Workspace/WorkspaceOnboarding";
 import SettingsLayout from "./components/Layout/SettingsLayout";
@@ -40,6 +41,7 @@ import PricingPage from "./components/Billing/PricingPage";
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/AuthContext";
 import { PermissionProvider } from "./context/PermissionContext";
+import { BillingAccessProvider } from "./context/BillingAccessContext";
 import { buildOrganizationPath, buildWorkspacePath, getTenantFromPath } from "./utils/tenantRouting";
 
 /** Keeps active org/workspace in AuthContext aligned with the URL. Workspace is cleared on org-only routes. */
@@ -106,6 +108,7 @@ function App() {
       <BrowserRouter>
         <SyncTenantFromUrl />
         <PermissionProvider>
+          <BillingAccessProvider>
           <Routes>
             <Route element={<PublicRoute />}>
               <Route path="/" element={<Layout element={<Login />} />}></Route>
@@ -152,6 +155,12 @@ function App() {
                     element={<ProtectedRoute workspacePermissionsAny={["workspace.dashboard.read"]} />}
                   >
                     <Route index element={<DashboardAnalytics />} />
+                  </Route>
+                  <Route
+                    path="activity"
+                    element={<ProtectedRoute workspacePermissionsAny={["workspace.audit.read"]} />}
+                  >
+                    <Route index element={<ActivityPage />} />
                   </Route>
                   <Route
                     path="submissions"
@@ -281,6 +290,7 @@ function App() {
             <Route path="/unauthorized" element={<Layout element={<UnauthorizedPage />} />} />
             <Route path="*" element={<Layout element={<NotFoundPage />} />}></Route>
           </Routes>
+          </BillingAccessProvider>
         </PermissionProvider>
       </BrowserRouter>
     </AuthProvider>

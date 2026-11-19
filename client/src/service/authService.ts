@@ -1,6 +1,7 @@
 import axios from "axios";
 import { SERVER_URL } from "../constants/env.constants";
 import apiClient from "../api/apiClient";
+import { endSession } from "../api/session";
 import { otpResetPasswordPayload } from "../redux/slices/otpPasswordResetSlice";
 import { ResetPasswordPayload } from "../redux/slices/resetPasswordSlice";
 import getDeviceId from "../utils/getDeviceId";
@@ -46,19 +47,9 @@ export const AuthService = {
     );
   },
   logout: async () => {
-    try {
-      await apiClient.delete("/auth/logout", {
-        headers: { device_id: getDeviceId() },
-        skipErrorToast: true, // Don't show toast on logout errors
-      });
-    } catch (err) {
-      console.error("Logout API failed, but clearing local data…", err);
-    }
-
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("user");
-    window.location.href = "/";
+    // Clears storage first and revokes the server session outside apiClient,
+    // so a 401 from logout cannot start another refresh.
+    endSession();
   },
 
   getUsernameAvailibility: async (username: string) => {

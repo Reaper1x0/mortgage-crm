@@ -7,8 +7,16 @@ import Modal from "../Reusable/Modal";
 import { BillingCycle, BillingService, Plan } from "../../service/billingService";
 import { FiCreditCard, FiExternalLink, FiRefreshCw, FiXCircle } from "react-icons/fi";
 import { prettyDate } from "../../utils/date";
+import {
+  canSwitchLivePlan,
+  isCancelableSubscription,
+  isResumableSubscription,
+  normalizeBillingStatus,
+} from "../../utils/billingUi";
+import { useBillingAccessOptional } from "../../context/BillingAccessContext";
 
 export default function BillingSettings() {
+  const billingAccess = useBillingAccessOptional();
   const [billing, setBilling] = useState<any>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
@@ -26,6 +34,7 @@ export default function BillingSettings() {
       setBilling(billingData);
       setPlans(planRows);
       if (billingData?.subscription?.billingCycle) setCycle(billingData.subscription.billingCycle);
+      await billingAccess?.refreshBilling();
     } finally {
       setLoading(false);
     }
@@ -33,35 +42,86 @@ export default function BillingSettings() {
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const activePlanCode = billing?.subscription?.plan?.code || billing?.subscription?.planSnapshot?.code;
   const usageRows = useMemo(() => billing?.usage || [], [billing?.usage]);
   const subscription = billing?.subscription;
   const canUseProduct = Boolean(billing?.access?.canUseProduct);
+  const status = normalizeBillingStatus(subscription?.status);
+  const cancelAtPeriodEnd = Boolean(subscription?.cancelAtPeriodEnd);
 
   const formatDate = (value?: string | null) => (value ? prettyDate(value) : "-");
 
   const statusMeta = useMemo(() => {
     if (!subscription) return { label: "Not started" };
-    const status = String(subscription.status || "").toLowerCase();
+    if (status === "active" && cancelAtPeriodEnd) return { label: "Canceling" };
     if (status === "active") return { label: "Active" };
+    if (status === "trialing" && cancelAtPeriodEnd) return { label: "Trial ending" };
     if (status === "trialing") return { label: "Trialing" };
     if (status === "past_due") return { label: "Past due" };
     if (status === "canceled") return { label: "Canceled" };
+    if (status === "unpaid") return { label: "Unpaid" };
+    if (status === "incomplete" || status === "incomplete_expired") return { label: "Incomplete" };
+    if (status === "paused") return { label: "Paused" };
     return { label: status ? status.replace(/_/g, " ") : "Unknown" };
-  }, [subscription]);
+  }, [subscription, status, cancelAtPeriodEnd]);
+
+  const periodLabel = useMemo(() => {
+    if (!subscription) return { title: "Renewal", value: "-" as string };
+    if (status === "canceled") {
+      return { title: "Ended", value: formatDate(subscription.currentPeriodEnd || subscription.canceledAt) };
+    }
+    if (cancelAtPeriodEnd) {
+      return { title: "Ends", value: formatDate(subscription.currentPeriodEnd) };
+    }
+    if (status === "trialing") {
+      return { title: "Trial ends", value: formatDate(subscription.trialEnd || subscription.currentPeriodEnd) };
+    }
+    return { title: "Renewal", value: formatDate(subscription.currentPeriodEnd) };
+  }, [subscription, status, cancelAtPeriodEnd]);
 
   const renewalMessage = useMemo(() => {
     if (!subscription) return "";
-    if (subscription.cancelAtPeriodEnd) {
+    if (status === "canceled") {
+      return `Subscription ended on ${formatDate(subscription.currentPeriodEnd)}. Resubscribe to restore paid features.`;
+    }
+    if (cancelAtPeriodEnd) {
       return `Scheduled to end on ${formatDate(subscription.currentPeriodEnd)}. You can resume before this date.`;
     }
-    if (subscription.status === "trialing" && subscription.trialEnd) {
+    if (status === "trialing" && subscription.trialEnd) {
       return `Trial ends on ${formatDate(subscription.trialEnd)}.`;
     }
-    return `Renews automatically on ${formatDate(subscription.currentPeriodEnd)}.`;
-  }, [subscription]);
+    if (status === "past_due") {
+      return `Payment is past due. Access may continue until ${formatDate(subscription.currentPeriodEnd)}. Update billing details to avoid interruption.`;
+    }
+    if (status === "unpaid" || status === "incomplete" || status === "incomplete_expired" || status === "paused") {
+      return "Paid features are unavailable until billing is restored.";
+    }
+    if (subscription.currentPeriodEnd) {
+      return `Renews automatically on ${formatDate(subscription.currentPeriodEnd)}.`;
+    }
+    return "";
+  }, [subscription, status, cancelAtPeriodEnd]);
+
+  const restrictedMessage = useMemo(() => {
+    if (canUseProduct) return null;
+    if (status === "canceled") {
+      return "Access is restricted because this subscription is canceled. Resubscribe or manage billing to restore paid features.";
+    }
+    if (status === "past_due") {
+      return "Access is restricted. Complete payment or update billing details to restore full access.";
+    }
+    if (status === "unpaid" || status === "incomplete" || status === "incomplete_expired") {
+      return "Access is restricted until checkout or payment is completed.";
+    }
+    return "Access is currently restricted. Open billing to restore paid features.";
+  }, [canUseProduct, status]);
+
+  const showCancel = isCancelableSubscription(status, cancelAtPeriodEnd);
+  const showResume = isResumableSubscription(status, cancelAtPeriodEnd);
+  const livePlanSwitch = canSwitchLivePlan(status, canUseProduct);
 
   const closeConfirmModal = () => {
     if (actionLoading === "cancel" || actionLoading === "resume") return;
@@ -79,7 +139,7 @@ export default function BillingSettings() {
 
       {!loading && !billing?.subscription ? (
         <Callout tone="warning" title="No active subscription">
-          Start a subscription to continue using protected CRM features.
+          Choose a plan below to start using protected CRM features.
         </Callout>
       ) : null}
 
@@ -92,21 +152,25 @@ export default function BillingSettings() {
             </div>
             <div>
               <div className="text-xs text-card-text">Plan</div>
-              <div className="mt-1 font-semibold text-text">{billing.subscription.plan?.name || billing.subscription.planSnapshot?.name}</div>
+              <div className="mt-1 font-semibold text-text">
+                {billing.subscription.plan?.name || billing.subscription.planSnapshot?.name || "-"}
+              </div>
             </div>
             <div>
               <div className="text-xs text-card-text">Billing cycle</div>
-              <div className="mt-1 font-semibold capitalize text-text">{billing.subscription.billingCycle || "-"}</div>
+              <div className="mt-1 font-semibold capitalize text-text">
+                {billing.subscription.billingCycle || "-"}
+              </div>
             </div>
             <div>
-              <div className="text-xs text-card-text">Renewal</div>
-              <div className="mt-1 font-semibold text-text">{formatDate(subscription?.currentPeriodEnd)}</div>
+              <div className="text-xs text-card-text">{periodLabel.title}</div>
+              <div className="mt-1 font-semibold text-text">{periodLabel.value}</div>
             </div>
           </div>
-          <div className="mt-4 text-sm text-card-text">{renewalMessage}</div>
-          {!canUseProduct ? (
+          {renewalMessage ? <div className="mt-4 text-sm text-card-text">{renewalMessage}</div> : null}
+          {restrictedMessage ? (
             <div className="mt-3 rounded-xl border border-warning-border bg-warning-muted px-3 py-2 text-xs text-warning">
-              Access is currently restricted. Complete payment or update billing details to restore full access.
+              {restrictedMessage}
             </div>
           ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
@@ -128,7 +192,7 @@ export default function BillingSettings() {
                 Manage billing
               </span>
             </Button>
-            {subscription.cancelAtPeriodEnd ? (
+            {showResume ? (
               <Button
                 variant="primary"
                 isLoading={actionLoading === "resume"}
@@ -139,7 +203,8 @@ export default function BillingSettings() {
                   Resume auto-renew
                 </span>
               </Button>
-            ) : (
+            ) : null}
+            {showCancel ? (
               <Button
                 variant="danger-soft"
                 isLoading={actionLoading === "cancel"}
@@ -150,7 +215,7 @@ export default function BillingSettings() {
                   Cancel at period end
                 </span>
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -185,7 +250,7 @@ export default function BillingSettings() {
         <div className="flex items-center justify-between gap-3">
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold text-text">
             <FiCreditCard size={18} />
-            Change plan
+            {canUseProduct ? "Change plan" : "Choose a plan"}
           </h2>
           <Segmented
             value={cycle}
@@ -196,41 +261,54 @@ export default function BillingSettings() {
             ]}
           />
         </div>
+        {!canUseProduct ? (
+          <p className="text-sm text-card-text">
+            Select a plan to checkout and restore paid features for this organization.
+          </p>
+        ) : null}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {plans.map((plan) => (
-            <PlanCard
-              key={plan._id}
-              name={plan.name}
-              description={plan.description}
-              recommended={plan.recommended}
-              pricing={plan.pricing}
-              billingCycle={cycle}
-              entitlements={plan.entitlements}
-              disabled={activePlanCode === plan.code || !plan.pricing || actionLoading === "switch"}
-              actionLabel={
-                activePlanCode === plan.code ? "Current plan" : !plan.pricing ? "Pricing unavailable" : "Switch plan"
-              }
-              onAction={
-                !plan.pricing
-                  ? undefined
-                  : () =>
-                      void (async () => {
-                        try {
-                          setActionLoading("switch");
-                          if (billing?.subscription) {
-                            await BillingService.changePlan(plan._id, cycle);
-                            await load();
-                          } else {
-                            const d = await BillingService.createCheckoutSession(plan._id, cycle);
-                            if (d?.checkoutUrl) window.location.href = d.checkoutUrl;
+          {plans.map((plan) => {
+            const isCurrent = activePlanCode === plan.code && canUseProduct;
+            const actionLabel = !plan.pricing
+              ? "Pricing unavailable"
+              : isCurrent
+                ? "Current plan"
+                : livePlanSwitch
+                  ? "Switch plan"
+                  : "Subscribe";
+            return (
+              <PlanCard
+                key={plan._id}
+                name={plan.name}
+                description={plan.description}
+                recommended={plan.recommended}
+                pricing={plan.pricing}
+                billingCycle={cycle}
+                entitlements={plan.entitlements}
+                disabled={isCurrent || !plan.pricing || actionLoading === "switch"}
+                actionLabel={actionLabel}
+                onAction={
+                  !plan.pricing || isCurrent
+                    ? undefined
+                    : () =>
+                        void (async () => {
+                          try {
+                            setActionLoading("switch");
+                            if (livePlanSwitch) {
+                              await BillingService.changePlan(plan._id, cycle);
+                              await load();
+                            } else {
+                              const d = await BillingService.createCheckoutSession(plan._id, cycle);
+                              if (d?.checkoutUrl) window.location.href = d.checkoutUrl;
+                            }
+                          } finally {
+                            setActionLoading(null);
                           }
-                        } finally {
-                          setActionLoading(null);
-                        }
-                      })()
-              }
-            />
-          ))}
+                        })()
+                }
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -242,7 +320,7 @@ export default function BillingSettings() {
             </h3>
             <p className="mt-1 text-sm text-card-text">
               {confirmAction === "cancel"
-                ? "Your subscription remains active until the current billing period ends. After that date, paid features and plan entitlements will stop unless you renew."
+                ? "Your subscription remains active until the current billing period ends. After that date, paid features will stop unless you renew."
                 : "Auto-renew will be restored and your subscription will continue billing automatically on the next renewal date."}
             </p>
           </div>
@@ -262,12 +340,16 @@ export default function BillingSettings() {
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={closeConfirmModal} disabled={actionLoading === "cancel" || actionLoading === "resume"}>
+            <Button
+              variant="secondary"
+              onClick={closeConfirmModal}
+              disabled={actionLoading === "cancel" || actionLoading === "resume"}
+            >
               Keep current setting
             </Button>
             {confirmAction === "cancel" ? (
               <Button
-                variant="warning"
+                variant="danger-soft"
                 isLoading={actionLoading === "cancel"}
                 onClick={async () => {
                   try {

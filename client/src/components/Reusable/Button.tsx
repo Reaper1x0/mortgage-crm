@@ -4,6 +4,7 @@ import {
   semanticBadgeInteractiveClasses,
   type SemanticTone,
 } from "../../utils/semanticTokens";
+import Tooltip from "./Tooltip";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: ReactNode;
@@ -24,7 +25,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   rounded?: boolean;
   isLoading?: boolean;
   disabled?: boolean;
-  /** When the button is disabled, shows this text as a native tooltip on hover (e.g. missing permission). */
+  /** Shown via the shared Tooltip when the button is disabled. */
   disabledTooltip?: string;
 }
 
@@ -70,26 +71,41 @@ const Button: React.FC<ButtonProps> = ({
     disabled || isLoading ? "cursor-not-allowed opacity-40" : "cursor-pointer";
 
   const showDisabledHint = Boolean(disabled && !isLoading && disabledTooltip);
+  const tooltipContent = showDisabledHint ? disabledTooltip : title;
+
   const button = (
     <button
       {...rest}
-      className={cn(base, shape, !isLink && "border", variantCls, state, showDisabledHint && "pointer-events-none", className)}
+      className={cn(
+        base,
+        shape,
+        !isLink && "border",
+        variantCls,
+        state,
+        showDisabledHint && "pointer-events-none",
+        className
+      )}
       disabled={isLoading || disabled}
-      title={showDisabledHint ? undefined : title}
     >
       <span className="relative z-10">{isLoading ? "Loading..." : children}</span>
     </button>
   );
 
+  if (!tooltipContent) return button;
+
   if (showDisabledHint) {
     return (
-      <span className="inline-flex max-w-full cursor-not-allowed" title={disabledTooltip}>
-        {button}
-      </span>
+      <Tooltip content={tooltipContent} placement="top">
+        <span className="inline-flex max-w-full cursor-not-allowed">{button}</span>
+      </Tooltip>
     );
   }
 
-  return button;
+  return (
+    <Tooltip content={tooltipContent} placement="top">
+      {button}
+    </Tooltip>
+  );
 };
 
 export default Button;

@@ -1,9 +1,13 @@
-import axios from "axios";
+import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { SERVER_URL } from "../constants/env.constants";
-import getDeviceId from "../utils/getDeviceId";
-import { AuthService } from "../service/authService";
 import { showErrorToast } from "../utils/errorHandler";
-import { getTenantFromPath, buildOrganizationPath } from "../utils/tenantRouting";
+import { getTenantFromPath } from "../utils/tenantRouting";
+import {
+  endSession,
+  isSessionEnded,
+  isUnrecoverableRefreshError,
+  refreshAccessToken,
+} from "./session";
 
 const API_BASE_URL = SERVER_URL;
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
@@ -13,16 +17,22 @@ const sanitizeOrgId = (value: unknown): string | null => {
   return OBJECT_ID_RE.test(v) ? v : null;
 };
 
-// Extend AxiosRequestConfig to include skipErrorToast flag
-// Use this to skip automatic error toast for specific requests:
-// apiClient.get('/endpoint', { skipErrorToast: true })
+/**
+ * 401 on these routes is a business result, not an expired access token.
+ * Refreshing them (especially logout) re-enters this interceptor and loops.
+ */
+const NON_SESSION_401 = ["/auth/login", "/auth/logout", "/auth/refresh", "/auth/change-password"];
+
 declare module "axios" {
   export interface AxiosRequestConfig {
     skipErrorToast?: boolean;
+    /** Do not refresh or tear down the session when this request returns 401. */
+    skipAuthRefresh?: boolean;
     /** When set, sent as X-Organization-Id (overrides path-based tenant). Use during onboarding before URL updates. */
     organizationId?: string | null;
     /** When set, sent as X-Workspace-Id (overrides path-based tenant). */
     workspaceId?: string | null;
+    _retry?: boolean;
   }
 }
 
@@ -30,49 +40,17 @@ const apiClient = axios.create({
   baseURL: API_BASE_URL,
 });
 
-// Function to refresh the token
-const refreshToken = async () => {
-  try {
-    const refreshToken = localStorage.getItem("refreshToken");
-    const accessToken = localStorage.getItem("accessToken");
-    const device_id = getDeviceId();
-    if (!refreshToken) throw new Error("No refresh token available");
+const isNonSession401 = (url?: string) =>
+  Boolean(url && NON_SESSION_401.some((path) => url.includes(path)));
 
-    // Construct URL properly - ensure no double slashes and correct path
-    const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
-    const refreshUrl = `${baseUrl}/auth/refresh`;
-    
-    const response = await axios.get(refreshUrl, {
-      headers: {
-        Authorization: accessToken,
-        "refresh-token": refreshToken,
-        device_id: device_id
-      },
-    });
-    
-    // Handle both response.data.accessToken and response.data.data.accessToken
-    const responseData = response.data?.data || response.data;
-    const newAccessToken = responseData?.accessToken;
-    const newRefreshToken = responseData?.refreshToken;
+/** Boolean wrapper so axios's type predicate does not narrow the error to `never`. */
+const isCanceled = (error: unknown): boolean => axios.isCancel(error);
 
-    if (!newAccessToken) {
-      throw new Error("No access token in refresh response");
-    }
-
-    localStorage.setItem("accessToken", newAccessToken);
-    if (newRefreshToken) {
-      localStorage.setItem("refreshToken", newRefreshToken);
-    }
-    
-    return newAccessToken;
-  } catch (error) {
-    console.error("Token refresh failed:", error);
-    throw error;
-  }
-};
-
-// Request interceptor to add access token and active workspace (tenant) context
 apiClient.interceptors.request.use((config) => {
+  if (isSessionEnded() && !config.skipAuthRefresh) {
+    return Promise.reject(new axios.CanceledError("Session ended"));
+  }
+
   const token = localStorage.getItem("accessToken");
   if (token) {
     config.headers.Authorization = token;
@@ -117,37 +95,28 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor to handle 401 errors and show error toasts
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    // Skip token refresh if this is already a refresh token request to avoid infinite loops
-    const isRefreshRequest = originalRequest?.url?.includes('auth/refresh');
-    
-    // Handle 401 errors with token refresh
-    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig | undefined;
+
+    if (isSessionEnded() || isCanceled(error)) {
+      return Promise.reject(error);
+    }
+
+    const skipRefresh =
+      originalRequest?.skipAuthRefresh || isNonSession401(originalRequest?.url);
+
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !skipRefresh) {
       originalRequest._retry = true;
       try {
-        const newAccessToken = await refreshToken();
+        const newAccessToken = await refreshAccessToken();
         originalRequest.headers.Authorization = newAccessToken;
-        return apiClient(originalRequest); // Retry the request with new token
-      } catch (refreshError: any) {
-        console.error("Token refresh error:", refreshError);
-        // Logout if refresh token endpoint returns 401 (both tokens are invalid) or 404 (endpoint not found/invalid session)
-        // Also logout on 403 (forbidden) as it indicates invalid/expired tokens
-        const refreshStatus = refreshError?.response?.status;
-        const shouldLogout =
-          refreshStatus === 401 ||
-          refreshStatus === 403 ||
-          refreshStatus === 404 ||
-          refreshStatus === 500;
-
-        if (shouldLogout) {
-          await AuthService.logout();
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        if (isUnrecoverableRefreshError(refreshError)) {
+          endSession();
         }
-        // For other errors (network, 500, etc.), just reject the original request without logging out
         return Promise.reject(error);
       }
     }
@@ -158,9 +127,6 @@ apiClient.interceptors.response.use(
       error.response?.status === 400 &&
       (reasonText.includes("X-Organization-Id") || reasonText.includes("Active organization is required"));
 
-    // Show error toast unless explicitly skipped
-    // Skip toasts for 401 errors (handled above), missing tenant context (client routing bug — avoid floods),
-    // and if skipErrorToast flag is set
     if (
       error.response?.status !== 401 &&
       !isMissingOrgContext &&
@@ -171,12 +137,16 @@ apiClient.interceptors.response.use(
 
     if (
       error.response?.status === 402 &&
-      error.response?.data?.code === "SUBSCRIPTION_REQUIRED"
+      (error.response?.data &&
+        typeof error.response.data === "object" &&
+        ((error.response.data as { code?: string }).code === "SUBSCRIPTION_REQUIRED" ||
+          String((error.response.data as { reason?: string }).reason || "")
+            .toLowerCase()
+            .includes("subscription")))
     ) {
-      const { organizationId } = getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "");
-      window.location.href = organizationId
-        ? buildOrganizationPath(organizationId, "settings/billing")
-        : "/pricing";
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("billing:access-denied"));
+      }
     }
 
     return Promise.reject(error);

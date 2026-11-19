@@ -13,6 +13,7 @@ import { UserService } from "../service/userService";
 import { AuthService } from "../service/authService";
 import { WorkspaceService, WorkspaceSummary, OrganizationMembership } from "../service/workspaceService";
 import { getTenantFromPath } from "../utils/tenantRouting";
+import { resolveOrganizationLogoUrl } from "../utils/orgLogo";
 
 interface AuthContextType {
   user: User | null;
@@ -306,10 +307,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       activeOrganization?.name || activeWorkspace?.organization?.name || "Mortgage CRM";
     document.title = activeWorkspace ? `${activeWorkspace.name} · ${orgName}` : orgName;
 
-    const orgLogo =
-      activeOrganization?.branding?.logoUrl ||
-      activeWorkspace?.branding?.organization?.logoUrl ||
-      null;
+    const orgLogo = resolveOrganizationLogoUrl(activeOrganization, activeWorkspace);
     let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
     if (!favicon) {
       favicon = document.createElement("link");
@@ -318,7 +316,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
     if (orgLogo) {
       favicon.setAttribute("href", orgLogo);
-      favicon.setAttribute("type", "image/png");
+      const path = orgLogo.split("?")[0].toLowerCase();
+      const type = path.endsWith(".svg")
+        ? "image/svg+xml"
+        : path.endsWith(".jpg") || path.endsWith(".jpeg")
+          ? "image/jpeg"
+          : path.endsWith(".webp")
+            ? "image/webp"
+            : path.endsWith(".gif")
+              ? "image/gif"
+              : path.endsWith(".png")
+                ? "image/png"
+                : "";
+      if (type) favicon.setAttribute("type", type);
+      else favicon.removeAttribute("type");
     } else {
       favicon.setAttribute("href", "/vite.svg");
       favicon.setAttribute("type", "image/svg+xml");

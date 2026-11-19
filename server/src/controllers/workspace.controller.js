@@ -10,6 +10,8 @@ const subscriptionService = require("../billing/subscription.service");
 const WorkspaceController = {
   listMine: catchAsync(async (req, res) => {
     const { organizations, workspaces } = await workspaceService.listMembershipTreeForUser(req.user);
+    // Logo URLs inside this payload are signed and must not be reused from a cached response.
+    res.setHeader("Cache-Control", "private, no-store");
     return R2XX(res, "Workspaces fetched successfully", 200, { organizations, workspaces });
   }),
 

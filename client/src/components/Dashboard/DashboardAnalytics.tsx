@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link, useParams } from "react-router";
 import {
   useDashboardSummary,
   useDashboardTrends,
@@ -7,6 +8,7 @@ import {
 } from "../../hooks/useDashboardAnalytics";
 import { DashboardRange } from "../../service/dashboardService";
 import { AuditTrailService, AuditLog } from "../../service/auditTrailService";
+import { usePermissions } from "../../context/PermissionContext";
 import PageHeader from "../Reusable/PageHeader";
 import Card from "../Reusable/Card";
 import LineTrendChart from "../charts/LineTrendChart";
@@ -16,38 +18,50 @@ import Avatar from "../Reusable/Avatar";
 import CardRangeToggle from "./CardRangeToggle";
 import { formatProcessingTime } from "../../utils/formatDuration";
 import {
+  FiActivity,
   FiAlertCircle,
   FiAlertTriangle,
+  FiCheckCircle,
+  FiClock,
+  FiEdit3,
   FiInfo,
-  FiFile,
-  FiEdit,
-  FiCheck,
-  FiUpload,
-  FiDownload,
-  FiRefreshCw,
+  FiLayers,
 } from "react-icons/fi";
 import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { timeAgo } from "../../utils/date";
+import { getAuditActionInfo } from "../../utils/auditAction";
+import { buildWorkspacePath } from "../../utils/tenantRouting";
+import { cn } from "../../utils/cn";
 
 type MetricCardProps = {
   title: string;
   subtitle?: string;
   loading: boolean;
   value: React.ReactNode;
+  icon: React.ReactNode;
+  iconClassName?: string;
 };
 
-function DashboardMetricCard({ title, subtitle, loading, value }: MetricCardProps) {
+function DashboardMetricCard({
+  title,
+  subtitle,
+  loading,
+  value,
+  icon,
+  iconClassName,
+}: MetricCardProps) {
   return (
-    <Card containerClassName="h-full" className="!flex h-[120px] flex-col justify-between !p-4">
-      <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-card-text">{title}</div>
-        <div className="mt-0.5 line-clamp-1 min-h-[18px] text-xs text-card-text">{subtitle || "\u00a0"}</div>
+    <Card containerClassName="h-full" className="!flex h-full flex-col !p-5">
+      <div className="flex items-center gap-2.5">
+        <div className={cn("shrink-0 [&_svg]:h-6 [&_svg]:w-6", iconClassName)}>{icon}</div>
+        <div className="min-w-0 text-sm font-medium leading-snug text-card-text">{title}</div>
       </div>
       {loading ? (
-        <div className="h-7 w-16 animate-pulse rounded bg-card-border" />
+        <div className="mt-3 h-8 w-20 animate-pulse rounded bg-card-border" />
       ) : (
-        <div className="truncate text-2xl font-semibold text-text">{value}</div>
+        <div className="mt-3 text-3xl font-semibold tracking-tight text-text tabular-nums">{value}</div>
       )}
+      <div className="mt-1.5 text-xs leading-relaxed text-card-text">{subtitle || "\u00a0"}</div>
     </Card>
   );
 }
@@ -83,7 +97,17 @@ function DashboardChartCard({
   );
 }
 
+const RECENT_ACTIVITY_LIMIT = 5;
+
 const DashboardAnalytics: React.FC = () => {
+  const { organizationId = "", workspaceId = "" } = useParams();
+  const { canWorkspace, effective } = usePermissions();
+  const canViewActivity = canWorkspace("workspace.audit.read") || effective?.isOrgOwner === true;
+  const activityPath =
+    organizationId && workspaceId
+      ? buildWorkspacePath(organizationId, workspaceId, "activity")
+      : "";
+
   const [trendsRange, setTrendsRange] = useState<DashboardRange>("daily");
   const [workloadRange, setWorkloadRange] = useState<DashboardRange>("daily");
   const [failuresRange, setFailuresRange] = useState<DashboardRange>("daily");
@@ -94,6 +118,7 @@ const DashboardAnalytics: React.FC = () => {
   const failuresQuery = useDashboardValidationFailures(failuresRange);
 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
   const [auditLogsLoading, setAuditLogsLoading] = useState(false);
 
   const workloadData = workloadQuery.data
@@ -107,8 +132,13 @@ const DashboardAnalytics: React.FC = () => {
     const fetchAuditLogs = async () => {
       setAuditLogsLoading(true);
       try {
-        const response = await AuditTrailService.getRecentAuditLogs({ limit: 20 });
-        setAuditLogs(response.audit_logs || []);
+        const response = await AuditTrailService.getRecentAuditLogs({
+          limit: RECENT_ACTIVITY_LIMIT,
+          page: 1,
+        });
+        const logs = response.audit_logs || [];
+        setAuditLogs(logs.slice(0, RECENT_ACTIVITY_LIMIT));
+        setAuditTotal(response.pagination?.total ?? logs.length);
       } catch (err) {
         console.error("Failed to fetch audit logs:", err);
       } finally {
@@ -118,112 +148,8 @@ const DashboardAnalytics: React.FC = () => {
     void fetchAuditLogs();
   }, []);
 
-  const getActionInfo = (action: string) => {
-    const actionMap: Record<
-      string,
-      { icon: React.ReactNode; label: string; color: string }
-    > = {
-      document_uploaded: {
-        icon: <FiUpload className="h-4 w-4" />,
-        label: "Uploaded Document",
-        color: "text-primary",
-      },
-      document_replaced: {
-        icon: <FiFile className="h-4 w-4" />,
-        label: "Replaced Document",
-        color: "text-warning",
-      },
-      document_deleted: {
-        icon: <FiFile className="h-4 w-4" />,
-        label: "Deleted Document",
-        color: "text-danger",
-      },
-      field_extracted: {
-        icon: <FiFile className="h-4 w-4" />,
-        label: "Extracted Field",
-        color: "text-primary",
-      },
-      field_edited: {
-        icon: <FiEdit className="h-4 w-4" />,
-        label: "Edited Field",
-        color: "text-warning",
-      },
-      field_reviewed: {
-        icon: <FiCheck className="h-4 w-4" />,
-        label: "Reviewed Field",
-        color: "text-success",
-      },
-      field_approved: {
-        icon: <FiCheck className="h-4 w-4" />,
-        label: "Approved Field",
-        color: "text-success",
-      },
-      master_field_created: {
-        icon: <FiFile className="h-4 w-4" />,
-        label: "Created Master Field",
-        color: "text-primary",
-      },
-      master_field_updated: {
-        icon: <FiEdit className="h-4 w-4" />,
-        label: "Updated Master Field",
-        color: "text-warning",
-      },
-      master_field_deleted: {
-        icon: <FiFile className="h-4 w-4" />,
-        label: "Deleted Master Field",
-        color: "text-danger",
-      },
-      master_fields_seeded: {
-        icon: <FiRefreshCw className="h-4 w-4" />,
-        label: "Seeded Master Fields",
-        color: "text-primary",
-      },
-      submission_created: {
-        icon: <FiFile className="h-4 w-4" />,
-        label: "Created Submission",
-        color: "text-primary",
-      },
-      submission_updated: {
-        icon: <FiEdit className="h-4 w-4" />,
-        label: "Updated Submission",
-        color: "text-warning",
-      },
-      submission_completed: {
-        icon: <FiCheck className="h-4 w-4" />,
-        label: "Completed Submission",
-        color: "text-success",
-      },
-      template_created: {
-        icon: <FiFile className="h-4 w-4" />,
-        label: "Created Template",
-        color: "text-primary",
-      },
-      template_updated: {
-        icon: <FiEdit className="h-4 w-4" />,
-        label: "Updated Template",
-        color: "text-warning",
-      },
-      document_generated: {
-        icon: <FiDownload className="h-4 w-4" />,
-        label: "Generated Document",
-        color: "text-primary",
-      },
-      document_downloaded: {
-        icon: <FiDownload className="h-4 w-4" />,
-        label: "Downloaded Document",
-        color: "text-primary",
-      },
-    };
-    return (
-      actionMap[action] || {
-        icon: <FiFile className="h-4 w-4" />,
-        label: action,
-        color: "text-text",
-      }
-    );
-  };
-
   const completedCount = summary.data?.completedCasesCount ?? 0;
+  const showSeeMore = !auditLogsLoading && canViewActivity && !!activityPath && auditTotal > 0;
 
   return (
     <div className="space-y-6">
@@ -233,24 +159,30 @@ const DashboardAnalytics: React.FC = () => {
       />
 
       {/* KPI cards — overall (all-time) totals */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <DashboardMetricCard
           title="Pending Reviews"
           subtitle="Awaiting review"
           loading={summary.loading}
           value={summary.data?.pendingReviewsCount ?? 0}
+          icon={<FiClock className="h-4 w-4" aria-hidden />}
+          iconClassName="text-warning"
         />
         <DashboardMetricCard
           title="Cases Processed"
           subtitle="In review or completed"
           loading={summary.loading}
           value={summary.data?.casesProcessedCount ?? 0}
+          icon={<FiLayers className="h-4 w-4" aria-hidden />}
+          iconClassName="text-primary"
         />
         <DashboardMetricCard
           title="Completed"
           subtitle="Fully completed cases"
           loading={summary.loading}
           value={summary.data?.completedCasesCount ?? 0}
+          icon={<FiCheckCircle className="h-4 w-4" aria-hidden />}
+          iconClassName="text-success"
         />
         <DashboardMetricCard
           title="Typical Processing Time"
@@ -261,6 +193,8 @@ const DashboardAnalytics: React.FC = () => {
           }
           loading={summary.loading}
           value={formatProcessingTime(summary.data?.avgProcessingTimeMinutes)}
+          icon={<FiActivity className="h-4 w-4" aria-hidden />}
+          iconClassName="text-primary"
         />
         <DashboardMetricCard
           title="Manual Edit Rate"
@@ -269,6 +203,8 @@ const DashboardAnalytics: React.FC = () => {
           value={
             summary.data ? `${summary.data.manualEditsRatePercent.toFixed(1)}%` : "0%"
           }
+          icon={<FiEdit3 className="h-4 w-4" aria-hidden />}
+          iconClassName="text-warning"
         />
       </div>
 
@@ -401,9 +337,17 @@ const DashboardAnalytics: React.FC = () => {
 
       <Card>
         <div className="p-3 sm:p-4">
-          <h3 className="mb-3 text-base font-semibold text-text sm:mb-4 sm:text-lg">
-            Recent Activity
-          </h3>
+          <div className="mb-3 flex items-center justify-between gap-3 sm:mb-4">
+            <h3 className="text-base font-semibold text-text sm:text-lg">Recent Activity</h3>
+            {showSeeMore ? (
+              <Link
+                to={activityPath}
+                className="shrink-0 text-sm font-semibold text-primary hover:underline"
+              >
+                See more
+              </Link>
+            ) : null}
+          </div>
           {auditLogsLoading ? (
             <div className="space-y-2 sm:space-y-3">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -427,9 +371,10 @@ const DashboardAnalytics: React.FC = () => {
               <div className="text-sm text-text-secondary sm:text-base">No recent activity</div>
             </div>
           ) : (
-            <div className="max-h-[500px] space-y-2 overflow-y-auto pr-1 sm:max-h-[600px] sm:space-y-3">
-              {auditLogs.map((log) => {
-                const actionInfo = getActionInfo(log.action);
+            <div className="space-y-2 sm:space-y-3">
+              {auditLogs.slice(0, RECENT_ACTIVITY_LIMIT).map((log) => {
+                const actionInfo = getAuditActionInfo(log.action);
+                const ActionIcon = actionInfo.Icon;
                 const user = log.user_id;
                 const submission =
                   typeof log.submission_id === "object" ? log.submission_id : null;
@@ -456,7 +401,7 @@ const DashboardAnalytics: React.FC = () => {
                             {userName}
                           </span>
                           <span className={`flex items-center gap-1 ${actionInfo.color}`}>
-                            {actionInfo.icon}
+                            <ActionIcon className="h-4 w-4" />
                             <span className="text-xs sm:text-sm">{actionInfo.label}</span>
                           </span>
                         </div>

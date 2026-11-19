@@ -8,10 +8,12 @@ import DropdownMenu from "../Reusable/DropdownMenu";
 import Input from "../Reusable/Inputs/Input";
 import Button from "../Reusable/Button";
 import FileUploadZone, { type FileUploadZoneHandle } from "../Reusable/Inputs/FileUploadZone";
+import OrgLogo from "../Reusable/OrgLogo";
+import { resolveOrganizationLogoUrl } from "../../utils/orgLogo";
 
 const OrganizationSettings: React.FC = () => {
   const { organizationId } = useParams<{ organizationId: string }>();
-  const { workspaces, activeWorkspaceId, refreshWorkspaces } = useAuth();
+  const { workspaces, organizations, activeWorkspaceId, refreshWorkspaces } = useAuth();
 
   const active = React.useMemo(() => {
     const oid = organizationId;
@@ -53,9 +55,10 @@ const OrganizationSettings: React.FC = () => {
   }
 
   const org = active.organization;
+  const membership = organizations.find((item) => item.organizationId === (organizationId || org?.organizationId));
   const effectiveLogo = logoFile
     ? URL.createObjectURL(logoFile)
-    : active?.branding?.organization?.logoUrl || "";
+    : resolveOrganizationLogoUrl(membership, active) || "";
 
   const handleDeleteLogo = async () => {
     const fd = new FormData();
@@ -107,13 +110,15 @@ const OrganizationSettings: React.FC = () => {
                   className="rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
                   {effectiveLogo ? (
-                    <div className="h-20 max-w-[180px] rounded-xl border border-card-border bg-background flex items-center justify-center overflow-hidden">
-                      <img
-                        src={effectiveLogo}
-                        alt={org?.name || "Organization"}
-                        className="max-h-full w-auto object-contain"
-                      />
-                    </div>
+                    <OrgLogo
+                      src={effectiveLogo}
+                      alt={org?.name || "Organization"}
+                      size="settings"
+                      className="rounded-xl"
+                      onLoadError={() => {
+                        if (!logoFile) void refreshWorkspaces();
+                      }}
+                    />
                   ) : (
                     <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-card-border bg-primary text-xl font-semibold text-primary-text">
                       {(org?.name || "O").slice(0, 2).toUpperCase()}
@@ -177,7 +182,7 @@ const OrganizationSettings: React.FC = () => {
             <img
               src={effectiveLogo}
               alt={org?.name || "Organization logo"}
-              className="w-full rounded-xl border border-card-border object-contain max-h-[420px]"
+              className="mx-auto h-auto max-h-[420px] w-auto max-w-full rounded-xl border border-card-border object-contain"
             />
           ) : (
             <div className="text-sm text-card-text">No logo uploaded.</div>

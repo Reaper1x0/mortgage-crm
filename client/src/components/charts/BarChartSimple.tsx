@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { cn } from "../../utils/cn";
 import { useTheme } from "../../context/ThemeContext";
+import { chartTooltipStyles } from "./chartTooltip";
 import ChartResponsiveContainer, {
   CHART_HEIGHT,
   chartPlaceholderStyle,
@@ -161,23 +162,7 @@ const BarChartSimple: React.FC<BarChartSimpleProps> = ({
             tickLine={{ stroke: colors.cardBorder }}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: colors.card,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "8px",
-              padding: "10px 14px",
-              boxShadow: `0 2px 8px rgba(0, 0, 0, 0.15)`,
-            }}
-            labelStyle={{ 
-              color: colors.text,
-              fontWeight: 600,
-              marginBottom: "6px",
-              fontSize: "12px",
-            }}
-            itemStyle={{ 
-              color: colors.text,
-              fontSize: "13px",
-            }}
+            {...chartTooltipStyles(theme)}
             cursor={{ 
               fill: colors.selected.main,
               fillOpacity: 0.1,

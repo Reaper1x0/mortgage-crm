@@ -12,6 +12,7 @@ import {
 } from "react-icons/hi2";
 import { ToastType } from "../../types/toaster.types";
 import { Loader } from "../../assets/Loader";
+import Tooltip from "./Tooltip";
 
 const iconMap: Record<ToastType, ReactNode> = {
   success: <HiCheckCircle className="h-5 w-5 text-success" />,
@@ -95,16 +96,16 @@ const ToasterContainer: React.FC = () => {
               </p>
             </div>
 
-            {/* Minimal close */}
-            <button
-              onClick={() => handleRemove(toast.id)}
-              className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-lg text-text/60 hover:text-text hover:bg-card-hover transition-colors"
-              aria-label="Close"
-              title="Close"
-              type="button"
-            >
-              <HiXMark className="h-5 w-5" />
-            </button>
+            <Tooltip content="Close" placement="top">
+              <button
+                onClick={() => handleRemove(toast.id)}
+                className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-lg text-text/60 hover:text-text hover:bg-card-hover transition-colors"
+                aria-label="Close"
+                type="button"
+              >
+                <HiXMark className="h-5 w-5" />
+              </button>
+            </Tooltip>
           </div>
         );
       })}

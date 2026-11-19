@@ -19,6 +19,7 @@ export type DocumentCardFooterAction = {
   title: string;
   onClick?: () => void;
   disabled?: boolean;
+  disabledTooltip?: string;
   isLoading?: boolean;
 };
 
@@ -103,6 +104,7 @@ export default function ClientDocumentCard({
                   hoverable
                   title={action.title}
                   disabled={disabled || action.disabled}
+                  disabledTooltip={action.disabledTooltip}
                   isLoading={action.isLoading}
                   onClick={action.onClick}
                 />
@@ -120,6 +122,7 @@ export default function ClientDocumentCard({
                       hoverable
                       title={action.title}
                       disabled={disabled || action.disabled}
+                      disabledTooltip={action.disabledTooltip}
                       isLoading={action.isLoading}
                       onClick={action.onClick}
                     />

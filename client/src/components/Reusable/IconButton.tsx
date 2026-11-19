@@ -3,6 +3,7 @@ import { Loader } from "../../assets/Loader";
 import { IconType } from "react-icons";
 import { cn } from "../../utils/cn";
 import { semanticBadgeInteractiveClasses } from "../../utils/semanticTokens";
+import Tooltip from "./Tooltip";
 
 interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
@@ -12,7 +13,7 @@ interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
   outline?: boolean;
   hoverable?: boolean;
   fillBg?: boolean;
-  /** When disabled, native tooltip text (e.g. missing permission). */
+  /** Shown via the shared Tooltip when the button is disabled. */
   disabledTooltip?: string;
 }
 
@@ -49,13 +50,12 @@ const IconButton: React.FC<IconButtonProps> = ({
 
   const state = disabled || isLoading ? "cursor-not-allowed opacity-35 saturate-0" : "cursor-pointer";
   const showDisabledHint = Boolean(disabled && !isLoading && disabledTooltip);
-  const nativeTitle = showDisabledHint ? undefined : title;
+  const tooltipContent = showDisabledHint ? disabledTooltip : title;
 
   const button = (
     <button
       type={type}
       disabled={isLoading || disabled}
-      title={nativeTitle}
       aria-label={rest["aria-label"] || title || "icon button"}
       className={cn(
         "relative inline-flex items-center justify-center rounded-full border transition-colors duration-200",
@@ -81,15 +81,21 @@ const IconButton: React.FC<IconButtonProps> = ({
     </button>
   );
 
+  if (!tooltipContent) return button;
+
   if (showDisabledHint) {
     return (
-      <span className="inline-flex cursor-not-allowed" title={disabledTooltip}>
-        {button}
-      </span>
+      <Tooltip content={tooltipContent} placement="top">
+        <span className="inline-flex cursor-not-allowed">{button}</span>
+      </Tooltip>
     );
   }
 
-  return button;
+  return (
+    <Tooltip content={tooltipContent} placement="top">
+      {button}
+    </Tooltip>
+  );
 };
 
 export default IconButton;

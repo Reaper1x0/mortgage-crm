@@ -15,7 +15,9 @@ import { showSuccessToast, showWarningToast } from "../../utils/errorHandler";
 import StatusBadge from "../Reusable/StatusBadge";
 import { Lead, LeadService } from "../../service/leadService";
 import { usePermissions } from "../../context/PermissionContext";
+import { useBillingAccess } from "../../context/BillingAccessContext";
 import { PERMISSION_TOOLTIPS } from "../../utils/permissionUi";
+import { BILLING_TOOLTIPS } from "../../utils/billingUi";
 import { usePaginatedList } from "../../hooks/usePaginatedList";
 import { useRowSelection } from "../../hooks/useRowSelection";
 import type { ListQueryParams } from "../../types/listQuery";
@@ -86,7 +88,12 @@ const getLeadPayload = (formData: LeadFormData) => ({
 
 export default function LeadsPage() {
   const { canWorkspace } = usePermissions();
+  const billing = useBillingAccess();
   const canLeadsWrite = canWorkspace("workspace.leads.write");
+  const moveToClientBlocked = !canLeadsWrite || billing.isPaidBlocked;
+  const moveToClientTooltip = !canLeadsWrite
+    ? PERMISSION_TOOLTIPS.moveLeadToClient
+    : billing.paidActionTooltip(BILLING_TOOLTIPS.moveLeadToClient);
 
   const [isCreateOpen, setCreateOpen] = useState(false);
   const [isEditOpen, setEditOpen] = useState(false);
@@ -272,8 +279,8 @@ export default function LeadsPage() {
               <Button
                 variant="secondary"
                 onClick={() => handleMoveSingleLead(row)}
-                disabled={busy || !canLeadsWrite}
-                disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.moveLeadToClient : undefined}
+                disabled={busy || moveToClientBlocked}
+                disabledTooltip={moveToClientTooltip}
               >
                 Make Client
               </Button>
@@ -282,7 +289,7 @@ export default function LeadsPage() {
         ),
       },
     ],
-    [busy, canLeadsWrite, handleMoveSingleLead],
+    [busy, canLeadsWrite, handleMoveSingleLead, moveToClientBlocked, moveToClientTooltip],
   );
 
   return (
@@ -338,8 +345,8 @@ export default function LeadsPage() {
         <Button
           variant="secondary"
           onClick={handleBulkMoveToClients}
-          disabled={busy || !canLeadsWrite}
-          disabledTooltip={!canLeadsWrite ? PERMISSION_TOOLTIPS.moveLeadToClient : undefined}
+          disabled={busy || moveToClientBlocked}
+          disabledTooltip={moveToClientTooltip}
         >
           Make Clients
         </Button>
