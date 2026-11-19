@@ -151,28 +151,32 @@ export default function SuperAdminSubscriptionsPage() {
           title="Total Subscriptions"
           value={summary.totalSubscriptions}
           hint="Across all organizations"
-          icon={<FiCreditCard className="h-5 w-5" />}
+          icon={<FiCreditCard className="h-4 w-4" />}
+          iconClassName="text-primary"
           loading={loading}
         />
         <StatCard
           title="Active + Trialing"
           value={summary.activeSubscriptions + summary.trialingSubscriptions}
           hint={`${summary.activeSubscriptions} active / ${summary.trialingSubscriptions} trialing`}
-          icon={<FiTrendingUp className="h-5 w-5" />}
+          icon={<FiTrendingUp className="h-4 w-4" />}
+          iconClassName="text-success"
           loading={loading}
         />
         <StatCard
           title="At Risk"
           value={summary.pastDueSubscriptions + summary.incompleteSubscriptions}
           hint={`${summary.pastDueSubscriptions} past due / ${summary.incompleteSubscriptions} incomplete`}
-          icon={<FiAlertTriangle className="h-5 w-5" />}
+          icon={<FiAlertTriangle className="h-4 w-4" />}
+          iconClassName="text-warning"
           loading={loading}
         />
         <StatCard
           title="Ending / Canceled"
           value={summary.scheduledToCancel + summary.canceledSubscriptions}
           hint={`${summary.scheduledToCancel} period-end / ${summary.canceledSubscriptions} canceled`}
-          icon={<FiXCircle className="h-5 w-5" />}
+          icon={<FiXCircle className="h-4 w-4" />}
+          iconClassName="text-danger"
           loading={loading}
         />
       </div>

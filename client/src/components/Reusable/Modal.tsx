@@ -88,8 +88,10 @@ const Modal: React.FC<ModalProps> = ({
 
         <div
           className={cn(
-            "relative z-10 max-h-[94vh] overflow-y-auto",
-            disableDefaultContentPadding ? "" : "p-5 pr-14 sm:p-6 sm:pr-14",
+            "relative z-10 max-h-[94vh]",
+            // Custom shells (detail modals) manage their own scroll;
+            // default modals scroll the content wrapper.
+            disableDefaultContentPadding ? "overflow-hidden" : "overflow-y-auto p-5 pr-14 sm:p-6 sm:pr-14",
             contentClassName
           )}
         >

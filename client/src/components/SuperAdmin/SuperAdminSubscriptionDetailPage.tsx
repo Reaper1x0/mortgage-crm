@@ -131,25 +131,29 @@ export default function SuperAdminSubscriptionDetailPage() {
               title="Organization"
               value={subscription.organization?.name || "-"}
               hint={subscription.organization?.slug || "-"}
-              icon={<FiShield className="h-5 w-5" />}
+              icon={<FiShield className="h-4 w-4" />}
+              iconClassName="text-primary"
             />
             <StatCard
               title="Plan"
               value={subscription.plan?.name || subscription.planSnapshot?.name || "-"}
               hint={subscription.plan?.code || subscription.planSnapshot?.code || "-"}
-              icon={<FiClock className="h-5 w-5" />}
+              icon={<FiClock className="h-4 w-4" />}
+              iconClassName="text-info"
             />
             <StatCard
               title="Status"
               value={String(subscription.status || "").replace(/_/g, " ")}
               hint={`Cycle: ${subscription.billingCycle || "-"}`}
-              icon={<FiAlertTriangle className="h-5 w-5" />}
+              icon={<FiAlertTriangle className="h-4 w-4" />}
+              iconClassName="text-warning"
             />
             <StatCard
               title="Renewal / End"
               value={prettyDateTime(subscription.currentPeriodEnd)}
               hint={subscription.cancelAtPeriodEnd ? "Scheduled to end" : "Auto-renew"}
-              icon={<FiXCircle className="h-5 w-5" />}
+              icon={<FiXCircle className="h-4 w-4" />}
+              iconClassName="text-danger"
             />
           </div>
 

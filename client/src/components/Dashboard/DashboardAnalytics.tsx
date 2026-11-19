@@ -11,6 +11,8 @@ import { AuditTrailService, AuditLog } from "../../service/auditTrailService";
 import { usePermissions } from "../../context/PermissionContext";
 import PageHeader from "../Reusable/PageHeader";
 import Card from "../Reusable/Card";
+import StatCard from "../Reusable/StatCard";
+import ChartPanel from "../Reusable/ChartPanel";
 import LineTrendChart from "../charts/LineTrendChart";
 import DonutWorkloadChart from "../charts/DonutWorkloadChart";
 import StatusBadge from "../Reusable/StatusBadge";
@@ -31,71 +33,6 @@ import { normalizeUserForAvatar } from "../../utils/userUtils";
 import { timeAgo } from "../../utils/date";
 import { getAuditActionInfo } from "../../utils/auditAction";
 import { buildWorkspacePath } from "../../utils/tenantRouting";
-import { cn } from "../../utils/cn";
-
-type MetricCardProps = {
-  title: string;
-  subtitle?: string;
-  loading: boolean;
-  value: React.ReactNode;
-  icon: React.ReactNode;
-  iconClassName?: string;
-};
-
-function DashboardMetricCard({
-  title,
-  subtitle,
-  loading,
-  value,
-  icon,
-  iconClassName,
-}: MetricCardProps) {
-  return (
-    <Card containerClassName="h-full" className="!flex h-full flex-col !p-5">
-      <div className="flex items-center gap-2.5">
-        <div className={cn("shrink-0 [&_svg]:h-6 [&_svg]:w-6", iconClassName)}>{icon}</div>
-        <div className="min-w-0 text-sm font-medium leading-snug text-card-text">{title}</div>
-      </div>
-      {loading ? (
-        <div className="mt-3 h-8 w-20 animate-pulse rounded bg-card-border" />
-      ) : (
-        <div className="mt-3 text-3xl font-semibold tracking-tight text-text tabular-nums">{value}</div>
-      )}
-      <div className="mt-1.5 text-xs leading-relaxed text-card-text">{subtitle || "\u00a0"}</div>
-    </Card>
-  );
-}
-
-type ChartCardProps = {
-  title: string;
-  subtitle?: string;
-  range: DashboardRange;
-  onRangeChange: (range: DashboardRange) => void;
-  children: React.ReactNode;
-};
-
-function DashboardChartCard({
-  title,
-  subtitle,
-  range,
-  onRangeChange,
-  children,
-}: ChartCardProps) {
-  return (
-    <Card>
-      <div>
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-[20px] font-semibold text-text">{title}</h3>
-            {subtitle ? <p className="mt-0.5 text-xs text-card-text sm:text-sm">{subtitle}</p> : null}
-          </div>
-          <CardRangeToggle value={range} onChange={onRangeChange} />
-        </div>
-        <div className="min-h-[280px] min-w-0">{children}</div>
-      </div>
-    </Card>
-  );
-}
 
 const RECENT_ACTIVITY_LIMIT = 5;
 
@@ -160,7 +97,7 @@ const DashboardAnalytics: React.FC = () => {
 
       {/* KPI cards — overall (all-time) totals */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        <DashboardMetricCard
+        <StatCard
           title="Pending Reviews"
           subtitle="Awaiting review"
           loading={summary.loading}
@@ -168,7 +105,7 @@ const DashboardAnalytics: React.FC = () => {
           icon={<FiClock className="h-4 w-4" aria-hidden />}
           iconClassName="text-warning"
         />
-        <DashboardMetricCard
+        <StatCard
           title="Cases Processed"
           subtitle="In review or completed"
           loading={summary.loading}
@@ -176,7 +113,7 @@ const DashboardAnalytics: React.FC = () => {
           icon={<FiLayers className="h-4 w-4" aria-hidden />}
           iconClassName="text-primary"
         />
-        <DashboardMetricCard
+        <StatCard
           title="Completed"
           subtitle="Fully completed cases"
           loading={summary.loading}
@@ -184,7 +121,7 @@ const DashboardAnalytics: React.FC = () => {
           icon={<FiCheckCircle className="h-4 w-4" aria-hidden />}
           iconClassName="text-success"
         />
-        <DashboardMetricCard
+        <StatCard
           title="Typical Processing Time"
           subtitle={
             completedCount > 0
@@ -196,7 +133,7 @@ const DashboardAnalytics: React.FC = () => {
           icon={<FiActivity className="h-4 w-4" aria-hidden />}
           iconClassName="text-primary"
         />
-        <DashboardMetricCard
+        <StatCard
           title="Manual Edit Rate"
           subtitle="% of fields edited manually"
           loading={summary.loading}
@@ -209,27 +146,25 @@ const DashboardAnalytics: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:gap-5 md:gap-6 lg:grid-cols-2">
-        <DashboardChartCard
+        <ChartPanel
           title="Cases Processed Trends"
-          subtitle="Volume over time"
-          range={trendsRange}
-          onRangeChange={setTrendsRange}
+          description="Volume over time"
+          headerRight={<CardRangeToggle value={trendsRange} onChange={setTrendsRange} />}
         >
           <LineTrendChart
             data={trendsQuery.data ?? []}
             loading={trendsQuery.loading}
             range={trendsRange}
           />
-        </DashboardChartCard>
+        </ChartPanel>
 
-        <DashboardChartCard
+        <ChartPanel
           title="Workload Distribution"
-          subtitle="Pending vs completed in range"
-          range={workloadRange}
-          onRangeChange={setWorkloadRange}
+          description="Pending vs completed in range"
+          headerRight={<CardRangeToggle value={workloadRange} onChange={setWorkloadRange} />}
         >
           <DonutWorkloadChart data={workloadData} loading={workloadQuery.loading} />
-        </DashboardChartCard>
+        </ChartPanel>
       </div>
 
       <Card containerClassName="h-full">

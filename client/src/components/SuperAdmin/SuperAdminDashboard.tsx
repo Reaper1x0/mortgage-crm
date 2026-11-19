@@ -6,7 +6,16 @@ import BarChartSimple from "../charts/BarChartSimple";
 import LineTrendChart from "../charts/LineTrendChart";
 import DonutWorkloadChart from "../charts/DonutWorkloadChart";
 import { SuperAdminService } from "../../service/superAdminService";
-import { FiGrid, FiLayers, FiList, FiShield, FiUserCheck, FiUsers } from "react-icons/fi";
+import {
+  FiCheckCircle,
+  FiCreditCard,
+  FiGrid,
+  FiLayers,
+  FiShield,
+  FiTrendingUp,
+  FiUserCheck,
+  FiUsers,
+} from "react-icons/fi";
 
 export default function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -49,13 +58,21 @@ export default function SuperAdminDashboard() {
   const lineData = useMemo(() => {
     if (!data?.signupsLast14Days?.length) return [];
     return data.signupsLast14Days.map((d) => {
-      const label = new Date(`${d.date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const label = new Date(`${d.date}T12:00:00`).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      });
       return { bucket: label, casesProcessedCount: d.count };
     });
   }, [data?.signupsLast14Days]);
 
   const systemRoleBar = useMemo(() => {
-    const palette = ["var(--color-primary)", "var(--color-info)", "var(--color-accent)", "var(--color-success)"];
+    const palette = [
+      "var(--color-primary)",
+      "var(--color-info)",
+      "var(--color-accent)",
+      "var(--color-success)",
+    ];
     const rows = data?.systemRoleBreakdown || [];
     return rows.map((r, idx) => {
       const key = String(r.role || "unknown");
@@ -81,11 +98,13 @@ export default function SuperAdminDashboard() {
       paused: "var(--color-accent)",
     };
     const countMap = new Map((data?.subscriptionStatusBreakdown || []).map((s) => [s.status, s.count]));
-    return order.map((status) => ({
-      name: status.replace(/_/g, " "),
-      value: Number(countMap.get(status) || 0),
-      color: colors[status],
-    }));
+    return order
+      .map((status) => ({
+        name: status.replace(/_/g, " "),
+        value: Number(countMap.get(status) || 0),
+        color: colors[status],
+      }))
+      .filter((d) => d.value > 0);
   }, [data?.subscriptionStatusBreakdown]);
 
   const revenueByPlanBar = useMemo(() => {
@@ -117,109 +136,106 @@ export default function SuperAdminDashboard() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Total users"
-          value={getMetric(s?.totalUsers)}
-          hint={data && !error ? `${s?.superAdminUsers ?? 0} super admin(s)` : undefined}
+          subtitle={data && !error ? `${s?.superAdminUsers ?? 0} super admin(s)` : "All accounts"}
           loading={loading}
-          icon={<FiUsers className="h-5 w-5" aria-hidden />}
+          value={getMetric(s?.totalUsers)}
+          icon={<FiUsers className="h-4 w-4" aria-hidden />}
+          iconClassName="text-primary"
         />
         <StatCard
           title="Organizations"
-          value={getMetric(s?.totalOrganizations)}
-          hint="Tenant organizations"
+          subtitle="Tenant organizations"
           loading={loading}
-          icon={<FiLayers className="h-5 w-5" aria-hidden />}
+          value={getMetric(s?.totalOrganizations)}
+          icon={<FiLayers className="h-4 w-4" aria-hidden />}
+          iconClassName="text-info"
         />
         <StatCard
           title="Workspaces"
-          value={getMetric(s?.totalWorkspaces)}
-          hint="Across all orgs"
+          subtitle="Across all orgs"
           loading={loading}
-          icon={<FiGrid className="h-5 w-5" aria-hidden />}
+          value={getMetric(s?.totalWorkspaces)}
+          icon={<FiGrid className="h-4 w-4" aria-hidden />}
+          iconClassName="text-accent"
         />
         <StatCard
           title="Verified email"
-          value={getMetric(s ? `${s.verifiedUsers} (${verifiedPct}%)` : undefined)}
-          hint={s ? `${s.unverifiedUsers} not verified` : undefined}
+          subtitle={s ? `${s.unverifiedUsers} not verified` : "Email verification"}
           loading={loading}
-          icon={<FiUserCheck className="h-5 w-5" aria-hidden />}
+          value={getMetric(s ? `${s.verifiedUsers} (${verifiedPct}%)` : undefined)}
+          icon={<FiUserCheck className="h-4 w-4" aria-hidden />}
+          iconClassName="text-success"
         />
         <StatCard
           title="Workspace seats"
-          value={getMetric(s?.workspaceMemberships)}
-          hint={s ? `~${s.avgWorkspacesPerUser} per user avg` : undefined}
+          subtitle={s ? `~${s.avgWorkspacesPerUser} per user avg` : "Membership seats"}
           loading={loading}
-          icon={<FiList className="h-5 w-5" aria-hidden />}
+          value={getMetric(s?.workspaceMemberships)}
+          icon={<FiCheckCircle className="h-4 w-4" aria-hidden />}
+          iconClassName="text-primary"
         />
         <StatCard
           title="Org memberships"
-          value={getMetric(s?.organizationMemberships)}
-          hint={s ? `~${s.avgOrgsPerUser} per user avg` : undefined}
+          subtitle={s ? `~${s.avgOrgsPerUser} per user avg` : "Org memberships"}
           loading={loading}
-          icon={<FiShield className="h-5 w-5" aria-hidden />}
+          value={getMetric(s?.organizationMemberships)}
+          icon={<FiShield className="h-4 w-4" aria-hidden />}
+          iconClassName="text-warning"
         />
         <StatCard
           title="Estimated MRR"
-          value={getMetric(formatMoney(data?.estimatedRevenue?.mrr, data?.estimatedRevenue?.currency))}
-          hint={
+          subtitle={
             data?.estimatedRevenue?.estimateAvailable
               ? `From ${data?.estimatedRevenue?.estimatedFromSubscriptions || 0} billable subscription(s)`
-              : "Revenue estimate unavailable (Stripe not configured)"
+              : "Revenue estimate unavailable"
           }
           loading={loading}
-          icon={<FiList className="h-5 w-5" aria-hidden />}
+          value={getMetric(formatMoney(data?.estimatedRevenue?.mrr, data?.estimatedRevenue?.currency))}
+          icon={<FiCreditCard className="h-4 w-4" aria-hidden />}
+          iconClassName="text-success"
         />
         <StatCard
           title="Estimated ARR"
-          value={getMetric(formatMoney(data?.estimatedRevenue?.arr, data?.estimatedRevenue?.currency))}
-          hint="Projected annual recurring revenue"
+          subtitle="Projected annual recurring revenue"
           loading={loading}
-          icon={<FiGrid className="h-5 w-5" aria-hidden />}
+          value={getMetric(formatMoney(data?.estimatedRevenue?.arr, data?.estimatedRevenue?.currency))}
+          icon={<FiTrendingUp className="h-4 w-4" aria-hidden />}
+          iconClassName="text-info"
         />
       </div>
 
-      <ChartPanel
-        title="New user registrations"
-        description="Count of new accounts per day (last 14 days)."
-        bodyClassName="!px-0 !py-0"
-      >
-        <div className="-mx-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-5 md:gap-6 lg:grid-cols-2">
+        <ChartPanel
+          title="New user registrations"
+          description="Count of new accounts per day (last 14 days)"
+        >
           <LineTrendChart data={lineData} loading={loading} />
-        </div>
-      </ChartPanel>
+        </ChartPanel>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartPanel
           title="System account roles"
-          description="Accounts by built-in system role (super admin vs user). Tenant RBAC is not shown here."
-          bodyClassName="!px-0 !py-0"
+          description="Accounts by built-in system role"
         >
-          <div className="-mx-2 min-h-[280px]">
-            <BarChartSimple data={systemRoleBar} loading={loading} color="primary" />
-          </div>
-        </ChartPanel>
-        <ChartPanel
-          title="Subscription status distribution"
-          description="Portfolio health across active, trialing, due, incomplete, and canceled states."
-          bodyClassName="!px-0 !py-0"
-        >
-          <div className="-mx-2 min-h-[320px]">
-            <DonutWorkloadChart data={subscriptionDonut} loading={loading} />
-          </div>
+          <BarChartSimple data={systemRoleBar} loading={loading} color="primary" />
         </ChartPanel>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:gap-5 md:gap-6 lg:grid-cols-2">
+        <ChartPanel
+          title="Subscription status"
+          description="Portfolio health across subscription states"
+        >
+          <DonutWorkloadChart data={subscriptionDonut} loading={loading} />
+        </ChartPanel>
+
         <ChartPanel
           title="Estimated MRR by plan"
-          description="Plan-level contribution to monthly recurring revenue estimate."
-          bodyClassName="!px-0 !py-0"
+          description="Plan-level contribution to monthly recurring revenue"
         >
-          <div className="-mx-2 min-h-[320px]">
-            <BarChartSimple data={revenueByPlanBar} loading={loading} color="primary" />
-          </div>
+          <BarChartSimple data={revenueByPlanBar} loading={loading} color="primary" />
         </ChartPanel>
       </div>
     </div>

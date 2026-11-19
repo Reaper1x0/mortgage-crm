@@ -8,6 +8,7 @@ export interface ChartPanelProps {
   children: ReactNode;
   className?: string;
   bodyClassName?: string;
+  headerRight?: ReactNode;
 }
 
 const ChartPanel: React.FC<ChartPanelProps> = ({
@@ -16,14 +17,20 @@ const ChartPanel: React.FC<ChartPanelProps> = ({
   children,
   className = "",
   bodyClassName = "",
+  headerRight,
 }) => {
   return (
-    <Card className={cn("!p-0 overflow-hidden", className)}>
-      <div className="border-b border-card-border bg-card/80 px-4 py-3 md:px-5">
-        <h3 className="text-base font-semibold text-text">{title}</h3>
-        {description ? <p className="mt-0.5 text-sm text-card-text">{description}</p> : null}
+    <Card className={cn(className)}>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-[20px] font-semibold text-text">{title}</h3>
+          {description ? (
+            <p className="mt-0.5 text-xs text-card-text sm:text-sm">{description}</p>
+          ) : null}
+        </div>
+        {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
       </div>
-      <div className={cn("px-2 py-2 md:px-4", bodyClassName)}>{children}</div>
+      <div className={cn("min-h-[280px] min-w-0", bodyClassName)}>{children}</div>
     </Card>
   );
 };
