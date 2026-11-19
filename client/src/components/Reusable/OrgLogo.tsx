@@ -43,10 +43,11 @@ export default function OrgLogo({
     className,
   );
 
-  const showImage = Boolean(src) && !broken && attempt === 0;
+  const logoSrc = src ?? null;
+  const showImage = Boolean(logoSrc) && !broken && attempt === 0;
 
-  if (!showImage) {
-    if (!src && fallback === "none") return null;
+  if (!showImage || !logoSrc) {
+    if (!logoSrc && fallback === "none") return null;
     return (
       <span className={box}>
         <RiBuildingLine className="h-4 w-4 text-card-text" aria-hidden />
@@ -57,12 +58,12 @@ export default function OrgLogo({
   return (
     <span className={box}>
       <img
-        src={src}
+        src={logoSrc}
         alt={alt}
         className="absolute inset-0 h-full w-full object-contain"
         onError={() => {
-          if (reportedSrc.current !== src) {
-            reportedSrc.current = src;
+          if (reportedSrc.current !== logoSrc) {
+            reportedSrc.current = logoSrc;
             setAttempt(1);
             onLoadError?.();
             return;
