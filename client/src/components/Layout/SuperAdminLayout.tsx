@@ -1,7 +1,16 @@
 import { useState } from "react";
 import { Outlet, useNavigate } from "react-router";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
-import { FiBarChart2, FiUser, FiUsers, FiCreditCard, FiActivity, FiGrid } from "react-icons/fi";
+import {
+  FiActivity,
+  FiBarChart2,
+  FiCreditCard,
+  FiGrid,
+  FiLock,
+  FiSettings,
+  FiUser,
+  FiUsers,
+} from "react-icons/fi";
 import { RiBuildingLine } from "react-icons/ri";
 import { useAuth } from "../../context/AuthContext";
 import Avatar from "../Reusable/Avatar";
@@ -32,6 +41,8 @@ export default function SuperAdminLayout() {
     { to: "/super-admin/subscriptions", label: "Subscriptions", icon: FiActivity },
     { to: "/super-admin/plans", label: "Plans", icon: FiCreditCard },
     { to: "/super-admin/profile", label: "Profile", icon: FiUser },
+    { to: "/super-admin/security", label: "Security", icon: FiLock },
+    { to: "/super-admin/preferences", label: "Preferences", icon: FiSettings },
   ];
 
   const handleLogoutClick = async () => {

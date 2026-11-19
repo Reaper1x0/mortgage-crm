@@ -108,7 +108,7 @@ const Navbar = () => {
     setActiveOrganizationId(organizationId);
     setActiveWorkspaceId(null);
     setPickerOpen(false);
-    navigate(buildOrganizationPath(organizationId, "settings/organization"));
+    navigate(buildOrganizationPath(organizationId, "dashboard"));
   };
 
   const handleWorkspaceChange = (organizationId: string, workspaceId: string) => {
@@ -146,7 +146,7 @@ const Navbar = () => {
               isAuthenticated && activeOrganizationId
                 ? activeWorkspaceId && activeWorkspace
                   ? buildWorkspacePath(activeOrganizationId, activeWorkspace.workspaceId, "dashboard")
-                  : buildOrganizationPath(activeOrganizationId, "settings/organization")
+                  : buildOrganizationPath(activeOrganizationId, "dashboard")
                 : "/"
             }
             className="min-w-0 inline-flex items-center gap-2 text-text"

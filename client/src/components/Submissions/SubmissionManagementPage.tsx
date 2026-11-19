@@ -205,22 +205,34 @@ export default function SubmissionManagementPage() {
 
     setCnicError(null);
     const resp = await uploadCnicForName(submissionId, file, onProgress);
-    setIdentityDocument(resp.identity_document ?? null);
-    setNameConfidence(resp.nameConfidence ?? resp.identity_document?.name_confidence ?? null);
-    setDocumentAuthenticity(
-      resp.documentAuthenticity ?? resp.identity_document?.document_authenticity ?? null
+
+    const nextIdentity = resp.identity_document ?? null;
+    const extractedName = resp.legalName || resp.legal_name || null;
+
+    // Update UI immediately from the upload response (before modal refresh).
+    setIdentityDocument(nextIdentity);
+    setNameConfidence(
+      resp.nameConfidence ?? nextIdentity?.name_confidence ?? null
     );
-    setAuthenticityNote(resp.authenticityNote ?? resp.identity_document?.authenticity_note ?? null);
+    setDocumentAuthenticity(
+      resp.documentAuthenticity ?? nextIdentity?.document_authenticity ?? null
+    );
+    setAuthenticityNote(
+      resp.authenticityNote ?? nextIdentity?.authenticity_note ?? null
+    );
 
-    const identitySaved = Boolean(resp.identity_document?.file);
-    if (!identitySaved) throw new Error("Identity document was not saved.");
-
-    if (resp.legal_name) {
-      setSummary((prev) => (prev ? { ...prev, legal_name: resp.legal_name } : prev));
+    const identitySaved = Boolean(nextIdentity?.file);
+    if (!identitySaved && !extractedName) {
+      throw new Error("Identity document was not saved.");
     }
 
-    if (resp.legalName) {
-      setCnicName(resp.legalName);
+    if (extractedName) {
+      setCnicName(extractedName);
+      setManualLegalName(extractedName);
+      setSummary((prev) =>
+        prev ? { ...prev, legal_name: extractedName } : prev
+      );
+
       if (
         resp.documentAuthenticity === "likely_template_or_sample" ||
         resp.nameConfidence === "low"
@@ -239,17 +251,28 @@ export default function SubmissionManagementPage() {
       return;
     }
 
+    // File saved but name not detected — keep document for preview / re-extract.
     setCnicName("");
-    dispatch(addToast({ message: resp.message, type: "warning", duration: 7000 }));
+    dispatch(
+      addToast({
+        message: resp.message || "ID uploaded, but legal name was not detected.",
+        type: "warning",
+        duration: 7000,
+      })
+    );
   };
 
   const identityPreviewUrl = useMemo(() => {
     const file = identityDocument?.file;
-    if (file && typeof file === "object") {
-      return file.url || file.meta?.thumbnail_url || null;
-    }
-    return null;
-  }, [identityDocument?.file]);
+    if (!file || typeof file !== "object") return null;
+    const raw =
+      file.url ||
+      file.meta?.thumbnail_url ||
+      null;
+    if (!raw) return null;
+    const trimmed = String(raw).trim();
+    return trimmed || null;
+  }, [identityDocument]);
 
   const identityDocumentName = useMemo(() => {
     if (identityDocument?.document_name) {
@@ -399,7 +422,7 @@ export default function SubmissionManagementPage() {
                   manualSubmitting={cnicLoading}
                   error={cnicError}
                   uploadIdentity={handleUploadIdentity}
-                  onIdentityUploaded={() => void refreshIdentitySlice()}
+                  onIdentityUploaded={refreshIdentitySlice}
                   onUploadError={setCnicError}
                   manualName={manualLegalName}
                   setManualName={setManualLegalName}

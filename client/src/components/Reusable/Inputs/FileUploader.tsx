@@ -18,7 +18,7 @@ export type FileUploaderProps = {
   uploadButtonLoadingLabel?: string;
   /** Upload a single file (called once per queued file, in order). */
   uploadFile: FileUploadTask;
-  onAllComplete?: () => void;
+  onAllComplete?: () => void | Promise<void>;
   onUploadError?: (errors: { fileName: string; error: string }[]) => void;
   onFilesChange?: (files: File[]) => void;
   /** Reset queue when this value changes (e.g. modal open state). */
@@ -66,8 +66,11 @@ export default function FileUploader({
       return;
     }
     if (result.ok) {
-      onAllComplete?.();
-      clear();
+      try {
+        await onAllComplete?.();
+      } finally {
+        clear();
+      }
     }
   }, [clear, onAllComplete, onUploadError, queue, uploadFile]);
 

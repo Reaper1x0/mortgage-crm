@@ -24,7 +24,7 @@ export type Step1Props = {
   manualSubmitting?: boolean;
   error: string | null;
   uploadIdentity: (file: File, onProgress: FileUploadProgressCallback) => Promise<void>;
-  onIdentityUploaded?: () => void;
+  onIdentityUploaded?: () => void | Promise<void>;
   onUploadError?: (message: string) => void;
   manualName: string;
   setManualName: (v: string) => void;
@@ -61,13 +61,19 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
     if (cnicName) setMode("upload");
   }, [cnicName]);
 
+  // Keep local blob preview after modal closes until a server URL arrives.
   useEffect(() => {
-    if (!uploadModalOpen) {
-      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+    if (identityPreviewUrl && localPreviewUrl) {
+      URL.revokeObjectURL(localPreviewUrl);
       setLocalPreviewUrl(null);
-      setPickedFileName(null);
     }
-  }, [uploadModalOpen, localPreviewUrl]);
+  }, [identityPreviewUrl, localPreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+    };
+  }, [localPreviewUrl]);
 
   const displayImageUrl = localPreviewUrl || identityPreviewUrl;
   const displayDocumentName = pickedFileName || identityDocumentName;
@@ -122,16 +128,26 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
         ? "We extracted a name, but confidence is low. Double-check it against the physical ID."
         : "Document authenticity could not be fully verified. Confirm the legal name manually.");
 
-  const renderIdentityPreview = (className?: string) =>
-    displayImageUrl ? (
-      <div className={cn("overflow-hidden rounded-lg border border-card-border bg-card", className)}>
+  const renderIdentityPreview = (className?: string) => (
+    <div
+      className={cn(
+        "flex h-40 w-full items-center justify-center overflow-hidden rounded-lg border border-card-border bg-card sm:h-44",
+        className
+      )}
+    >
+      {displayImageUrl ? (
         <img
           src={displayImageUrl}
           alt="Uploaded identification document"
-          className="h-40 w-full object-contain sm:h-44"
+          className="h-full w-full object-contain"
         />
-      </div>
-    ) : null;
+      ) : (
+        <div className="px-3 text-center text-xs text-card-text">
+          {displayDocumentName || "ID uploaded"}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -325,9 +341,13 @@ const Step1IdentityUpload: React.FC<Step1Props> = ({
             uploadButtonLabel={isReextract ? "Re-extract" : "Extract name"}
             uploadFile={uploadIdentity}
             onFilesChange={handleFilesChange}
-            onAllComplete={() => {
-              onIdentityUploaded?.();
-              setUploadModalOpen(false);
+            onAllComplete={async () => {
+              try {
+                await onIdentityUploaded?.();
+              } finally {
+                // Keep localPreviewUrl — cleared only when server preview URL arrives.
+                setUploadModalOpen(false);
+              }
             }}
             onUploadError={(errors) => {
               onUploadError?.(errors[0]?.error || "Upload failed.");

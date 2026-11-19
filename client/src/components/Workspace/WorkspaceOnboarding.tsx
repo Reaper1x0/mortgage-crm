@@ -86,8 +86,8 @@ const WorkspaceOnboarding: React.FC = () => {
 
       if (s.step === "complete" && s.organizationId) {
         await refreshWorkspaces();
-        // Organization-primary home; user can open a workspace from the switcher.
-        navigate(buildOrganizationPath(s.organizationId, "settings/organization"), {
+        // Organization overview (KPIs + workspace cards); open a workspace from there.
+        navigate(buildOrganizationPath(s.organizationId, "dashboard"), {
           replace: true,
         });
         return;

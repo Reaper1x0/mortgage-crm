@@ -18,21 +18,25 @@ export default function ProtectedRoute({
   workspacePermissionsAny = [],
   requireWorkspace = true,
 }: ProtectedRouteProps) {
-  const { user, loading, role, workspaces, workspacesLoaded, activeWorkspaceId, bootstrapStatus } =
+  const { user, loading, workspaces, workspacesLoaded, activeWorkspaceId, bootstrapStatus } =
     useAuth();
   const location = useLocation();
   const perm = usePermissionsOptional();
 
   if (loading || (user && !workspacesLoaded)) {
-    return (
-      <AppLoadingCard
-        message={bootstrapStatus || "Loading your session…"}
-      />
-    );
+    return <AppLoadingCard message={bootstrapStatus || "Loading your session…"} />;
   }
 
   if (!user) {
     return <Navigate to="/" replace state={{ from: location }} />;
+  }
+
+  // System roles (e.g. superAdmin) apply to any protected route, not only /workspaces/*.
+  if (roles.length > 0) {
+    const systemRole = user.role || null;
+    if (!systemRole || !roles.includes(systemRole)) {
+      return <Navigate to="/unauthorized" replace state={{ from: location }} />;
+    }
   }
 
   const isOnboarding = location.pathname.includes("/onboarding");
@@ -47,10 +51,6 @@ export default function ProtectedRoute({
 
   const isWorkspaceScopedRoute = location.pathname.includes("/workspaces/");
   const isTenantScopedRoute = /^\/[a-f\d]{24}(\/|$)/i.test(location.pathname);
-
-  // `perm.loading` is scope-aware: it stays true until the permissions for the current
-  // org/workspace scope have loaded (including right after onboarding creates a workspace),
-  // which prevents a false "access denied" flash from stale/empty permission data.
   const permissionsPending = perm?.loading ?? false;
 
   if (!isOnboarding && isTenantScopedRoute && organizationPermissionsAny.length > 0) {
@@ -65,25 +65,15 @@ export default function ProtectedRoute({
     }
   }
 
-  if (!isOnboarding && isWorkspaceScopedRoute) {
-    if (roles.includes("superAdmin") && user?.role === "superAdmin") {
-      // ok
-    } else if (workspacePermissionsAny.length > 0) {
-      if (permissionsPending) {
-        return <AppLoadingCard message="Loading workspace access…" />;
-      }
-      const ok =
-        (perm?.canAnyWorkspace(workspacePermissionsAny) ?? false) ||
-        perm?.effective?.isOrgOwner === true;
-      if (!ok) {
-        return <Navigate to="/unauthorized" replace state={{ from: location }} />;
-      }
-    } else if (roles.length > 0) {
-      if (!role) {
-        return <AppLoadingCard message="Loading workspace…" />;
-      } else if (!roles.includes(role)) {
-        return <Navigate to="/unauthorized" replace state={{ from: location }} />;
-      }
+  if (!isOnboarding && isWorkspaceScopedRoute && workspacePermissionsAny.length > 0) {
+    if (permissionsPending) {
+      return <AppLoadingCard message="Loading workspace access…" />;
+    }
+    const ok =
+      (perm?.canAnyWorkspace(workspacePermissionsAny) ?? false) ||
+      perm?.effective?.isOrgOwner === true;
+    if (!ok) {
+      return <Navigate to="/unauthorized" replace state={{ from: location }} />;
     }
   }
 

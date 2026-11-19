@@ -3,7 +3,7 @@ import { Outlet, useParams } from "react-router";
 import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
 import { RiBuildingLine } from "react-icons/ri";
-import { FiCreditCard, FiGrid, FiUsers, FiShield } from "react-icons/fi";
+import { FiCreditCard, FiGrid, FiHome, FiShield, FiUsers } from "react-icons/fi";
 import { usePermissions } from "../../context/PermissionContext";
 import BillingAccessBanner from "../Reusable/BillingAccessBanner";
 import AppLoadingCard from "../Reusable/AppLoadingCard";
@@ -11,27 +11,30 @@ import AppLoadingCard from "../Reusable/AppLoadingCard";
 export default function SettingsLayout() {
   const { organizationId } = useParams();
   const { canOrg, loading } = usePermissions();
-  const base = organizationId ? `/${organizationId}/settings` : "/settings";
+  const orgBase = organizationId ? `/${organizationId}` : "";
+  const settingsBase = organizationId ? `/${organizationId}/settings` : "/settings";
 
   const links: SidebarLink[] = useMemo(() => {
-    const core: SidebarLink[] = [];
+    const core: SidebarLink[] = [
+      { to: `${orgBase}/dashboard`, label: "Overview", icon: FiHome },
+    ];
     if (canOrg("organization.organization.read")) {
-      core.push({ to: `${base}/organization`, label: "Organization", icon: RiBuildingLine });
+      core.push({ to: `${settingsBase}/organization`, label: "Organization", icon: RiBuildingLine });
     }
     if (canOrg("organization.organization.read") || canOrg("organization.workspaces.create")) {
-      core.push({ to: `${base}/workspaces`, label: "Workspaces", icon: FiGrid });
+      core.push({ to: `${settingsBase}/workspaces`, label: "Workspaces", icon: FiGrid });
     }
     if (canOrg("organization.members.read")) {
-      core.push({ to: `${base}/users`, label: "Users", icon: FiUsers });
+      core.push({ to: `${settingsBase}/users`, label: "Users", icon: FiUsers });
     }
     if (canOrg("organization.billing.read") || canOrg("organization.billing.manage")) {
-      core.push({ to: `${base}/billing`, label: "Billing", icon: FiCreditCard });
+      core.push({ to: `${settingsBase}/billing`, label: "Billing", icon: FiCreditCard });
     }
     if (canOrg("organization.rbac.manage")) {
-      core.push({ to: `${base}/access`, label: "Roles", icon: FiShield });
+      core.push({ to: `${settingsBase}/access`, label: "Roles", icon: FiShield });
     }
     return core;
-  }, [base, canOrg]);
+  }, [orgBase, settingsBase, canOrg]);
 
   // Don't paint an empty sidebar while org permissions are still resolving.
   if (loading) {
@@ -53,7 +56,7 @@ export default function SettingsLayout() {
       <Navbar />
       <div className="pt-14">
         <div className="flex w-full">
-          <Sidebar links={links} sectionLabel="Organization settings" />
+          <Sidebar links={links} sectionLabel="Organization" />
           <main className="min-w-0 flex-1 px-8 py-8">
             <BillingAccessBanner />
             <Outlet />

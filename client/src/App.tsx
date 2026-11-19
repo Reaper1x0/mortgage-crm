@@ -8,6 +8,8 @@ import ForgotPassword from "./components/Auth/ForgotPassword";
 import NotFoundPage from "./components/Static/NotFoundPage";
 import UnauthorizedPage from "./components/Static/UnauthorizedPage";
 import Profile from "./components/Auth/Profile";
+import SecuritySettings from "./components/Auth/SecuritySettings";
+import PreferencesSettings from "./components/Auth/PreferencesSettings";
 import MasterFieldTable from "./components/MasterField/MasterFieldTable";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
 import PublicRoute from "./components/Auth/PublicRoute";
@@ -25,6 +27,7 @@ import WorkspaceOnboarding from "./components/Workspace/WorkspaceOnboarding";
 import SettingsLayout from "./components/Layout/SettingsLayout";
 import AccountSettingsLayout from "./components/Layout/AccountSettingsLayout";
 import OrganizationSettings from "./components/Workspace/OrganizationSettings";
+import OrganizationOverview from "./components/Workspace/OrganizationOverview";
 import SuperAdminLayout from "./components/Layout/SuperAdminLayout";
 import SuperAdminUsersPage from "./components/SuperAdmin/SuperAdminUsersPage";
 import SuperAdminOrganizationsPage from "./components/SuperAdmin/SuperAdminOrganizationsPage";
@@ -59,14 +62,6 @@ function SyncTenantFromUrl() {
     setActiveWorkspaceId(t.workspaceId);
   }, [location.pathname, setActiveOrganizationId, setActiveWorkspaceId]);
   return null;
-}
-
-function OrgDashboardRedirect() {
-  const { organizationId } = useParams();
-  if (organizationId) {
-    return <Navigate to={buildOrganizationPath(organizationId, "settings/organization")} replace />;
-  }
-  return <Navigate to="/onboarding" replace />;
 }
 
 function LegacyWorkspaceRedirect() {
@@ -151,7 +146,9 @@ function App() {
                 />
               }
             >
-              <Route path="dashboard" element={<OrgDashboardRedirect />} />
+              <Route element={<SettingsLayout />}>
+                <Route path="dashboard" element={<OrganizationOverview />} />
+              </Route>
               <Route element={<WorkspaceLayout />}>
                 <Route path="onboarding" element={<WorkspaceOnboarding />} />
               </Route>
@@ -160,6 +157,8 @@ function App() {
                 <Route element={<AccountSettingsLayout />}>
                   <Route index element={<Navigate to="profile" replace />} />
                   <Route path="profile" element={<Profile />} />
+                  <Route path="security" element={<SecuritySettings />} />
+                  <Route path="preferences" element={<PreferencesSettings />} />
                 </Route>
               </Route>
               <Route
@@ -302,6 +301,8 @@ function App() {
                 <Route path="subscriptions/:id" element={<SuperAdminSubscriptionDetailPage />} />
                 <Route path="plans" element={<SuperAdminPlansPage />} />
                 <Route path="profile" element={<Profile />} />
+                <Route path="security" element={<SecuritySettings />} />
+                <Route path="preferences" element={<PreferencesSettings />} />
               </Route>
             </Route>
             <Route path="/unauthorized" element={<Layout element={<UnauthorizedPage />} />} />

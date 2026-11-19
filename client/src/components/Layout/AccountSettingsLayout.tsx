@@ -2,15 +2,19 @@ import { useMemo } from "react";
 import { Outlet, useParams } from "react-router";
 import Navbar from "./Navbar";
 import Sidebar, { SidebarLink } from "../Reusable/Sidebar";
-import { FiUser } from "react-icons/fi";
+import { FiLock, FiSettings, FiUser } from "react-icons/fi";
 
 export default function AccountSettingsLayout() {
   const { organizationId } = useParams();
   const base = organizationId ? `/${organizationId}/account` : "/account";
 
   const links: SidebarLink[] = useMemo(
-    () => [{ to: `${base}/profile`, label: "Profile", icon: FiUser }],
-    [base]
+    () => [
+      { to: `${base}/profile`, label: "Profile", icon: FiUser },
+      { to: `${base}/security`, label: "Security", icon: FiLock },
+      { to: `${base}/preferences`, label: "Preferences", icon: FiSettings },
+    ],
+    [base],
   );
 
   return (

@@ -73,7 +73,9 @@ export function resolveAppDestination({
   lastOrganizationId,
   from,
 }: ResolveAppDestinationInput): string {
-  if (user.role === "superAdmin") {
+  const isSuperAdmin = user.role === "superAdmin";
+
+  if (isSuperAdmin) {
     return "/super-admin/dashboard";
   }
 
@@ -84,14 +86,16 @@ export function resolveAppDestination({
   const fromPath = typeof from === "string" ? from.trim() : "";
   if (fromPath.startsWith("/") && !fromPath.startsWith("//")) {
     const pathOnly = fromPath.split("?")[0];
-    if (
-      pathOnly !== "/" &&
-      pathOnly !== "/register" &&
-      pathOnly !== "/forgot-password" &&
-      pathOnly !== "/email-verification" &&
-      pathOnly !== "/onboarding" &&
-      !pathOnly.startsWith("/email-verification")
-    ) {
+    const isAuthPage =
+      pathOnly === "/" ||
+      pathOnly === "/register" ||
+      pathOnly === "/forgot-password" ||
+      pathOnly === "/email-verification" ||
+      pathOnly === "/onboarding" ||
+      pathOnly.startsWith("/email-verification");
+    const isSuperAdminPath = pathOnly === "/super-admin" || pathOnly.startsWith("/super-admin/");
+    // Never restore a privileged deep link the signed-in user cannot use.
+    if (!isAuthPage && (!isSuperAdminPath || isSuperAdmin)) {
       return fromPath;
     }
   }
@@ -108,7 +112,8 @@ export function resolveAppDestination({
 
   const membership = organizations.find((o) => o.organizationId === orgId);
   if (isOrgManager(membership)) {
-    return buildOrganizationPath(orgId, "settings/organization");
+    // Org owners/admins land on organization overview (KPIs + workspace cards).
+    return buildOrganizationPath(orgId, "dashboard");
   }
 
   // Workspace-only members: stay under the preferred org, open its first workspace.
@@ -117,5 +122,5 @@ export function resolveAppDestination({
     return buildWorkspacePath(orgId, wsId, "dashboard");
   }
 
-  return buildOrganizationPath(orgId, "settings/organization");
+  return buildOrganizationPath(orgId, "dashboard");
 }
