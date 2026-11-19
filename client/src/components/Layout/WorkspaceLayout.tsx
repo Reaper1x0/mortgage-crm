@@ -9,6 +9,7 @@ import { FiActivity, FiUsers, FiUserPlus } from "react-icons/fi";
 import { GrDashboard } from "react-icons/gr";
 import { useEffect, useMemo } from "react";
 import BillingAccessBanner from "../Reusable/BillingAccessBanner";
+import AppLoadingCard from "../Reusable/AppLoadingCard";
 
 export default function WorkspaceLayout() {
   const { activeWorkspaceId, setActiveWorkspaceId, setActiveOrganizationId, workspaces } = useAuth();
@@ -19,6 +20,7 @@ export default function WorkspaceLayout() {
   const isOnboarding = location.pathname.includes("/onboarding");
   const isTemplateDesigner =
     location.pathname.includes("/template-maker/") && location.pathname.includes("/manage");
+  const permissionsPending = Boolean(workspaceId && !isOnboarding && perm?.loading);
 
   const withWorkspace = (suffix: string) =>
     organizationId && workspaceId
@@ -68,6 +70,17 @@ export default function WorkspaceLayout() {
     if (organizationId) setActiveOrganizationId(organizationId);
     if (workspaceIdParam) setActiveWorkspaceId(workspaceIdParam);
   }, [organizationId, workspaceIdParam, setActiveOrganizationId, setActiveWorkspaceId]);
+
+  if (permissionsPending) {
+    return (
+      <div className="min-h-screen bg-background text-text">
+        <Navbar />
+        <div className="pt-14">
+          <AppLoadingCard variant="panel" message="Loading workspace access…" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-text">

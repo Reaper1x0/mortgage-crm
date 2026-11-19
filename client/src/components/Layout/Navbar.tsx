@@ -1,7 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useTheme } from "../../context/ThemeContext";
-import DropdownMenu from "../Reusable/DropdownMenu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../Reusable/DropdownMenu";
 import Modal from "../Reusable/Modal";
 import Button from "../Reusable/Button";
 import Avatar from "../Reusable/Avatar";
@@ -10,7 +17,11 @@ import { cn } from "../../utils/cn";
 import { FiSun, FiMoon, FiChevronDown, FiCheck } from "react-icons/fi";
 import { RiBuildingLine } from "react-icons/ri";
 import OrgLogo from "../Reusable/OrgLogo";
-import { resolveOrganizationLogoUrl } from "../../utils/orgLogo";
+import {
+  readCachedOrganizationLogoUrl,
+  resolveOrganizationLogoUrl,
+  writeCachedOrganizationLogoUrl,
+} from "../../utils/orgLogo";
 import { useAuth } from "../../context/AuthContext";
 import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
 import Tooltip from "../Reusable/Tooltip";
@@ -50,7 +61,10 @@ const Navbar = () => {
       : null) ||
     null;
   const organizationName = activeOrganization?.name || activeWorkspace?.organization?.name || "Mortgage CRM";
-  const organizationLogo = resolveOrganizationLogoUrl(activeOrganization, activeWorkspace);
+  const currentOrganizationId = activeOrganization?.organizationId || activeOrganizationId;
+  const organizationLogo =
+    resolveOrganizationLogoUrl(activeOrganization, activeWorkspace) ||
+    readCachedOrganizationLogoUrl(currentOrganizationId);
   const refreshLogo = () => {
     const now = Date.now();
     if (now - logoRefreshAt.current < 15000) return;
@@ -59,7 +73,6 @@ const Navbar = () => {
   };
   const pickerPrimary = activeWorkspace?.name || organizationName || "Organization";
   const pickerSecondary = activeWorkspace ? organizationName : "Organization";
-  const currentOrganizationId = activeOrganization?.organizationId || activeOrganizationId;
   const orderedOrganizations = [...organizations].sort((a, b) => {
     const aCurrent = a.organizationId === currentOrganizationId;
     const bCurrent = b.organizationId === currentOrganizationId;
@@ -142,8 +155,14 @@ const Navbar = () => {
               src={organizationLogo}
               alt={organizationName}
               size="nav"
-              fallback="none"
-              onLoadError={refreshLogo}
+              initials={organizationName.slice(0, 2)}
+              fallback="icon"
+              onLoadError={() => {
+                if (currentOrganizationId) {
+                  writeCachedOrganizationLogoUrl(currentOrganizationId, null);
+                }
+                refreshLogo();
+              }}
             />
             <span className="truncate font-extrabold tracking-tight">{organizationName}</span>
             {activeWorkspace?.name ? (
@@ -191,7 +210,9 @@ const Navbar = () => {
                       >
                         <div className="max-h-80 overflow-y-auto">
                           {orderedOrganizations.map((org, orgIndex) => {
-                            const orgLogo = resolveOrganizationLogoUrl(org, org.workspaces[0]);
+                            const orgLogo =
+                              resolveOrganizationLogoUrl(org, org.workspaces[0]) ||
+                              readCachedOrganizationLogoUrl(org.organizationId);
                             const hasWorkspaces = org.workspaces.length > 0;
 
                             return (
@@ -205,7 +226,11 @@ const Navbar = () => {
                                     src={orgLogo}
                                     alt=""
                                     size="menu"
-                                    onLoadError={refreshLogo}
+                                    initials={org.name.slice(0, 2)}
+                                    onLoadError={() => {
+                                      writeCachedOrganizationLogoUrl(org.organizationId, null);
+                                      refreshLogo();
+                                    }}
                                   />
                                   <span className="min-w-0 flex-1 truncate text-sm font-semibold text-text">
                                     {org.name}
@@ -310,10 +335,8 @@ const Navbar = () => {
                 </button>
                 </Tooltip>
 
-                {/* User dropdown */}
-                <DropdownMenu
-                  position="left-down"
-                  button={
+                <DropdownMenu position="left-down">
+                  <DropdownMenuTrigger>
                     <button
                       type="button"
                       className={cn(
@@ -326,51 +349,34 @@ const Navbar = () => {
                       aria-label="User menu"
                     >
                       <Avatar user={userInfo} size="sm" />
-
                       <div className="hidden sm:flex flex-col pr-2">
-                        <span className="text-sm font-semibold text-text leading-tight">
+                        <span className="text-sm font-semibold leading-tight text-text">
                           {user?.fullName || "User"}
                         </span>
                       </div>
                     </button>
-                  }
-                >
-                  <div className="min-w-[240px]">
-                    <div className="px-2 py-2">
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="min-w-[240px]">
+                    <DropdownMenuLabel>
                       <div className="text-sm font-semibold text-text">{user?.fullName || "User"}</div>
                       <div className="text-xs text-card-text">{user?.email || ""}</div>
-                    </div>
-
-                    <div className="my-2 border-t border-card-border" />
-
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
                     <div className="flex flex-col gap-1">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          activeOrganizationId &&
-                          navigate(buildOrganizationPath(activeOrganizationId, "account/profile"))
-                        }
-                        className={cn(
-                          "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
-                          "transition-all duration-200 hover:bg-card-hover text-text"
-                        )}
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          if (activeOrganizationId) {
+                            navigate(buildOrganizationPath(activeOrganizationId, "account/profile"));
+                          }
+                        }}
                       >
                         Account settings
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setLogoutModalOpen(true)}
-                        className={cn(
-                          "w-full rounded-xl px-3 py-2 text-left text-sm font-semibold",
-                          "transition-all duration-200 hover:bg-card-hover",
-                          "text-danger"
-                        )}
-                      >
+                      </DropdownMenuItem>
+                      <DropdownMenuItem tone="danger" onSelect={() => setLogoutModalOpen(true)}>
                         Logout
-                      </button>
+                      </DropdownMenuItem>
                     </div>
-                  </div>
+                  </DropdownMenuContent>
                 </DropdownMenu>
               </>
             )}

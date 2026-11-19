@@ -1,6 +1,7 @@
 import { Navigate, useLocation, Outlet } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import { usePermissionsOptional } from "../../context/PermissionContext";
+import AppLoadingCard from "../Reusable/AppLoadingCard";
 
 interface ProtectedRouteProps {
   roles?: string[];
@@ -17,15 +18,16 @@ export default function ProtectedRoute({
   workspacePermissionsAny = [],
   requireWorkspace = true,
 }: ProtectedRouteProps) {
-  const { user, loading, role, workspaces, workspacesLoaded, activeWorkspaceId } = useAuth();
+  const { user, loading, role, workspaces, workspacesLoaded, activeWorkspaceId, bootstrapStatus } =
+    useAuth();
   const location = useLocation();
   const perm = usePermissionsOptional();
 
   if (loading || (user && !workspacesLoaded)) {
     return (
-      <div className="min-h-[50vh] flex items-center justify-center">
-        <div className="text-sm text-slate-500">Loading…</div>
-      </div>
+      <AppLoadingCard
+        message={bootstrapStatus || "Loading your session…"}
+      />
     );
   }
 
@@ -40,11 +42,7 @@ export default function ProtectedRoute({
   }
 
   if (requireWorkspace && !isOnboarding && workspaces.length > 0 && !activeWorkspaceId) {
-    return (
-      <div className="min-h-[50vh] flex items-center justify-center">
-        <div className="text-sm text-slate-500">Loading workspace…</div>
-      </div>
-    );
+    return <AppLoadingCard message="Loading workspace…" />;
   }
 
   const isWorkspaceScopedRoute = location.pathname.includes("/workspaces/");
@@ -57,11 +55,7 @@ export default function ProtectedRoute({
 
   if (!isOnboarding && isTenantScopedRoute && organizationPermissionsAny.length > 0) {
     if (permissionsPending) {
-      return (
-        <div className="min-h-[50vh] flex items-center justify-center">
-          <div className="text-sm text-slate-500">Loading…</div>
-        </div>
-      );
+      return <AppLoadingCard message="Loading organization access…" />;
     }
     const ok =
       (perm?.canAnyOrg(organizationPermissionsAny) ?? false) ||
@@ -76,11 +70,7 @@ export default function ProtectedRoute({
       // ok
     } else if (workspacePermissionsAny.length > 0) {
       if (permissionsPending) {
-        return (
-          <div className="min-h-[50vh] flex items-center justify-center">
-            <div className="text-sm text-slate-500">Loading…</div>
-          </div>
-        );
+        return <AppLoadingCard message="Loading workspace access…" />;
       }
       const ok =
         (perm?.canAnyWorkspace(workspacePermissionsAny) ?? false) ||
@@ -90,11 +80,7 @@ export default function ProtectedRoute({
       }
     } else if (roles.length > 0) {
       if (!role) {
-        return (
-          <div className="min-h-[50vh] flex items-center justify-center">
-            <div className="text-sm text-slate-500">Loading workspace…</div>
-          </div>
-        );
+        return <AppLoadingCard message="Loading workspace…" />;
       } else if (!roles.includes(role)) {
         return <Navigate to="/unauthorized" replace state={{ from: location }} />;
       }

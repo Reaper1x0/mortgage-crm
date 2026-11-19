@@ -40,8 +40,7 @@ const WorkspaceOnboarding: React.FC = () => {
   const urlOrgId =
     urlOrgParam && OBJECT_ID_RE.test(urlOrgParam.trim()) ? urlOrgParam.trim() : null;
 
-  const { user, workspaces, refreshWorkspaces, setActiveWorkspaceId, isAuthenticated, loading } =
-    useAuth();
+  const { user, refreshWorkspaces, setActiveWorkspaceId, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
 
   const [session, setSession] = useState<OnboardingSessionState | null>(null);
@@ -75,15 +74,6 @@ const WorkspaceOnboarding: React.FC = () => {
     }
   }, [urlOrgParam, urlOrgId, navigate]);
 
-  useEffect(() => {
-    if (workspaces.length > 0) {
-      const first = workspaces[0];
-      const oid = first?.organization?.organizationId;
-      const wsId = first?.workspaceId;
-      if (oid && wsId) navigate(buildWorkspacePath(oid, wsId, "dashboard"), { replace: true });
-    }
-  }, [workspaces, navigate]);
-
   const fetchSession = async () => {
     setSessionLoading(true);
     setSessionError(null);
@@ -94,9 +84,10 @@ const WorkspaceOnboarding: React.FC = () => {
 
       setSession(s);
 
-      if (s.step === "complete" && s.organizationId && s.workspaceId) {
+      if (s.step === "complete" && s.organizationId) {
         await refreshWorkspaces();
-        navigate(buildWorkspacePath(s.organizationId, s.workspaceId, "dashboard"), {
+        // Organization-primary home; user can open a workspace from the switcher.
+        navigate(buildOrganizationPath(s.organizationId, "settings/organization"), {
           replace: true,
         });
         return;

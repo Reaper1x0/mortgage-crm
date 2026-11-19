@@ -1,21 +1,20 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "../../redux/store";
 import { loginUser } from "../../redux/slices/authSlice";
 import Form, { FormSection } from "../Reusable/Inputs/Form";
-import { Link, useNavigate, useLocation } from "react-router";
+import { Link, useNavigate } from "react-router";
 import AuthPage from "./AuthPage";
 import { ButtonProps } from "../Reusable/Button";
-import { useAuth } from "../../context/AuthContext";
-import { buildOrganizationPath, buildWorkspacePath } from "../../utils/tenantRouting";
 
+/**
+ * Login form only. Post-auth routing is owned by AppEntryGate / PublicRoute
+ * so destination logic stays organization-first and single-sourced.
+ */
 const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { loading, error } = useSelector((state: RootState) => state.auth);
-  const { user, isAuthenticated, workspaces } = useAuth();
-  const hasNavigated = useRef(false);
 
   const fields: FormSection["fields"] = [
     {
@@ -67,40 +66,11 @@ const Login: React.FC = () => {
   const handleSubmit = async (values: Record<string, any>) => {
     try {
       await dispatch(loginUser(values)).unwrap();
-      // Navigation will be handled by useEffect below when user becomes available
-    } catch (error) {
-      // Error is handled by Redux
-      console.error("Login failed:", error);
+      // AppEntryGate remounts once memberships load and navigates organization-first.
+    } catch (err) {
+      console.error("Login failed:", err);
     }
   };
-
-  // Navigate after successful login when user becomes available
-  useEffect(() => {
-    // Only navigate if we're still on the login page and haven't navigated yet
-    if (isAuthenticated && user && location.pathname === "/" && !hasNavigated.current) {
-      hasNavigated.current = true;
-      if (user.isEmailVerified) {
-        if (user.role === "superAdmin") {
-          navigate("/super-admin/dashboard", { replace: true });
-          return;
-        }
-        const firstWorkspace = workspaces[0];
-        const orgId = firstWorkspace?.organization?.organizationId;
-        const wsId = firstWorkspace?.workspaceId;
-        if (orgId && wsId) {
-          navigate(buildWorkspacePath(orgId, wsId, "dashboard"), { replace: true });
-          return;
-        }
-        if (orgId) {
-          navigate(buildOrganizationPath(orgId, "dashboard"), { replace: true });
-          return;
-        }
-        navigate("/onboarding", { replace: true });
-      } else {
-        navigate("/email-verification", { replace: true });
-      }
-    }
-  }, [isAuthenticated, user, navigate, location.pathname, workspaces]);
 
   return (
     <AuthPage heading="Login" subheading="Enter your credentials to continue">

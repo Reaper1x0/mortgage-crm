@@ -13,7 +13,23 @@ import { UserService } from "../service/userService";
 import { AuthService } from "../service/authService";
 import { WorkspaceService, WorkspaceSummary, OrganizationMembership } from "../service/workspaceService";
 import { getTenantFromPath } from "../utils/tenantRouting";
-import { resolveOrganizationLogoUrl } from "../utils/orgLogo";
+import {
+  cacheOrganizationLogosFromMemberships,
+  readCachedOrganizationLogoUrl,
+  resolveOrganizationLogoUrl,
+} from "../utils/orgLogo";
+import {
+  pickPreferredOrganizationId,
+  readLastOrganizationId,
+  writeLastOrganizationId,
+} from "../utils/resolveAppDestination";
+
+export type AuthBootstrapStatus =
+  | "Checking your session…"
+  | "Fetching your profile…"
+  | "Loading organization details…"
+  | "Preparing your workspace…"
+  | "Ready";
 
 interface AuthContextType {
   user: User | null;
@@ -24,6 +40,10 @@ interface AuthContextType {
   workspaces: WorkspaceSummary[];
   organizations: OrganizationMembership[];
   workspacesLoaded: boolean;
+  /** True once initial profile + memberships have settled (or there is no session). */
+  authBootstrapComplete: boolean;
+  /** Human-readable step for the entry gate loading card. */
+  bootstrapStatus: AuthBootstrapStatus;
   activeOrganizationId: string | null;
   activeWorkspaceId: string | null;
   setActiveOrganizationId: (id: string | null) => void;
@@ -43,6 +63,8 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [bootstrapStatus, setBootstrapStatus] =
+    useState<AuthBootstrapStatus>("Checking your session…");
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [organizations, setOrganizations] = useState<OrganizationMembership[]>([]);
   const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
@@ -61,8 +83,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const accessToken = localStorage.getItem("accessToken");
 
       if (storedUser && accessToken) {
-        const parsedUser = JSON.parse(storedUser) as User;
-        return parsedUser;
+        return JSON.parse(storedUser) as User;
       }
     } catch (error) {
       console.error("Failed to parse user from localStorage:", error);
@@ -72,6 +93,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const setActiveOrganizationId = useCallback((id: string | null) => {
     setActiveOrganizationIdState(id);
+    if (id) writeLastOrganizationId(id);
   }, []);
 
   const setActiveWorkspaceId = useCallback((id: string | null) => {
@@ -87,33 +109,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setWorkspacesLoaded(true);
       return;
     }
+
+    setBootstrapStatus("Loading organization details…");
     try {
       const response = await WorkspaceService.list();
       const list = response.data?.workspaces ?? [];
       const orgList = response.data?.organizations ?? [];
       setWorkspaces(list);
       setOrganizations(orgList);
+      cacheOrganizationLogosFromMemberships(orgList);
 
-      const tenantFromPath = getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "");
+      const tenantFromPath = getTenantFromPath(
+        typeof window !== "undefined" ? window.location.pathname : "",
+      );
+      const stickyOrg = readLastOrganizationId();
+
       if (tenantFromPath.organizationId) {
         setActiveOrganizationId(tenantFromPath.organizationId);
       } else {
-        const orgFromActiveWorkspace =
-          list.find((w) => w.workspaceId === activeWorkspaceId)?.organization?.organizationId ?? null;
-        if (orgFromActiveWorkspace) {
-          setActiveOrganizationId(orgFromActiveWorkspace);
-        } else if (orgList[0]?.organizationId) {
-          setActiveOrganizationId(orgList[0].organizationId);
-        }
+        const preferred = pickPreferredOrganizationId(orgList, list, stickyOrg);
+        setActiveOrganizationId(preferred);
       }
 
       if (tenantFromPath.workspaceId && list.some((w) => w.workspaceId === tenantFromPath.workspaceId)) {
         setActiveWorkspaceId(tenantFromPath.workspaceId);
       } else if (!tenantFromPath.workspaceId) {
+        // Org-primary: do not invent a workspace when the URL is org-only or public.
         setActiveWorkspaceId(null);
-      } else if (list.length > 0) {
-        setActiveWorkspaceId(list[0].workspaceId);
       } else {
+        // Deep link pointed at a workspace the user no longer has.
         setActiveWorkspaceId(null);
       }
     } catch (e) {
@@ -123,33 +147,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setWorkspacesLoaded(true);
     }
-  }, [activeWorkspaceId, setActiveOrganizationId, setActiveWorkspaceId]);
+  }, [setActiveOrganizationId, setActiveWorkspaceId]);
 
   const fetchProfile = useCallback(async (): Promise<void> => {
     const accessToken = localStorage.getItem("accessToken");
     if (!accessToken) {
       setUser(null);
-      setLoading(false);
       setWorkspaces([]);
       setOrganizations([]);
       setWorkspacesLoaded(true);
+      setLoading(false);
       return;
     }
 
+    setLoading(true);
+    setBootstrapStatus("Fetching your profile…");
     try {
       const response = await UserService.getProfile();
       if (response?.user) {
         const userData = response.user as User;
         setUser(userData);
         localStorage.setItem("user", JSON.stringify(userData));
-        window.dispatchEvent(new CustomEvent("auth:user-updated", { detail: userData }));
       } else {
         setUser(null);
         localStorage.removeItem("user");
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
+        setWorkspaces([]);
+        setOrganizations([]);
+        setWorkspacesLoaded(true);
+        setBootstrapStatus("Ready");
+        return;
       }
+      setBootstrapStatus("Loading organization details…");
       await refreshWorkspaces();
+      setBootstrapStatus("Preparing your workspace…");
     } catch (error: any) {
       console.error("Failed to fetch profile:", error);
       if (error?.response?.status === 401 || error?.response?.status === 403) {
@@ -157,14 +189,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.removeItem("user");
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
+        setWorkspaces([]);
+        setOrganizations([]);
+        setWorkspacesLoaded(true);
       } else {
         const storedUser = loadUserFromStorage();
         if (storedUser) {
           setUser(storedUser);
         }
+        setBootstrapStatus("Loading organization details…");
         await refreshWorkspaces();
       }
     } finally {
+      setBootstrapStatus("Ready");
       setLoading(false);
     }
   }, [loadUserFromStorage, refreshWorkspaces]);
@@ -204,6 +241,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setWorkspacesLoaded(true);
       setActiveOrganizationIdState(null);
       setActiveWorkspaceIdState(null);
+      setLoading(false);
       window.dispatchEvent(new CustomEvent("auth:user-logged-out"));
     }
   }, []);
@@ -214,47 +252,53 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [activeWorkspaceId, workspaces]);
 
   const effectiveRole = workspaceRole ?? user?.role ?? null;
+  const authBootstrapComplete = !loading && workspacesLoaded;
 
   useEffect(() => {
     if (!isInitialMount.current) return;
     isInitialMount.current = false;
 
+    // Hydrate user for UI, but keep loading=true until profile + memberships finish.
     const storedUser = loadUserFromStorage();
     if (storedUser) {
       setUser(storedUser);
-      setLoading(false);
     }
 
-    fetchProfile();
+    void fetchProfile();
   }, [loadUserFromStorage, fetchProfile]);
 
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (
-        e.key === "user" ||
-        e.key === "accessToken"
-      ) {
-        if (e.key === "user" || e.key === "accessToken") {
-          if (e.newValue) {
-            const storedUser = loadUserFromStorage();
-            if (storedUser) {
-              setUser(storedUser);
-              setLoading(false);
-            }
-          } else {
-            setUser(null);
-            setLoading(false);
-          }
-        }
+      if (e.key !== "user" && e.key !== "accessToken") return;
+      if (e.newValue) {
+        const storedUser = loadUserFromStorage();
+        if (storedUser) setUser(storedUser);
+        void fetchProfile();
+      } else {
+        setUser(null);
+        setWorkspaces([]);
+        setOrganizations([]);
+        setWorkspacesLoaded(true);
+        setLoading(false);
       }
     };
 
     const handleUserUpdated = (e: CustomEvent) => {
       const updatedUser = e.detail as User;
       setUser(updatedUser);
-      setLoading(false);
       localStorage.setItem("user", JSON.stringify(updatedUser));
-      void refreshWorkspaces();
+      setLoading(true);
+      setWorkspacesLoaded(false);
+      setBootstrapStatus("Loading organization details…");
+      void (async () => {
+        try {
+          await refreshWorkspaces();
+          setBootstrapStatus("Preparing your workspace…");
+        } finally {
+          setBootstrapStatus("Ready");
+          setLoading(false);
+        }
+      })();
     };
 
     const handleUserLoggedOut = () => {
@@ -263,6 +307,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setOrganizations([]);
       setWorkspacesLoaded(true);
       setActiveWorkspaceIdState(null);
+      setActiveOrganizationIdState(null);
       setLoading(false);
     };
 
@@ -275,12 +320,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       window.removeEventListener("auth:user-updated", handleUserUpdated as EventListener);
       window.removeEventListener("auth:user-logged-out", handleUserLoggedOut);
     };
-  }, [loadUserFromStorage, refreshWorkspaces]);
+  }, [loadUserFromStorage, fetchProfile, refreshWorkspaces]);
 
   useEffect(() => {
     const syncFromPath = () => {
       const tenant = getTenantFromPath(typeof window !== "undefined" ? window.location.pathname : "");
       setActiveOrganizationIdState(tenant.organizationId);
+      if (tenant.organizationId) writeLastOrganizationId(tenant.organizationId);
       setActiveWorkspaceIdState(tenant.workspaceId);
     };
     syncFromPath();
@@ -307,7 +353,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       activeOrganization?.name || activeWorkspace?.organization?.name || "Mortgage CRM";
     document.title = activeWorkspace ? `${activeWorkspace.name} · ${orgName}` : orgName;
 
-    const orgLogo = resolveOrganizationLogoUrl(activeOrganization, activeWorkspace);
+    const orgLogo =
+      resolveOrganizationLogoUrl(activeOrganization, activeWorkspace) ||
+      readCachedOrganizationLogoUrl(activeOrganizationId);
     let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
     if (!favicon) {
       favicon = document.createElement("link");
@@ -344,6 +392,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     workspaces,
     organizations,
     workspacesLoaded,
+    authBootstrapComplete,
+    bootstrapStatus,
     activeOrganizationId,
     activeWorkspaceId,
     setActiveOrganizationId,

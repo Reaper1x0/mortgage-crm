@@ -6,10 +6,11 @@ import { RiBuildingLine } from "react-icons/ri";
 import { FiCreditCard, FiGrid, FiUsers, FiShield } from "react-icons/fi";
 import { usePermissions } from "../../context/PermissionContext";
 import BillingAccessBanner from "../Reusable/BillingAccessBanner";
+import AppLoadingCard from "../Reusable/AppLoadingCard";
 
 export default function SettingsLayout() {
   const { organizationId } = useParams();
-  const { canOrg } = usePermissions();
+  const { canOrg, loading } = usePermissions();
   const base = organizationId ? `/${organizationId}/settings` : "/settings";
 
   const links: SidebarLink[] = useMemo(() => {
@@ -31,6 +32,21 @@ export default function SettingsLayout() {
     }
     return core;
   }, [base, canOrg]);
+
+  // Don't paint an empty sidebar while org permissions are still resolving.
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background text-text">
+        <Navbar />
+        <div className="pt-14">
+          <AppLoadingCard
+            variant="panel"
+            message="Loading organization access…"
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-text">

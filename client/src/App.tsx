@@ -43,6 +43,11 @@ import { useAuth } from "./context/AuthContext";
 import { PermissionProvider } from "./context/PermissionContext";
 import { BillingAccessProvider } from "./context/BillingAccessContext";
 import { buildOrganizationPath, buildWorkspacePath, getTenantFromPath } from "./utils/tenantRouting";
+import {
+  readLastOrganizationId,
+  resolveAppDestination,
+} from "./utils/resolveAppDestination";
+import AppLoadingCard from "./components/Reusable/AppLoadingCard";
 
 /** Keeps active org/workspace in AuthContext aligned with the URL. Workspace is cleared on org-only routes. */
 function SyncTenantFromUrl() {
@@ -65,12 +70,25 @@ function OrgDashboardRedirect() {
 }
 
 function LegacyWorkspaceRedirect() {
-  const { workspaces } = useAuth();
+  const { user, organizations, workspaces, authBootstrapComplete } = useAuth();
   const location = useLocation();
-  const first = workspaces[0];
-  const orgId = first?.organization?.organizationId;
-  const wsId = first?.workspaceId;
-  if (!orgId) return <Navigate to="/onboarding" replace />;
+
+  if (!authBootstrapComplete) {
+    return <AppLoadingCard message="Loading your session…" />;
+  }
+
+  if (!user) return <Navigate to="/" replace />;
+
+  const home = resolveAppDestination({
+    user,
+    organizations,
+    workspaces,
+    lastOrganizationId: readLastOrganizationId(),
+  });
+  const orgMatch = home.match(/^\/([a-f\d]{24})/i);
+  const orgId = orgMatch?.[1] ?? null;
+
+  if (!orgId) return <Navigate to={home} replace />;
   if (location.pathname.includes("/settings/organization")) {
     return <Navigate to={buildOrganizationPath(orgId, "settings/organization")} replace />;
   }
@@ -80,8 +98,7 @@ function LegacyWorkspaceRedirect() {
   if (location.pathname.includes("/settings/access")) {
     return <Navigate to={buildOrganizationPath(orgId, "settings/access")} replace />;
   }
-  if (wsId) return <Navigate to={buildWorkspacePath(orgId, wsId, "dashboard")} replace />;
-  return <Navigate to={buildOrganizationPath(orgId, "onboarding")} replace />;
+  return <Navigate to={home} replace />;
 }
 
 function ClientDocumentsRedirect() {
